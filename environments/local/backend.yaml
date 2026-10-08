@@ -6,22 +6,18 @@ telemetry:
   endpoint: "http://otel-collector.observability.svc.cluster.local:4318"
   environment: local
 image:
-  repository: "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app"
-  tag: "90de6cecbe4e140b4a5814a4c5018373b38b2359"
-  digest: "sha256:64e88a0c337c09811c2e0b11160a0d09edcb8b976823fd1ec95bcf255f56a487"
+  repository: "ghcr.io/syuhei0519/backend-app"
+  tag: "d29a390c09f8667316569e1bb599bf690b00313d"
+  digest: "sha256:3087ed474d2e5e6fee1518f0d063fedc9ed754e84a5d7d9defa1129ef43b605d"
 # schemaVersion=2は元buildと今回scanを分離する。recordSha256はrecord本文の外側に置く自己参照回避のchecksum。
 # SBOM checksumはファイルbytes、image digestはOCI manifestのhashで、異なる対象の識別子。
 release:
-  schemaVersion: "2"
-  sourceProjectId: "86247033"
-  sourceCommit: "90de6cecbe4e140b4a5814a4c5018373b38b2359"
-  pipelineId: null
-  pipelineUrl: null
-  buildPipelineId: "2918186353"
-  buildJobId: "16971512564"
-  scanPipelineId: "2918186353"
-  scanJobId: "16971512567"
-  recordUrl: "https://gitlab.com/api/v4/projects/86247033/packages/generic/core-platform-backend/sha256-64e88a0c337c09811c2e0b11160a0d09edcb8b976823fd1ec95bcf255f56a487/release-record-2918186353-16971512567.json"
-  recordSha256: "bb32349c064dfc451768dbed0a39abef479be6196758432aa1b6e4e5757549a9"
-  sbomUrl: "https://gitlab.com/api/v4/projects/86247033/packages/generic/core-platform-backend/sha256-64e88a0c337c09811c2e0b11160a0d09edcb8b976823fd1ec95bcf255f56a487/sbom-2918186353-16971512567.cdx.json"
-  sbomSha256: "c2043b23a02f16b3f910882f9717eccbcce906e737519ef3ddfecad9c3950e82"
+  schemaVersion: "github-v1"
+  sourceRepository: "syuhei0519/backend-app"
+  sourceCommit: "d29a390c09f8667316569e1bb599bf690b00313d"
+  runId: "37806373099"
+  runAttempt: "1"
+  recordUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-d29a390c09f8667316569e1bb599bf690b00313d-37806373099-1/release-record.json"
+  recordSha256: "dbea54fc2a4531790fbec5d47ca44b1ec079176376d294371652b1ba93e25cbd"
+  sbomUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-d29a390c09f8667316569e1bb599bf690b00313d-37806373099-1/sbom.cdx.json"
+  sbomSha256: "95d554e528a8297461160e3835435d4eda7f19c5cb9d83b63a76c71cda60f1af"
