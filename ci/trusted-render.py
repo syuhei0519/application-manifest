@@ -62,6 +62,12 @@ def sandbox(image, mounts, command, timeout=90, compiler=False):
     memory='1g' if compiler else '512m'
     tmp_size='512m' if compiler else '64m'
     args = ['docker', 'run', '--rm', '--name', name, '--network=none', '--read-only', '--cpus=2', '--memory='+memory, '--pids-limit=64', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--tmpfs=/tmp:rw,noexec,nosuid,size='+tmp_size, '--entrypoint=sh']
+    # Linux bind-mounted output belongs to the runner. With all capabilities
+    # dropped, container root cannot bypass its ownership. Use that same UID/GID
+    # for compilation and rendering; keep the Windows bind-mount behavior.
+    if hasattr(os, 'getuid'):
+        args += ['--user', str(os.getuid())+':'+str(os.getgid())]
+    args += ['--env', 'HOME=/tmp']
     for source,target,readonly in mounts:
         args += ['--mount', 'type=bind,source='+str(source)+',target='+target+(',readonly' if readonly else '')]
     args += [image, '-ec', command]
