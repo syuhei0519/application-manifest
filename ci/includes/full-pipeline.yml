@@ -1,0 +1,113 @@
+# 通常CIのjob定義。入口は.gitlab-ci.yml。既存のrules/needs/成果物契約を一括で維持する。
+include:
+  - local: ci/includes/security.yml
+
+trusted-boundary-test:
+  stage: test
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  script:
+    - python3 -I ci/trusted_identity_test.py -v
+    - python3 -I ci/trusted_contract_test.py -v
+    - python3 -I ci/trusted_registry_test.py -v
+    - python3 -I ci/pre_merge_check_test.py -v
+    - python3 -I ci/trusted_attempts_test.py -v
+    - python3 -I ci/namespace_boundary_test.py -v
+
+# Explicit protected-main web/API run. Ordinary MR code never receives this identity.
+# 明示web/API・保護main・MR番号を条件とするmanual入口。rulesは資格情報の権限制御そのものではない。
+# resource_groupは同project内の検証を直列化する。producerはrender入力/結果とjob identityをartifactへ結合する。
+trusted-render-producer:
+  stage: trusted
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  needs: [source-scan]
+  interruptible: false
+  timeout: 10 minutes
+  resource_group: trusted-manifest-verification
+  rules:
+    - if: '($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_REF_PROTECTED == "true" && $VERIFY_MR_IID =~ /^[1-9][0-9]*$/'
+      when: manual
+  script:
+    - python3 -I ci/trusted-producer.py
+  artifacts:
+    expire_in: 1 day
+    reports: {dotenv: .trusted/producer.env}
+    paths: [.trusted/render-binding.json, .trusted/render-binding.json.sha256, .trusted/producer.env]
+
+# producerと検証binaryのartifactを受け取り独立照合。保護変数はmanifest-verification scopeで配布する運用。
+# when:alwaysは成功reportまたは安全な失敗段階を保存する指定。非成功を許可するものではない。
+trusted-provenance-consumer:
+  stage: trusted
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  needs:
+    - job: trusted-render-producer
+      artifacts: true
+    - job: security-policy-test
+      artifacts: true
+  interruptible: false
+  timeout: 10 minutes
+  environment: {name: manifest-verification, action: prepare}
+  rules:
+    - if: '($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_REF_PROTECTED == "true" && $VERIFY_MR_IID =~ /^[1-9][0-9]*$/'
+  script:
+    - python3 -I ci/trusted-consumer.py
+  artifacts:
+    expire_in: 7 days
+    when: always
+    paths: [.trusted/phase0-verification.json, .trusted/consumer-failure.json]
+
+checksum-test-build:
+  stage: test
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  variables:
+    GOCACHE: /tmp/go-build
+    GOPATH: /tmp/go
+    CGO_ENABLED: "0"
+  script:
+    - mkdir -p .build
+    - cd tools/checksum
+    - go test -c -o ../../.build/checksum-test .
+    - cd ../inventory
+    - go test -v ./...
+  artifacts:
+    expire_in: 1 day
+    paths: [.build/checksum-test]
+
+config-checksum-test:
+  stage: render
+  image:
+    name: alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51
+    entrypoint: [""]
+  needs: [checksum-test-build]
+  script:
+    - cd tools/checksum
+    - ../../.build/checksum-test -test.v
+
+render-and-policy:
+  stage: render
+  image:
+    name: alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51
+    entrypoint: [""]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+  needs: [security-policy-test]
+  script:
+    - sh ci/validate.sh
+    - mkdir -p .security/public
+    - .security/scan-gate -check-render-only .rendered -out .security/public/pre-render.json
+  artifacts:
+    when: on_success
+    expire_in: 7 days
+    paths: [.rendered/]
+
+kubernetes-schema:
+  stage: schema
+  image:
+    name: ghcr.io/yannh/kubeconform:v0.7.0-alpine@sha256:8f0eeaaa96ba27ba1500b0e4b1c215acc358d159c62a7ecae58d7a03403287b0
+    entrypoint: [""]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+  needs: [render-and-policy]
+  script:
+    - /kubeconform -strict -summary -kubernetes-version 1.36.0 .rendered/all.yaml

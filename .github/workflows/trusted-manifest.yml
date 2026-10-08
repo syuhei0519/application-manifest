@@ -1,0 +1,51 @@
+name: Trusted manifest verification
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Same-repository PR number targeting main
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+concurrency:
+  group: trusted-manifest-verification
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main' && github.ref_protected
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: manifest-verification
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - name: Install pinned registry reader
+        run: |
+          mkdir -p .security/bin
+          GOBIN="$PWD/.security/bin" go install github.com/google/go-containerregistry/cmd/crane@v0.21.7
+          echo "$PWD/.security/bin" >> "$GITHUB_PATH"
+      - name: Verify PR data with protected-main code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_READ_TOKEN: ${{ secrets.EVIDENCE_READ_TOKEN }}
+          VERIFY_PR: ${{ inputs.pr }}
+          GITHUB_REF_PROTECTED: ${{ github.ref_protected }}
+        run: python3 -I ci/github/release.py verify
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: trusted-manifest-verification-${{ github.run_attempt }}
+          path: |
+            .trusted/github-render.json
+            .trusted/github-verification.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

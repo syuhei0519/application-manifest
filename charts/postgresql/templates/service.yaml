@@ -1,0 +1,13 @@
+{{/*
+backendが使うpostgresql Service名を提供する内部Service。
+呼出元はcharts/postgresql、接続設定はcharts/backend/templates/_helpers.tpl。
+*/}}apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: postgresql, app.kubernetes.io/instance: {{ .Release.Name }}}
+  ports: [{name: postgresql, port: 5432, targetPort: postgresql}]

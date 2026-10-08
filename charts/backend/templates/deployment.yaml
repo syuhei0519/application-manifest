@@ -1,0 +1,96 @@
+{{/*
+backendのDeployment生成。Argoがcharts/backendとenvironments/local/backend.yamlをHelmで展開する。
+image/release/設定からPodTemplateを作る。注釈はci/trusted_contract.pyのinventory照合対象。
+*/}}apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 300
+  strategy: {type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}
+  selector:
+    matchLabels: {app.kubernetes.io/name: backend, app.kubernetes.io/instance: {{ .Release.Name }}}
+{{/*
+PodTemplateは新Podの設計図。内容変更でDeploymentが新ReplicaSetを作り、RollingUpdateでPodを置き換える。
+既存Podの環境変数やimageがその場で書き換わるわけではない。
+*/}}  template:
+    metadata:
+      labels:
+        {{- include "backend.labels" . | nindent 8 }}
+      annotations:
+{{/*
+ConfigMapの生成bytesをhash化。設定変更をPodTemplateへ伝え、新ReplicaSet/Podへの反映を促す。
+Secretの実値checksumは含めない。Secret環境変数の更新はrestartNonce等によるPod置換が別途必要。
+*/}}        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        account.lab/image-digest: {{ .Values.image.digest | quote }}
+        {{- if eq (default "0" .Values.release.schemaVersion) "github-v1" }}
+        account.lab/release-schema-version: "github-v1"
+        account.lab/source-repository: {{ .Values.release.sourceRepository | quote }}
+        account.lab/source-commit: {{ .Values.release.sourceCommit | quote }}
+        account.lab/github-run-id: {{ .Values.release.runId | quote }}
+        account.lab/github-run-attempt: {{ .Values.release.runAttempt | quote }}
+        account.lab/release-record-url: {{ .Values.release.recordUrl | quote }}
+        account.lab/release-record-sha256: {{ .Values.release.recordSha256 | quote }}
+        account.lab/sbom-url: {{ .Values.release.sbomUrl | quote }}
+        account.lab/sbom-sha256: {{ .Values.release.sbomSha256 | quote }}
+        {{- else }}
+        account.lab/source-project-id: {{ .Values.release.sourceProjectId | quote }}
+        account.lab/source-commit: {{ .Values.release.sourceCommit | quote }}
+        {{- if eq (default "0" .Values.release.schemaVersion) "2" }}
+        account.lab/release-schema-version: "2"
+        account.lab/build-pipeline-id: {{ .Values.release.buildPipelineId | quote }}
+        account.lab/build-job-id: {{ .Values.release.buildJobId | quote }}
+        account.lab/scan-pipeline-id: {{ .Values.release.scanPipelineId | quote }}
+        account.lab/scan-job-id: {{ .Values.release.scanJobId | quote }}
+        account.lab/release-record-url: {{ .Values.release.recordUrl | quote }}
+        account.lab/release-record-sha256: {{ .Values.release.recordSha256 | quote }}
+        account.lab/sbom-url: {{ .Values.release.sbomUrl | quote }}
+        account.lab/sbom-sha256: {{ .Values.release.sbomSha256 | quote }}
+        {{- else }}
+        account.lab/pipeline-id: {{ .Values.release.pipelineId | quote }}
+        account.lab/pipeline-url: {{ .Values.release.pipelineUrl | quote }}
+        {{- end }}
+        {{- end }}
+{{/*
+運用者が明示変更してPodTemplateを変える再起動契機。Secret更新だけでは既存processの環境変数は更新されない。
+*/}}        account.lab/restart-nonce: {{ .Values.restartNonce | quote }}
+    spec:
+      serviceAccountName: backend
+      automountServiceAccountToken: false
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | nindent 8 }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}@{{ .Values.image.digest }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            {{- include "backend.env" . | nindent 12 }}
+          ports: [{name: http, containerPort: 8080}]
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+{{/*
+startup成功まではliveness/readiness判定を待つ。liveness失敗はコンテナ再起動、readiness失敗はService対象から除外。
+backendのreadyzはschemaも確認、frontendのreadyzはNginx応答だけでDBまでの疎通を保証しない。
+*/}}          startupProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+      volumes: [{name: tmp, emptyDir: {}}]

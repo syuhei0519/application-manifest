@@ -1,0 +1,129 @@
+# CI/運用検証の入口。.gitlab-ci.ymlが指定する固定入力と検証器を使用する。
+# 非成功終了は後続の検査を止める。成功してもcluster変更・merge権限を自動付与するものではない。
+security-policy-test:
+  stage: test
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  variables: {GOCACHE: /tmp/go-build, GOPATH: /tmp/go}
+  script:
+    - sh ci/test-docs-check.sh
+    - cd tools/scan-gate
+    - go test -v ./...
+    - mkdir -p ../../.security
+    - CGO_ENABLED=0 go build -trimpath -o ../../.security/scan-gate .
+    - cd ../release-record
+    - go test -v ./...
+    - CGO_ENABLED=0 go build -trimpath -o ../../.security/record-check ./cmd/record-check
+    - CGO_ENABLED=0 go build -trimpath -o ../../.security/package-read-contract ./cmd/package-read-contract
+    - CGO_ENABLED=0 go build -trimpath -o ../../.security/package-read-release ./cmd/package-read-release
+    - CGO_ENABLED=0 go build -trimpath -o ../../.security/consumer-scan ./cmd/consumer-scan
+    - cd ../..
+    - python3 -c 'import hashlib,json,os; from pathlib import Path; e=os.environ; p={"schemaVersion":1,"projectId":int(e["CI_PROJECT_ID"]),"pipelineId":int(e["CI_PIPELINE_ID"]),"jobId":int(e["CI_JOB_ID"]),"sourceCommit":e["CI_COMMIT_SHA"],"binarySha256":hashlib.sha256(Path(".security/consumer-scan").read_bytes()).hexdigest()}; Path(".security/consumer-scan-binding.json").write_text(json.dumps(p,sort_keys=True))'
+  artifacts:
+    expire_in: 1 day
+    paths: [.security/scan-gate, .security/record-check, .security/package-read-contract, .security/package-read-release, .security/consumer-scan, .security/consumer-scan-binding.json]
+
+# native writer/現scanの読取専用受入。提案や配備は行わない。
+phase2-scan-reader:
+  stage: trusted
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  needs:
+    - job: security-policy-test
+      artifacts: true
+    - job: source-scan
+      artifacts: false
+  environment: {name: manifest-verification, action: prepare}
+  interruptible: false
+  timeout: 5 minutes
+  rules:
+    - if: '$AT18_NATIVE_SCAN_READ == "true" && $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_PIPELINE_SOURCE == "api" && $VERIFY_MR_IID == null'
+  script:
+    - mkdir -p .security/public
+    - printf '%s' "$AT18_SCAN_SELECTION" | .security/consumer-scan current > .security/public/phase2-scan-reader.json
+  artifacts:
+    when: always
+    expire_in: 90 days
+    paths: [.security/public/phase2-scan-reader.json]
+
+# 保護mainの権限fixture。Phase2の採用を有効化しない。
+package-reader-contract:
+  stage: trusted
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  needs:
+    - job: security-policy-test
+      artifacts: true
+    - job: source-scan
+      artifacts: false
+  interruptible: false
+  resource_group: trusted-package-contract
+  rules:
+    - if: '$AT12_PACKAGE_READ == "true" && $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_REF_PROTECTED == "true" && ($CI_PIPELINE_SOURCE == "api" || $CI_PIPELINE_SOURCE == "web")'
+  script:
+    - printf '%s' "$AT12_PACKAGE_INPUT" | .security/package-read-contract
+  artifacts:
+    expire_in: 90 days
+    paths: [.security/public/package-reader-contract.json]
+
+# AT12の実schema2証跡。予約済みschema0 fixtureとは分けて保持する。
+package-release-reader:
+  stage: trusted
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  needs:
+    - job: security-policy-test
+      artifacts: true
+    - job: source-scan
+      artifacts: false
+  interruptible: false
+  resource_group: trusted-package-contract
+  timeout: 5 minutes
+  rules:
+    - if: '$AT17_RELEASE_READ == "true" && $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_PIPELINE_SOURCE == "api" && $VERIFY_MR_IID == null'
+  script:
+    - printf '%s' "$AT17_RELEASE_INPUT" | .security/package-read-release
+  artifacts:
+    when: always
+    expire_in: 90 days
+    paths: [.security/public/package-release-reader.json]
+
+source-scan:
+  stage: security
+  image:
+    name: aquasec/trivy:0.75.0@sha256:9db099105405c648166e6b94155eb32f8da12673cf1f455207f7385cc9a77283
+    entrypoint: [""]
+  needs:
+    - job: security-policy-test
+      artifacts: true
+    - job: render-and-policy
+      artifacts: true
+  variables: {SECURITY_RENDER_REQUIRED: "true"}
+  cache:
+    key: trivy-0.75.0-db-v2-$CI_COMMIT_REF_PROTECTED
+    paths: [.cache/trivy/db/]
+    policy: pull-push
+    unprotect: false
+  script: ["sh ci/source-scan.sh"]
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [.security/public/]
+
+# 安全なnative inspectionの読取。提案/registry書込/配備は行わない。
+phase2-inspected-reader:
+  stage: trusted
+  image: golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+  needs:
+    - job: security-policy-test
+      artifacts: true
+    - job: source-scan
+      artifacts: false
+  interruptible: false
+  environment: {name: manifest-verification, action: prepare}
+  rules:
+    - if: '$AT18_INSPECTION_READ == "true" && $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_REF_PROTECTED == "true" && $CI_PIPELINE_SOURCE == "api" && $VERIFY_MR_IID == null'
+  script:
+    - mkdir -p .security/public
+    - 'case "$AT18_INSPECTION_MODE" in current-inspected|rollback-inspected) ;; *) exit 1;; esac'
+    - printf '%s' "$AT18_SCAN_SELECTION" | .security/consumer-scan "$AT18_INSPECTION_MODE" > .security/public/phase2-inspected-reader.json
+  artifacts:
+    when: always
+    expire_in: 90 days
+    paths: [.security/public/phase2-inspected-reader.json]

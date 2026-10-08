@@ -1,0 +1,27 @@
+# local配備のbackend values。platform-gitops/charts/workloads/templates/applications.yamlのArgo Applicationが読む。
+# source/build/scan/digestとrecord/SBOMのURL/checksumを同一commitで選択する。
+# この固定配備版は現在アプリmainと同一とは限らない。注釈は由来の記録であり、現在のscan有効期限を延長しない。
+telemetry:
+  enabled: true
+  endpoint: "http://otel-collector.observability.svc.cluster.local:4318"
+  environment: local
+image:
+  repository: "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app"
+  tag: "90de6cecbe4e140b4a5814a4c5018373b38b2359"
+  digest: "sha256:64e88a0c337c09811c2e0b11160a0d09edcb8b976823fd1ec95bcf255f56a487"
+# schemaVersion=2は元buildと今回scanを分離する。recordSha256はrecord本文の外側に置く自己参照回避のchecksum。
+# SBOM checksumはファイルbytes、image digestはOCI manifestのhashで、異なる対象の識別子。
+release:
+  schemaVersion: "2"
+  sourceProjectId: "86247033"
+  sourceCommit: "90de6cecbe4e140b4a5814a4c5018373b38b2359"
+  pipelineId: null
+  pipelineUrl: null
+  buildPipelineId: "2918186353"
+  buildJobId: "16971512564"
+  scanPipelineId: "2918186353"
+  scanJobId: "16971512567"
+  recordUrl: "https://gitlab.com/api/v4/projects/86247033/packages/generic/core-platform-backend/sha256-64e88a0c337c09811c2e0b11160a0d09edcb8b976823fd1ec95bcf255f56a487/release-record-2918186353-16971512567.json"
+  recordSha256: "bb32349c064dfc451768dbed0a39abef479be6196758432aa1b6e4e5757549a9"
+  sbomUrl: "https://gitlab.com/api/v4/projects/86247033/packages/generic/core-platform-backend/sha256-64e88a0c337c09811c2e0b11160a0d09edcb8b976823fd1ec95bcf255f56a487/sbom-2918186353-16971512567.cdx.json"
+  sbomSha256: "c2043b23a02f16b3f910882f9717eccbcce906e737519ef3ddfecad9c3950e82"

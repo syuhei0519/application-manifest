@@ -1,0 +1,73 @@
+{
+  "entries": [
+    {
+      "containerName": "backend",
+      "containerType": "containers",
+      "digest": "sha256:017807ce6b6555fe47a2bf6eec1d4be7f424ce456a7988e7092dae24fca8a944",
+      "kind": "Deployment",
+      "name": "backend",
+      "namespace": "account",
+      "podSpecPath": "spec.template.spec",
+      "release": {
+        "account.lab/image-digest": "sha256:017807ce6b6555fe47a2bf6eec1d4be7f424ce456a7988e7092dae24fca8a944",
+        "account.lab/pipeline-id": "2833434816",
+        "account.lab/pipeline-url": "https://gitlab.com/syuhei-platform-engineering-lab/backend-app/-/pipelines/2833434816",
+        "account.lab/source-commit": "86f30d2f0dcfde4341bc468cde4536bd4bbec983",
+        "account.lab/source-project-id": "86247033"
+      },
+      "repository": "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app",
+      "tag": "86f30d2f0dcfde4341bc468cde4536bd4bbec983"
+    },
+    {
+      "containerName": "frontend",
+      "containerType": "containers",
+      "digest": "sha256:cbd490891b1129167cc65366fd559a5a2405e54d1606ed4c2ce53b3328852cbd",
+      "kind": "Deployment",
+      "name": "frontend",
+      "namespace": "account",
+      "podSpecPath": "spec.template.spec",
+      "release": {
+        "account.lab/image-digest": "sha256:cbd490891b1129167cc65366fd559a5a2405e54d1606ed4c2ce53b3328852cbd",
+        "account.lab/pipeline-id": "2833710532",
+        "account.lab/pipeline-url": "https://gitlab.com/syuhei-platform-engineering-lab/frontend-app/-/pipelines/2833710532",
+        "account.lab/source-commit": "00318cc4646728cb47597e99fb8227433806595b",
+        "account.lab/source-project-id": "86247025"
+      },
+      "repository": "registry.gitlab.com/syuhei-platform-engineering-lab/frontend-app",
+      "tag": "00318cc4646728cb47597e99fb8227433806595b"
+    },
+    {
+      "containerName": "migrate",
+      "containerType": "containers",
+      "digest": "sha256:017807ce6b6555fe47a2bf6eec1d4be7f424ce456a7988e7092dae24fca8a944",
+      "kind": "Job",
+      "name": "backend-migration",
+      "namespace": "account",
+      "podSpecPath": "spec.template.spec",
+      "release": {
+        "account.lab/image-digest": "sha256:017807ce6b6555fe47a2bf6eec1d4be7f424ce456a7988e7092dae24fca8a944",
+        "account.lab/pipeline-id": "2833434816",
+        "account.lab/pipeline-url": "https://gitlab.com/syuhei-platform-engineering-lab/backend-app/-/pipelines/2833434816",
+        "account.lab/source-commit": "86f30d2f0dcfde4341bc468cde4536bd4bbec983",
+        "account.lab/source-project-id": "86247033"
+      },
+      "repository": "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app",
+      "tag": "86f30d2f0dcfde4341bc468cde4536bd4bbec983"
+    },
+    {
+      "containerName": "postgresql",
+      "containerType": "containers",
+      "digest": "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f",
+      "kind": "StatefulSet",
+      "name": "postgresql",
+      "namespace": "account",
+      "podSpecPath": "spec.template.spec",
+      "release": {},
+      "repository": "docker.io/library/postgres",
+      "tag": "17.10-bookworm"
+    }
+  ],
+  "inventorySha256": "ee03614b2f2f437ec44bee00897859c1013a94636ec2c381bebb8ec904e12ce8",
+  "renderSha256": "fa0627ab60a1f9c9dc99c56e4c22da555a21295b53f745f069923d7f5e92737b",
+  "schema": "core-platform/image-inventory/v1"
+}

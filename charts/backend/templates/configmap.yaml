@@ -1,0 +1,19 @@
+{{/*
+backendの非秘密設定をConfigMapとして生成。environments/local/backend.yamlがvaluesを上書きする。
+Deploymentのchecksum/configがこの出力へ結び付くため、ここは出力されないHelmコメントだけで説明する。
+*/}}apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  annotations: {argocd.argoproj.io/sync-wave: "-20"}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+data:
+  db-host: {{ .Values.config.dbHost | quote }}
+  db-port: {{ .Values.config.dbPort | quote }}
+  db-name: {{ .Values.config.dbName | quote }}
+  sslmode: {{ .Values.config.sslmode | quote }}
+  log-level: {{ .Values.config.logLevel | quote }}
+  telemetry-enabled: {{ .Values.telemetry.enabled | quote }}
+  telemetry-endpoint: {{ .Values.telemetry.endpoint | quote }}
+  telemetry-environment: {{ .Values.telemetry.environment | quote }}

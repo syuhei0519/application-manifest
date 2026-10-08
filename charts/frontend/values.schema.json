@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "replicaCount",
+    "image",
+    "imagePullSecrets",
+    "release",
+    "serviceAccount",
+    "service",
+    "config",
+    "resources",
+    "podSecurityContext",
+    "securityContext",
+    "probes",
+    "restartNonce"
+  ],
+  "properties": {
+    "replicaCount": {
+      "const": 1
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "tag",
+        "digest",
+        "pullPolicy"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "pullPolicy": {
+          "const": "IfNotPresent"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "const": [
+        {
+          "name": "registry-frontend-pull"
+        }
+      ]
+    },
+    "release": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sourceProjectId",
+            "sourceCommit",
+            "pipelineId",
+            "pipelineUrl"
+          ],
+          "properties": {
+            "sourceProjectId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "sourceCommit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "pipelineId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "pipelineUrl": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "schemaVersion",
+            "sourceProjectId",
+            "sourceCommit",
+            "buildPipelineId",
+            "buildJobId",
+            "scanPipelineId",
+            "scanJobId",
+            "recordUrl",
+            "recordSha256",
+            "sbomUrl",
+            "sbomSha256"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": "2"
+            },
+            "sourceCommit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "recordSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "buildJobId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "recordUrl": {
+              "format": "uri",
+              "type": "string"
+            },
+            "buildPipelineId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "sbomSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "scanJobId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "sbomUrl": {
+              "format": "uri",
+              "type": "string"
+            },
+            "sourceProjectId": {
+              "const": "86247025"
+            },
+            "scanPipelineId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "pipelineId": {
+              "type": "null"
+            },
+            "pipelineUrl": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schemaVersion",
+            "sourceRepository",
+            "sourceCommit",
+            "runId",
+            "runAttempt",
+            "recordUrl",
+            "sbomUrl",
+            "recordSha256",
+            "sbomSha256"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": "github-v1"
+            },
+            "sourceRepository": {
+              "const": "syuhei0519/frontend-app"
+            },
+            "sourceCommit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "runId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "runAttempt": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "recordUrl": {
+              "type": "string",
+              "pattern": "^https://github\\.com/syuhei0519/frontend-app/releases/download/gha-[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*/release-record\\.json$"
+            },
+            "sbomUrl": {
+              "type": "string",
+              "pattern": "^https://github\\.com/syuhei0519/frontend-app/releases/download/gha-[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*/sbom\\.cdx\\.json$"
+            },
+            "recordSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "sbomSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "serviceAccount": {
+      "type": "object"
+    },
+    "service": {
+      "type": "object"
+    },
+    "config": {
+      "type": "object"
+    },
+    "resources": {
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "securityContext": {
+      "type": "object"
+    },
+    "probes": {
+      "type": "object"
+    },
+    "restartNonce": {
+      "type": "string"
+    }
+  }
+}

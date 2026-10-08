@@ -1,0 +1,4 @@
+# local PostgreSQL values。platform-gitopsのworkloads Applicationから使用する。
+# DBデータの永続化とSecret参照を定め、実資格情報はGit外で管理する。
+# Local uses the pinned upstream image and storage contract from chart defaults.
+replicaCount: 1

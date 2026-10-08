@@ -1,0 +1,28 @@
+{{/*
+frontendの非秘密設定をConfigMapとして生成。environments/local/frontend.yamlがvaluesを上書きする。
+Deploymentのchecksum/configがこの出力へ結び付くため、ここは出力されないHelmコメントだけで説明する。
+*/}}apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  labels:
+    {{- include "frontend.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      root /usr/share/nginx/html;
+      client_body_temp_path /tmp/client;
+      proxy_temp_path /tmp/proxy;
+      location = /livez { access_log off; return 200 'ok\n'; }
+      location = /readyz { access_log off; return 200 'ok\n'; }
+      location {{ .Values.config.apiBasePath }}/ {
+        proxy_pass {{ .Values.config.apiUpstream }};
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_intercept_errors off;
+      }
+      location / { try_files $uri $uri/ /index.html; }
+    }

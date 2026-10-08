@@ -1,0 +1,82 @@
+{{/*
+PostgreSQL StatefulSet。charts/postgresql/values.yamlとenvironments/local/postgresql.yamlから生成する。
+固定PVCを再利用し、Secret volumeから管理/app資格情報を参照する。backendのschema移行は別Job。
+*/}}apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+spec:
+  serviceName: postgresql-headless
+  replicas: 1
+  updateStrategy: {type: RollingUpdate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: postgresql, app.kubernetes.io/instance: {{ .Release.Name }}}
+  template:
+    metadata:
+      labels:
+        {{- include "postgresql.labels" . | nindent 8 }}
+      annotations:
+{{/*
+初期化ConfigMap変更をPodTemplateへ伝える。既存PGDATAではinit scriptを再適用しないため、role rotation完了とは別。
+*/}}        checksum/init: {{ include (print $.Template.BasePath "/init-configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: postgresql
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: postgresql
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}@{{ .Values.image.digest }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              umask 077
+              printf '%s:%s:%s:%s:%s\n' '*' '*' '{{ .Values.config.dbName }}' "$(cat /run/account-db/app-username)" "$(cat /run/account-db/app-password)" > /tmp/pgpass
+              exec docker-entrypoint.sh postgres -c max_connections={{ .Values.config.maxConnections }} -c shared_buffers={{ .Values.config.sharedBuffers }}
+          env:
+            - {name: POSTGRES_USER, value: postgres}
+            - {name: POSTGRES_DB, value: postgres}
+            - {name: POSTGRES_PASSWORD_FILE, value: /run/account-db/admin-password}
+            - {name: PGDATA, value: {{ .Values.config.pgData }}}
+            - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+            - {name: PGPASSFILE, value: /tmp/pgpass}
+          ports: [{name: postgresql, containerPort: 5432}]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: run, mountPath: /var/run/postgresql}
+            - {name: tmp, mountPath: /tmp}
+            - {name: init, mountPath: /docker-entrypoint-initdb.d}
+            - {name: account-db, mountPath: /run/account-db, readOnly: true}
+          startupProbe:
+            exec: {command: ["/bin/sh", "-ec", "pg_isready -U postgres -d postgres"]}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          livenessProbe:
+            exec: {command: ["/bin/sh", "-ec", "pg_isready -U postgres -d postgres"]}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+{{/*
+TCP経由でapp roleのSELECT 1を確認する。pg_isreadyのプロセス応答だけと区別する。
+Secret更新だけで既存DB roleのpasswordは変わらず、DB側rotationとpgpass/Pod反映の両方が必要。
+*/}}          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "PGUSER=$(cat /run/account-db/app-username) psql -h $POD_IP -d {{ .Values.config.dbName }} -tAc 'SELECT 1' | grep -qx 1"]
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+      volumes:
+        - {name: data, persistentVolumeClaim: {claimName: postgresql-data}}
+        - {name: run, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}
+        - {name: init, configMap: {name: postgresql-init, defaultMode: 365}}
+        - name: account-db
+          secret: {secretName: {{ .Values.secrets.existingSecret }}, defaultMode: 288}

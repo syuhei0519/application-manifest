@@ -1,0 +1,25 @@
+# backend Chartの既定値。environments/local/backend.yamlを上書きに使う。
+# 実際に反映される項目はtemplatesの.Values参照で決まる。
+# 現templates/deployment.yamlのreplicasは1で固定され、このreplicaCountは参照されていない。
+replicaCount: 1
+image: {repository: "", tag: "", digest: "", pullPolicy: IfNotPresent}
+imagePullSecrets: [{name: registry-backend-pull}]
+release: {sourceCommit: ""}
+serviceAccount: {name: backend, automountServiceAccountToken: false}
+service: {type: ClusterIP, port: 8080}
+config: {dbHost: postgresql, dbPort: 5432, dbName: account, sslmode: disable, logLevel: info}
+secrets: {existingSecret: account-db, usernameKey: app-username, passwordKey: app-password}
+resources:
+  requests: {cpu: 100m, memory: 64Mi}
+  limits: {cpu: 500m, memory: 256Mi}
+podSecurityContext: {runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+# 現backend Deploymentのprobe値はtemplateに直書きされ、このprobes mapを変更しても反映されない。
+probes:
+  startup: {path: /livez, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 30}
+  liveness: {path: /livez, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3}
+  readiness: {path: /readyz, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 2}
+# activeDeadlineSeconds/backoffLimitはJobへ反映。waitTimeout=120は現template/Goから使われず、Go全体期限は170秒。
+migration: {activeDeadlineSeconds: 180, waitTimeout: 120, backoffLimit: 1}
+restartNonce: ""
+telemetry: {enabled: false, endpoint: "http://otel-collector.observability.svc.cluster.local:4318", environment: local}

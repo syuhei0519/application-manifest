@@ -1,0 +1,423 @@
+{
+  "sourceSecretBefore": "NAME         UID                                    RV\r\naccount-db   bb262838-d29d-4508-bc73-0c22b40944a3   28654\r\n",
+  "mergeProofs": [
+    {
+      "pipeline": 2905500575,
+      "postTree": "c105fdd72dceca6ea44fd6a821516f14d24acf12",
+      "treeMatched": true,
+      "sourceCasNegativeStatus": 409,
+      "producer": 16887333933,
+      "utc": "2026-10-02T05:39:36.0952854Z",
+      "consumer": 16887333934,
+      "mergeCommit": "46b222d8bfd4850bb35728cf1d1fa2605fcf7786",
+      "postTreePending": false,
+      "mr": 31,
+      "candidateTree": "c105fdd72dceca6ea44fd6a821516f14d24acf12",
+      "before": {
+        "manifestMainSha": "d782ff546f3bbd1efb22d0846f9be0d36b982b71",
+        "checkedAt": "2026-10-02T05:39:31.8951736Z",
+        "targetBranch": "main",
+        "mrSourceSha": "c23d9ac7a0285c8691ed14c82febec3f201f978f",
+        "mrIid": 31,
+        "targetProtected": true,
+        "sourceProject": 86247034,
+        "sourceMains": {
+          "86247025": "6c2b429340f91caa8cac84a4b0476468b7316693",
+          "86247033": "5a21bf5ebf4ea1ee0f54c53cce1bdd87814adbfd"
+        },
+        "appMainsProtected": true,
+        "targetProject": 86247034,
+        "mrState": "opened"
+      },
+      "immediate": {
+        "manifestMainSha": "d782ff546f3bbd1efb22d0846f9be0d36b982b71",
+        "checkedAt": "2026-10-02T05:39:34.1918467Z",
+        "targetBranch": "main",
+        "mrSourceSha": "c23d9ac7a0285c8691ed14c82febec3f201f978f",
+        "mrIid": 31,
+        "targetProtected": true,
+        "sourceProject": 86247034,
+        "sourceMains": {
+          "86247025": "6c2b429340f91caa8cac84a4b0476468b7316693",
+          "86247033": "5a21bf5ebf4ea1ee0f54c53cce1bdd87814adbfd"
+        },
+        "appMainsProtected": true,
+        "targetProject": 86247034,
+        "mrState": "opened"
+      }
+    },
+    {
+      "pipeline": 2905509277,
+      "postTree": "6f9bcb49305a5e51998c28a2fc2996f1594fb666",
+      "treeMatched": true,
+      "sourceCasNegativeStatus": 409,
+      "producer": 16887392124,
+      "utc": "2026-10-02T05:45:13.9524273Z",
+      "consumer": 16887392125,
+      "mergeCommit": "74aba23d3cb038d40284b35ec9dea72fe1129a6d",
+      "postTreePending": false,
+      "mr": 34,
+      "candidateTree": "6f9bcb49305a5e51998c28a2fc2996f1594fb666",
+      "before": {
+        "manifestMainSha": "46b222d8bfd4850bb35728cf1d1fa2605fcf7786",
+        "checkedAt": "2026-10-02T05:45:09.6370877Z",
+        "targetBranch": "main",
+        "mrSourceSha": "b8446a7a55176d77c02c2311a14c38f11c22227e",
+        "mrIid": 34,
+        "targetProtected": true,
+        "sourceProject": 86247034,
+        "sourceMains": {
+          "86247025": "6c2b429340f91caa8cac84a4b0476468b7316693",
+          "86247033": "5a21bf5ebf4ea1ee0f54c53cce1bdd87814adbfd"
+        },
+        "appMainsProtected": true,
+        "targetProject": 86247034,
+        "mrState": "opened"
+      },
+      "immediate": {
+        "manifestMainSha": "46b222d8bfd4850bb35728cf1d1fa2605fcf7786",
+        "checkedAt": "2026-10-02T05:45:12.1193356Z",
+        "targetBranch": "main",
+        "mrSourceSha": "b8446a7a55176d77c02c2311a14c38f11c22227e",
+        "mrIid": 34,
+        "targetProtected": true,
+        "sourceProject": 86247034,
+        "sourceMains": {
+          "86247025": "6c2b429340f91caa8cac84a4b0476468b7316693",
+          "86247033": "5a21bf5ebf4ea1ee0f54c53cce1bdd87814adbfd"
+        },
+        "appMainsProtected": true,
+        "targetProject": 86247034,
+        "mrState": "opened"
+      }
+    },
+    {
+      "pipeline": 2905518540,
+      "postTree": "c105fdd72dceca6ea44fd6a821516f14d24acf12",
+      "treeMatched": true,
+      "sourceCasNegativeStatus": 409,
+      "producer": 16887455606,
+      "utc": "2026-10-02T05:51:10.6604631Z",
+      "consumer": 16887455607,
+      "mergeCommit": "751c3f3bd74d9a06b9d38b439c9748b8ea950c76",
+      "postTreePending": false,
+      "mr": 35,
+      "candidateTree": "c105fdd72dceca6ea44fd6a821516f14d24acf12",
+      "before": {
+        "manifestMainSha": "74aba23d3cb038d40284b35ec9dea72fe1129a6d",
+        "checkedAt": "2026-10-02T05:51:05.8222241Z",
+        "targetBranch": "main",
+        "mrSourceSha": "3994c055e64c48e0ef90d9bbcd53e401164dfe1f",
+        "mrIid": 35,
+        "targetProtected": true,
+        "sourceProject": 86247034,
+        "sourceMains": {
+          "86247025": "6c2b429340f91caa8cac84a4b0476468b7316693",
+          "86247033": "5a21bf5ebf4ea1ee0f54c53cce1bdd87814adbfd"
+        },
+        "appMainsProtected": true,
+        "targetProject": 86247034,
+        "mrState": "opened"
+      },
+      "immediate": {
+        "manifestMainSha": "74aba23d3cb038d40284b35ec9dea72fe1129a6d",
+        "checkedAt": "2026-10-02T05:51:08.3989698Z",
+        "targetBranch": "main",
+        "mrSourceSha": "3994c055e64c48e0ef90d9bbcd53e401164dfe1f",
+        "mrIid": 35,
+        "targetProtected": true,
+        "sourceProject": 86247034,
+        "sourceMains": {
+          "86247025": "6c2b429340f91caa8cac84a4b0476468b7316693",
+          "86247033": "5a21bf5ebf4ea1ee0f54c53cce1bdd87814adbfd"
+        },
+        "appMainsProtected": true,
+        "targetProject": 86247034,
+        "mrState": "opened"
+      }
+    }
+  ],
+  "rotatedCrud": [
+    {
+      "utc": "2026-10-02T05:46:54.5457904Z",
+      "method": "GET",
+      "path": "/",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:46:54.5645425Z",
+      "method": "GET",
+      "path": "/api/accounts",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:46:54.5808532Z",
+      "method": "POST",
+      "path": "/api/accounts",
+      "expected": 201,
+      "status": 201
+    },
+    {
+      "utc": "2026-10-02T05:46:54.5907011Z",
+      "method": "GET",
+      "path": "/api/accounts/8",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:46:54.6020894Z",
+      "method": "PUT",
+      "path": "/api/accounts/8",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:46:54.6118282Z",
+      "method": "DELETE",
+      "path": "/api/accounts/8",
+      "expected": 204,
+      "status": 204
+    },
+    {
+      "utc": "2026-10-02T05:46:54.6191667Z",
+      "method": "GET",
+      "path": "/api/accounts/8",
+      "expected": 404,
+      "status": 404
+    }
+  ],
+  "restoredCrud": [
+    {
+      "utc": "2026-10-02T05:54:10.87185Z",
+      "method": "GET",
+      "path": "/",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:54:10.8871948Z",
+      "method": "GET",
+      "path": "/api/accounts",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:54:11.0473922Z",
+      "method": "POST",
+      "path": "/api/accounts",
+      "expected": 201,
+      "status": 201
+    },
+    {
+      "utc": "2026-10-02T05:54:11.0603162Z",
+      "method": "GET",
+      "path": "/api/accounts/9",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:54:11.0720145Z",
+      "method": "PUT",
+      "path": "/api/accounts/9",
+      "expected": 200,
+      "status": 200
+    },
+    {
+      "utc": "2026-10-02T05:54:11.0833542Z",
+      "method": "DELETE",
+      "path": "/api/accounts/9",
+      "expected": 204,
+      "status": 204
+    },
+    {
+      "utc": "2026-10-02T05:54:11.0904313Z",
+      "method": "GET",
+      "path": "/api/accounts/9",
+      "expected": 404,
+      "status": 404
+    }
+  ],
+  "rotatedAuth": {
+    "stage": "rotated-auth",
+    "context": "kind-core-platform-at0102",
+    "proof": {
+      "metadata": {
+        "pvcUid": "417040f6-71d0-4ea3-a6f8-0618ffdaaffb",
+        "podIP": "10.244.0.44",
+        "secretResourceVersion": "72056",
+        "ready": true,
+        "podUid": "069ac40f-81f4-48e0-b9b5-f72f79939ca0"
+      },
+      "oldAdminAccepted": false,
+      "newAppAccepted": true,
+      "oldAppAccepted": false,
+      "newAdminAccepted": true
+    },
+    "secretsRecorded": false,
+    "utc": "2026-10-02T05:43:23.7894558Z"
+  },
+  "hba": "local|{all}|{all}||trust\nhost|{all}|{all}|127.0.0.1|trust\nhost|{all}|{all}|::1|trust\nlocal|{replication}|{all}||trust\nhost|{replication}|{all}|127.0.0.1|trust\nhost|{replication}|{all}|::1|trust\nhost|{all}|{all}|all|scram-sha-256\n\r\n",
+  "baseline": {
+    "stage": "baseline",
+    "context": "kind-core-platform-at0102",
+    "proof": {
+      "pvcUid": "417040f6-71d0-4ea3-a6f8-0618ffdaaffb",
+      "podIP": "10.244.0.43",
+      "secretResourceVersion": "539",
+      "ready": true,
+      "podUid": "005fd5f3-6e78-4a0f-8f63-018c568a3fa7"
+    },
+    "secretsRecorded": false,
+    "utc": "2026-10-02T05:41:13.8792385Z"
+  },
+  "sourceSecretAfter": "NAME         UID                                    RV\r\naccount-db   bb262838-d29d-4508-bc73-0c22b40944a3   28654\r\n",
+  "restoredAuth": {
+    "stage": "restored-auth",
+    "context": "kind-core-platform-at0102",
+    "proof": {
+      "metadata": {
+        "pvcUid": "417040f6-71d0-4ea3-a6f8-0618ffdaaffb",
+        "podIP": "10.244.0.47",
+        "secretResourceVersion": "72707",
+        "ready": true,
+        "podUid": "3825e0e3-3725-44e9-a142-2a04dd807d88"
+      },
+      "rotatedAppAccepted": false,
+      "originalAppAccepted": true,
+      "rotatedAdminAccepted": false,
+      "originalAdminAccepted": true
+    },
+    "secretsRecorded": false,
+    "utc": "2026-10-02T05:48:52.6556Z"
+  },
+  "secretsRecorded": false,
+  "rotatedBackend": {
+    "activeReplicaSets": [
+      {
+        "uid": "0bdb16dc-4d3f-4bd3-aa61-ea127982c7b4",
+        "ready": 1,
+        "replicas": 1,
+        "name": "backend-5985dcc866",
+        "revision": "5"
+      }
+    ],
+    "revision": "5",
+    "image": "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app:7e38def8118ecc5101c5054e64f3eff98dfc819e@sha256:a0afd2d49a106c7769932a462b2ae239b5aad02eba6c4ec5256eb8def847c39d",
+    "application": {
+      "sync": "Synced",
+      "revision": "74aba23d3cb038d40284b35ec9dea72fe1129a6d",
+      "operation": "Succeeded",
+      "health": "Healthy"
+    },
+    "checksum": "292a4c89ef5d461bd2f7a4bbc0966b8bc8461c785bb0fca687abc9b4a93d5911",
+    "pods": [
+      {
+        "uid": "03994ac4-f23d-4452-b0bb-e560ff9b7c09",
+        "imageIDs": [
+          "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app@sha256:a0afd2d49a106c7769932a462b2ae239b5aad02eba6c4ec5256eb8def847c39d"
+        ],
+        "phase": "Running",
+        "ready": [
+          true
+        ],
+        "name": "backend-5985dcc866-t6snm"
+      },
+      {
+        "uid": "b253a46b-9e63-4d8e-8061-20ee21aec783",
+        "imageIDs": [
+          "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app@sha256:a0afd2d49a106c7769932a462b2ae239b5aad02eba6c4ec5256eb8def847c39d"
+        ],
+        "phase": "Succeeded",
+        "ready": [
+          false
+        ],
+        "name": "backend-5cb9d654f-c7w5p"
+      }
+    ],
+    "name": "backend",
+    "context": "kind-core-platform-at0102",
+    "restartNonce": "pe006-rotation-20261002T054053Z",
+    "generation": 5,
+    "utc": "2026-10-02T05:46:54.3725213Z",
+    "servicePorts": [
+      {
+        "name": "http",
+        "port": 8080,
+        "protocol": "TCP",
+        "targetPort": "http"
+      }
+    ],
+    "templateSha256": "7739354fa9b809b2737e6bffa753ed3796d6b8f91eb7a4d82591cda79c99be0a",
+    "deploymentUid": "08923b04-4c21-47f4-8bb5-4c8cb71862b3"
+  },
+  "restoredBackend": {
+    "activeReplicaSets": [
+      {
+        "uid": "762ccb45-1167-4e33-acad-20ddc4c3bb8d",
+        "ready": 1,
+        "revision": "6",
+        "replicas": 1,
+        "name": "backend-5cb9d654f"
+      }
+    ],
+    "application": {
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "751c3f3bd74d9a06b9d38b439c9748b8ea950c76",
+      "operation": "Succeeded"
+    },
+    "utc": "2026-10-02T05:54:10.7162146Z",
+    "context": "kind-core-platform-at0102",
+    "generation": 6,
+    "checksum": "292a4c89ef5d461bd2f7a4bbc0966b8bc8461c785bb0fca687abc9b4a93d5911",
+    "revision": "6",
+    "image": "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app:7e38def8118ecc5101c5054e64f3eff98dfc819e@sha256:a0afd2d49a106c7769932a462b2ae239b5aad02eba6c4ec5256eb8def847c39d",
+    "servicePorts": [
+      {
+        "name": "http",
+        "port": 8080,
+        "protocol": "TCP",
+        "targetPort": "http"
+      }
+    ],
+    "templateSha256": "847ba93f6e1791e30be3cdb6efb8a66581e6e2f8b4e859ee599569b1267a9f61",
+    "name": "backend",
+    "deploymentUid": "08923b04-4c21-47f4-8bb5-4c8cb71862b3",
+    "pods": [
+      {
+        "uid": "48d78096-6dad-42af-ac7d-0f5f097caf58",
+        "phase": "Running",
+        "imageIDs": [
+          "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app@sha256:a0afd2d49a106c7769932a462b2ae239b5aad02eba6c4ec5256eb8def847c39d"
+        ],
+        "ready": [
+          true
+        ],
+        "name": "backend-5cb9d654f-6bvsc"
+      }
+    ],
+    "restartNonce": "2026-09-10T00:30:18Z"
+  },
+  "authenticatedProbe": {
+    "ready": true,
+    "probe": [
+      "/bin/sh",
+      "-ec",
+      "PGUSER=$(cat /run/account-db/app-username) psql -h $POD_IP -d account -tAc 'SELECT 1' | grep -qx 1"
+    ],
+    "podIpEnv": [
+      {
+        "name": "POD_IP",
+        "valueFrom": {
+          "fieldRef": {
+            "apiVersion": "v1",
+            "fieldPath": "status.podIP"
+          }
+        }
+      }
+    ],
+    "uid": "005fd5f3-6e78-4a0f-8f63-018c568a3fa7"
+  }
+}

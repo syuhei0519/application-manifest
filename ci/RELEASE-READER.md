@@ -1,0 +1,7 @@
+# 実証跡のread-only受入
+
+保護mainのAPI試験だけで `AT17_RELEASE_READ=true` を指定し、`AT17_RELEASE_INPUT` に固定service/digest/scan pipeline/jobと外部record URL/SHA-256の配列を渡す。旧Cのschema0能力fixtureと別のjobで実schema2記録を読み、同runのscan/SBOMを固定URL/checksumで照合する。失敗記録はSBOM nullのまま2ファイルとして取得できる。
+
+これはAT-12の読み取り権限・byte/run対応の試験であり、Phase2配備許可ではない。historical/failed記録も証跡として取得する。scannerの全SBOM検証、Source job API照合、DB採用鮮度、最新失敗への旧成功fallback禁止はそれぞれのwriter/配備gateが担当する。
+
+同manifest jobの新規ファイル名と予約済み非release digestでSourceへのPUTを実試行し、HTTP403だけを権限拒否として受け入れる。実imageのファイルや過去記録へPUTしない。認証・拒否bodyは保存せず、公開証拠は固定run/hashと読取・拒否結果だけ。MRではこのjobを選択せず、runtime配備定義を変更しない。

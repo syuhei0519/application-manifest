@@ -1,0 +1,19 @@
+# PostgreSQL Chart既定値。environments/local/postgresql.yamlがlocal値を指定する。
+# image/資源/PGDATA/Secret参照/PVCをtemplatesへ渡す。データ復旧は既存PVCと分離したrestore先で検証する運用。
+replicaCount: 1
+image:
+  repository: docker.io/library/postgres
+  tag: 17.10-bookworm
+  digest: sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+serviceAccount: {name: postgresql, automountServiceAccountToken: false}
+service: {type: ClusterIP, port: 5432}
+config: {dbName: account, pgData: /var/lib/postgresql/data/pgdata, maxConnections: 30, sharedBuffers: 128MB}
+secrets: {existingSecret: account-db, adminPasswordKey: admin-password, appUsernameKey: app-username, appPasswordKey: app-password}
+persistence: {enabled: true, storageClass: standard, size: 2Gi, accessModes: [ReadWriteOnce]}
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: 500m, memory: 512Mi}
+podSecurityContext: {runAsUser: 999, runAsGroup: 999, fsGroup: 999, fsGroupChangePolicy: OnRootMismatch, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}

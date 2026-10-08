@@ -1,0 +1,14 @@
+{{/*
+backend Podへ内部HTTPを転送するClusterIP Service。selectorとDeploymentのlabelを対応させる。
+Ready Podのendpointを使い、Pod置換でIPが変わっても同じService名で呼べる。
+*/}}apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  annotations: {argocd.argoproj.io/sync-wave: "-20"}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: backend, app.kubernetes.io/instance: {{ .Release.Name }}}
+  ports: [{name: http, port: 8080, targetPort: http}]

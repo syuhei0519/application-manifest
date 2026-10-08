@@ -1,0 +1,39 @@
+# frontend Chartの既定値。ArgoのvalueFilesでenvironments/local/frontend.yamlを重ねる。
+# 値が定義されていてもtemplateが参照して初めて生成設定へ反映する。schemaはvalues.schema.json。
+replicaCount: 1
+image:
+  repository: ""
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+  - name: registry-frontend-pull
+release:
+  sourceCommit: ""
+serviceAccount:
+  name: frontend
+  automountServiceAccountToken: false
+service:
+  type: ClusterIP
+  port: 80
+config:
+  apiUpstream: http://backend.account.svc.cluster.local:8080
+  apiBasePath: /api
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {cpu: 250m, memory: 128Mi}
+podSecurityContext:
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  runAsNonRoot: true
+  seccompProfile: {type: RuntimeDefault}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: {drop: [ALL]}
+probes:
+  startup: {path: /livez, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 30}
+  liveness: {path: /livez, periodSeconds: 10, timeoutSeconds: 2, failureThreshold: 3}
+  readiness: {path: /readyz, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 2}
+restartNonce: ""

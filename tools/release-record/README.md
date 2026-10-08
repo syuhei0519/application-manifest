@@ -1,0 +1,22 @@
+# PE-017C 証跡Package通信契約（実装中）
+
+固定GitLab HTTPS base、serviceから固定project ID、digest、数値scan pipeline/job ID、固定種別からURLを組み立てる。MRのURLは完全一致の確認だけに使い、別host/project/query/userinfo/traversalと認証付きredirectを拒否する。認証は用途別CI_JOB_TOKENでありregistry資格と混同しない。エラー本文やtokenを出力しない。
+
+同一run同一bytesはGET照合で冪等、異なるbytesはPUT前に拒否し、初回PUT後もGETで照合する。1digest:N scan runはファイル名のpipeline/job IDで分離する。このclientはper-project single writer resource_groupとserverのgeneric duplicate禁止設定を前提とし、GETだけで並行更新を防げるとは主張しない。
+
+ローカルGo mock transportで外部URL・他project・403・redirect・checksum・同名別値・同digest別run・欠落を検証した。実GitLabのCI_JOB_TOKEN upload/read/403、duplicate拒否、run固有record/SBOM/scan-reportの結合、90日かつ最新10件と稼働/rollback候補の削除除外は未受入。schema v2の完全モデルと検証器も後続で実装する。このmoduleだけでPE017C/F/BやAT04/12を完了にしない。
+
+2026-10-03にCLI GraphQLでgroup syuhei-platform-engineering-lab（ID141770909）のgenericDuplicatesAllowed=true、exception空を実確認した。公式generic package文書は重複ファイル制御がgroup/Owner設定であることを示す。設定の無効化と実duplicate試験が通るまで本clientをproduction証跡writerへ接続しない。
+
+Generic重複ファイル禁止は2026-10-03 06:45JSTに固定group ID141770909へCLI GraphQLで適用し、false/例外空を再読取した。これは設定証拠であり、実duplicate upload拒否の受入はまだ未実施。公式契約: https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/packages/generic_packages/_index.md 、mutation引数: https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/graphql/mutations/namespace/package_settings/update.rb 。
+
+
+schemaVersion2の構造schema ci/release-record.schema.json とstrict Go model/CLI record-checkを準備した。source固定project/repo、元buildと今回scanの別ID、同digest別run、各artifact URL/checksum/run対応、DB/例外の現在時刻受入、未知field/duplicate/null/欠落を検証する。CLIはstdinを読み固定成否だけ返す。JSONschemaは構造を検証し、動的対応・期限はGo検証器が必須。build未証明の失敗記録だけは両build ID=0/input不足の失敗記録だけはchecksum空を明示し、捏造せず必ず採用拒否する。実API job/source/imageラベル検証と実CIの各契約は未接続。ローカル合格だけでPE017Cを完了としない。
+
+保持契約: 自動Generic Package削除を有効化しない。operator-reviewed cleanupの前提PlanRetentionはdigest versionごとに全scan runを一体で保持し、最新10リリース OR 直近run90日以内 OR running/rollback登録の集合を保護する。失敗再scanも90日を延長、exact90日境界も保持。欠落日時/未来/duplicate/未列挙run/保護inventoryなしは削除計画全体を拒否する。実inventory/API一覧の生成と手動reviewは後続統合で必須、現moduleにDELETE動作はない。
+
+protected-mainのAPI/webだけでAT12_PACKAGE_CONTRACT=trueを指定するとPackage能力fixtureを実行する。per-project evidence-writerで直列化、source-scan合格が前提、通常publish/verify/proposalを全て除外する。このfixtureは固定reserved digestにschema0の非リリースpayloadを保存し、実JOB-TOKEN upload/read/checksum・冪等・client別値拒否・server duplicate拒否・元bytes保持を試験する。実image/scan/SBOMの証跡ではなくschema2採用は必ず拒否する。実main job試験は未実行のため現時点でPackage受入成功とは記載しない。
+
+固定Source2projectのCI_JOB_TOKEN allowlistへmanifest86247034をdefaultPermissions=false、READ_PACKAGESだけで追加した。他projectやgroupの許可は追加しない。実manifest readerのGETとwrite拒否はこれから確認する。技術的なSource自身の未保護CI_JOB_TOKEN upload権限についてはAT13で実測し、rulesだけで拒否できると主張しない。
+
+本application-manifestではreaderだけをprotected-main API/webのAT12_PACKAGE_READ=trueで実行する。許可済み両Sourceの実Package fixtureの固定run URL/hashだけを入力として読み、チェックサムとschema0非リリースを確認する。manifest自身の実pipeline/job IDで新しいreserved fixture URLへPUTを試み、read-only Package permissionによるHTTP403を要求する。既存ファイル重複拒否だけでは読取専用の証明としない。Phase2 consumerへの接続や実image provenance受入は後続PE018F/Bであり、このreader capability試験はPhase2を有効にしない。

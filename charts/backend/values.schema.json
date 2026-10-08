@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "replicaCount",
+    "image",
+    "imagePullSecrets",
+    "release",
+    "serviceAccount",
+    "service",
+    "config",
+    "secrets",
+    "resources",
+    "podSecurityContext",
+    "securityContext",
+    "probes",
+    "migration",
+    "restartNonce",
+    "telemetry"
+  ],
+  "properties": {
+    "replicaCount": {
+      "const": 1
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "repository",
+        "tag",
+        "digest",
+        "pullPolicy"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "pullPolicy": {
+          "const": "IfNotPresent"
+        }
+      }
+    },
+    "release": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sourceProjectId",
+            "sourceCommit",
+            "pipelineId",
+            "pipelineUrl"
+          ],
+          "properties": {
+            "sourceProjectId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "sourceCommit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "pipelineId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "pipelineUrl": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "schemaVersion",
+            "sourceProjectId",
+            "sourceCommit",
+            "buildPipelineId",
+            "buildJobId",
+            "scanPipelineId",
+            "scanJobId",
+            "recordUrl",
+            "recordSha256",
+            "sbomUrl",
+            "sbomSha256"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": "2"
+            },
+            "sourceCommit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "recordSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "buildJobId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "recordUrl": {
+              "format": "uri",
+              "type": "string"
+            },
+            "buildPipelineId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "sbomSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "scanJobId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "sbomUrl": {
+              "format": "uri",
+              "type": "string"
+            },
+            "sourceProjectId": {
+              "const": "86247033"
+            },
+            "scanPipelineId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "pipelineId": {
+              "type": "null"
+            },
+            "pipelineUrl": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schemaVersion",
+            "sourceRepository",
+            "sourceCommit",
+            "runId",
+            "runAttempt",
+            "recordUrl",
+            "sbomUrl",
+            "recordSha256",
+            "sbomSha256"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": "github-v1"
+            },
+            "sourceRepository": {
+              "const": "syuhei0519/backend-app"
+            },
+            "sourceCommit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "runId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "runAttempt": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "recordUrl": {
+              "type": "string",
+              "pattern": "^https://github\\.com/syuhei0519/backend-app/releases/download/gha-[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*/release-record\\.json$"
+            },
+            "sbomUrl": {
+              "type": "string",
+              "pattern": "^https://github\\.com/syuhei0519/backend-app/releases/download/gha-[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*/sbom\\.cdx\\.json$"
+            },
+            "recordSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "sbomSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "imagePullSecrets": {
+      "const": [
+        {
+          "name": "registry-backend-pull"
+        }
+      ]
+    },
+    "serviceAccount": {
+      "type": "object"
+    },
+    "service": {
+      "type": "object"
+    },
+    "config": {
+      "type": "object"
+    },
+    "secrets": {
+      "type": "object"
+    },
+    "resources": {
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "securityContext": {
+      "type": "object"
+    },
+    "probes": {
+      "type": "object"
+    },
+    "migration": {
+      "type": "object"
+    },
+    "restartNonce": {
+      "type": "string"
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "endpoint",
+        "environment"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "endpoint": {
+          "const": "http://otel-collector.observability.svc.cluster.local:4318"
+        },
+        "environment": {
+          "const": "local"
+        }
+      }
+    }
+  }
+}
