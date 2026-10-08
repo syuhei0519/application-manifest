@@ -29,7 +29,7 @@ elif test -d tools/checksum; then
   done
   # Historical Linux-userns boundary fixture, isolated from checkout credentials.
   docker run --rm --network=none --memory=1g --cpus=2 --pids-limit=64 \
-    --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
+    --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined --cap-add=SYS_ADMIN \
     -v "$PWD/ci:/ci:ro" --entrypoint python3 \
     golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b \
     -I /ci/namespace_boundary_test.py -v
