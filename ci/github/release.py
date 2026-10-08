@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 import io
 import zipfile
+import traceback
 
 SCHEMA='core-platform/github-release/v1'
 SHA=re.compile(r'[0-9a-f]{40}')
@@ -343,7 +344,10 @@ if __name__=='__main__':
     try:
         require(len(sys.argv)==2 and sys.argv[1] in ('record','publish','propose','verify'))
         globals()[sys.argv[1]]()
-    except Exception:
+    except Exception as error:
         # Server bodies, credential-bearing URLs, and raw scanner output stay private.
+        frames=traceback.extract_tb(error.__traceback__)
+        print('Failure location: '+' > '.join(f.name+':'+str(f.lineno) for f in frames)
+              +' ('+type(error).__name__+((' HTTP '+str(error.code)) if isinstance(error,urllib.error.HTTPError) else '')+')',file=sys.stderr)
         print('GitHub migration operation failed; publication/merge is not authorized.',file=sys.stderr)
         sys.exit(1)

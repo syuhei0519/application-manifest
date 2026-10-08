@@ -35,7 +35,18 @@ func TestBackendInspectedReleaseAnnotations(t *testing.T) {
 		if bad == "sbomSha256" {
 			candidate[bad] = nil // Explicit null removes an inherited value during Helm coalescing.
 		}
-		data, err := yaml.Marshal(map[string]any{"release": candidate})
+		// The deployed release may use GitHub provenance. Keep this historical
+		// GitLab contract fixture independent of that selected provider.
+		data, err := os.ReadFile("../../environments/local/backend.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var values map[string]any
+		if err := yaml.Unmarshal(data, &values); err != nil {
+			t.Fatal(err)
+		}
+		values["release"] = candidate
+		data, err = yaml.Marshal(values)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +54,7 @@ func TestBackendInspectedReleaseAnnotations(t *testing.T) {
 		if err := os.WriteFile(path, data, 0600); err != nil {
 			t.Fatal(err)
 		}
-		out, err := exec.Command(helm, "template", "backend", "../../charts/backend", "-f", "../../environments/local/backend.yaml", "-f", path).CombinedOutput()
+		out, err := exec.Command(helm, "template", "backend", "../../charts/backend", "-f", path).CombinedOutput()
 		if bad != "" {
 			if err == nil {
 				t.Fatalf("invalid %s release rendered", bad)
