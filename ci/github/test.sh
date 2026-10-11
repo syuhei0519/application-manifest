@@ -38,3 +38,5 @@ else
   (cd tools/bootstrap; CGO_ENABLED=0 go test -c -o ../../.build/bootstrap-test .)
 fi
 if test -f ci/github/release_test.py; then python3 -I ci/github/release_test.py; fi
+# Disabled Order defaults and enabled synthetic fixtures use the existing policy binaries.
+bash ci/order-chart-test.sh

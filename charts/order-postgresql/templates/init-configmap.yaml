@@ -1,0 +1,21 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-postgresql-init
+  labels:
+    {{- include "order-postgresql.labels" . | nindent 4 }}
+data:
+  10-order.sh: |
+    #!/bin/sh
+    set -eu
+    app_user="$(cat /run/order-db/app-username)"
+    test "$app_user" = order_app || { echo "unexpected Order role" >&2; exit 1; }
+    app_password="$(cat /run/order-db/app-password)"
+    psql --set=ON_ERROR_STOP=1 --set=app_user="$app_user" --set=app_password="$app_password" --set=db_name="{{ .Values.config.dbName }}" <<'SQL'
+    SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD %L', :'app_user', :'app_password')
+    WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'app_user') \gexec
+    SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'app_user')
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db_name') \gexec
+    SQL
+{{- end }}

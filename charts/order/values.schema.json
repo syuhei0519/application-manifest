@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "enabled",
+    "replicaCount",
+    "image",
+    "imagePullSecrets",
+    "release",
+    "serviceAccount",
+    "service",
+    "config",
+    "secrets",
+    "resources",
+    "podSecurityContext",
+    "securityContext",
+    "probes",
+    "migration"
+  ],
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "replicaCount": {
+      "const": 1
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "tag",
+        "digest",
+        "pullPolicy"
+      ],
+      "properties": {
+        "repository": {
+          "const": "ghcr.io/syuhei0519/backend-app-order"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "pullPolicy": {
+          "const": "IfNotPresent"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "const": []
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "service",
+        "sourceRepository",
+        "sourceCommit",
+        "runId",
+        "runAttempt",
+        "recordUrl",
+        "recordSha256",
+        "sbomUrl",
+        "sbomSha256"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "github-v2"
+        },
+        "service": {
+          "const": "order"
+        },
+        "sourceRepository": {
+          "const": "syuhei0519/backend-app"
+        },
+        "sourceCommit": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "runAttempt": {
+          "type": "string"
+        },
+        "recordUrl": {
+          "type": "string"
+        },
+        "recordSha256": {
+          "type": "string"
+        },
+        "sbomUrl": {
+          "type": "string"
+        },
+        "sbomSha256": {
+          "type": "string"
+        }
+      }
+    },
+    "serviceAccount": {
+      "const": {
+        "name": "order",
+        "automountServiceAccountToken": false
+      }
+    },
+    "service": {
+      "const": {
+        "type": "ClusterIP",
+        "port": 8080
+      }
+    },
+    "config": {
+      "const": {
+        "dbHost": "order-postgresql",
+        "dbPort": 5432,
+        "dbName": "orders",
+        "sslmode": "disable",
+        "logLevel": "info"
+      }
+    },
+    "secrets": {
+      "const": {
+        "existingSecret": "order-db",
+        "usernameKey": "app-username",
+        "passwordKey": "app-password"
+      }
+    },
+    "resources": {
+      "const": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        },
+        "limits": {
+          "cpu": "500m",
+          "memory": "256Mi"
+        }
+      }
+    },
+    "podSecurityContext": {
+      "const": {
+        "runAsUser": 10001,
+        "runAsGroup": 10001,
+        "fsGroup": 10001,
+        "runAsNonRoot": true,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      }
+    },
+    "securityContext": {
+      "const": {
+        "allowPrivilegeEscalation": false,
+        "readOnlyRootFilesystem": true,
+        "capabilities": {
+          "drop": [
+            "ALL"
+          ]
+        }
+      }
+    },
+    "probes": {
+      "const": {
+        "startup": {
+          "path": "/livez",
+          "periodSeconds": 5,
+          "timeoutSeconds": 2,
+          "failureThreshold": 30
+        },
+        "liveness": {
+          "path": "/livez",
+          "periodSeconds": 10,
+          "timeoutSeconds": 2,
+          "failureThreshold": 3
+        },
+        "readiness": {
+          "path": "/readyz",
+          "periodSeconds": 5,
+          "timeoutSeconds": 2,
+          "failureThreshold": 2
+        }
+      }
+    },
+    "migration": {
+      "const": {
+        "activeDeadlineSeconds": 180,
+        "backoffLimit": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "image": {
+            "properties": {
+              "tag": {
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "digest": {
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            }
+          },
+          "release": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "sourceRepository",
+              "sourceCommit",
+              "runId",
+              "runAttempt",
+              "recordUrl",
+              "sbomUrl",
+              "recordSha256",
+              "sbomSha256",
+              "service"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": "github-v2"
+              },
+              "sourceRepository": {
+                "const": "syuhei0519/backend-app"
+              },
+              "sourceCommit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "runId": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "runAttempt": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "recordUrl": {
+                "type": "string",
+                "pattern": "^https://github\\.com/syuhei0519/backend-app/releases/download/gha-order-[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*/release-record\\.json$"
+              },
+              "sbomUrl": {
+                "type": "string",
+                "pattern": "^https://github\\.com/syuhei0519/backend-app/releases/download/gha-order-[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*/sbom\\.cdx\\.json$"
+              },
+              "recordSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "sbomSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "service": {
+                "const": "order"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

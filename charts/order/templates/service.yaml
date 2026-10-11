@@ -1,0 +1,13 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: order
+  annotations: {argocd.argoproj.io/sync-wave: "-20"}
+  labels:
+    {{- include "order.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: order, app.kubernetes.io/instance: {{ .Release.Name }}}
+  ports: [{name: http, port: 8080, targetPort: http}]
+{{- end }}
