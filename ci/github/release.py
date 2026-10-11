@@ -20,8 +20,34 @@ import urllib.request
 import io
 import zipfile
 import traceback
+import stat
 
 SCHEMA='core-platform/github-release/v1'
+ORDER_SCHEMA='core-platform/github-release/v2'
+# Source repository is explicit. Never derive it from the registry image name.
+SERVICES={'backend':('backend-app','backend-app',SCHEMA,'github-v1'),
+          'frontend':('frontend-app','frontend-app',SCHEMA,'github-v1'),
+          'order':('backend-app','backend-app-order',ORDER_SCHEMA,'github-v2')}
+POSTGRES=('docker.io/library/postgres','17.10-bookworm','sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f')
+
+def service_contract(repo,service=None):
+    require(isinstance(repo,str) and REPO.fullmatch(repo))
+    owner,source=repo.split('/')
+    if service is None:
+        service={'backend-app':'backend','frontend-app':'frontend'}.get(source)
+    require(service in SERVICES)
+    expected,image,schema,annotation=SERVICES[service]
+    require(source==expected)
+    return service,'ghcr.io/'+owner.lower()+'/'+image,schema,annotation
+
+def positive(value):
+    require(type(value) is int and value>0)
+    return value
+
+def annotation_id(value):
+    require(isinstance(value,str) and re.fullmatch('[1-9][0-9]*',value))
+    return int(value)
+
 SHA=re.compile(r'[0-9a-f]{40}')
 DIGEST=re.compile(r'sha256:[0-9a-f]{64}')
 REPO=re.compile(r'[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?:backend-app|frontend-app|application-manifest)')
@@ -36,7 +62,9 @@ def unique(pairs):
         require(key not in out);out[key]=value
     return out
 
-def decode(data): return json.loads(data,object_pairs_hook=unique)
+def decode(data):
+    def refuse(_): raise ValueError('nonfinite JSON refused')
+    return json.loads(data,object_pairs_hook=unique,parse_constant=refuse)
 def sha(data): return hashlib.sha256(data).hexdigest()
 def load(path): return decode(Path(path).read_bytes())
 def now(): return dt.datetime.now(dt.timezone.utc)
@@ -89,9 +117,11 @@ def identity():
     require(run_id.isdecimal() and int(run_id)>0 and attempt.isdecimal() and int(attempt)>0)
     return repo,commit,int(run_id),int(attempt)
 
-def tag_for(commit,run_id,attempt):
+def tag_for(commit,run_id,attempt,service=None):
     require(SHA.fullmatch(commit) and type(run_id) is int and run_id>0 and type(attempt) is int and attempt>0)
-    return f'gha-{commit}-{run_id}-{attempt}'
+    require(service in (None,'backend','frontend','order'))
+    prefix='gha-order' if service=='order' else 'gha'
+    return f'{prefix}-{commit}-{run_id}-{attempt}'
 
 def record():
     repo,commit,run_id,attempt=identity()
@@ -117,11 +147,23 @@ def record():
             'published':False,'deploymentAuthorized':False}
     (PUBLIC/'release-record.json').write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
 
-def validate_record(result,repo,commit,run_id,attempt):
-    require(result['schema']==SCHEMA and result['repository']==repo and result['sourceCommit']==commit)
+def validate_record(result,repo,commit,run_id,attempt,service=None):
+    service,image,schema,_=service_contract(repo,service)
+    positive(run_id);positive(attempt)
+    require(type(result['runId']) is int and type(result['runAttempt']) is int)
+    require(SHA.fullmatch(commit))
+    require(result.get('service')=='order' if service=='order' else 'service' not in result)
+    if service=='order':
+        required={'schema','service','repository','sourceCommit','runId','runAttempt','workflowRef','imageRepository',
+                  'imageDigest','configDigest','archiveSha256','sbomSha256','sourceScanSha256','imageScanSha256',
+                  'scannedAt','dbUpdatedAt','createdAt','validUntil','sourcePolicyPassed','imagePolicyPassed',
+                  'sbomValidated','isolatedRuntimePassed','published','protectedMain','deploymentAuthorized'}
+        require(set(result)==required and result['published'] is True and result['protectedMain'] is True)
+
+    require(result['schema']==schema and result['repository']==repo and result['sourceCommit']==commit)
     require(result['runId']==run_id and result['runAttempt']==attempt)
     require(result['workflowRef']==repo+'/.github/workflows/ci.yml@refs/heads/main')
-    require(result['imageRepository']=='ghcr.io/'+repo.lower() and DIGEST.fullmatch(result['imageDigest']) and DIGEST.fullmatch(result['configDigest']))
+    require(result['imageRepository']==image and DIGEST.fullmatch(result['imageDigest']) and DIGEST.fullmatch(result['configDigest']))
     for key in ('sourcePolicyPassed','imagePolicyPassed','sbomValidated','isolatedRuntimePassed'):
         require(result[key] is True)
     for key in ('archiveSha256','sbomSha256','sourceScanSha256','imageScanSha256'):
@@ -168,18 +210,27 @@ def publish():
     api(f'/repos/{repo}/releases/{release["id"]}','PATCH',{'draft':False})
     print('Published checked image and GitHub release evidence: '+tag)
 
-def release_data(repo,commit,run_id,attempt):
-    tag=tag_for(commit,run_id,attempt)
+def release_data(repo,commit,run_id,attempt,service=None):
+    service_contract(repo,service)
+    tag=tag_for(commit,run_id,attempt,service)
     release=api('/repos/'+repo+'/releases/tags/'+tag)
     require(not release['draft'] and not release['prerelease'] and release['tag_name']==tag)
     assets={a['name']:a for a in release['assets']}
     require(len(assets)==len(release['assets']) and 'release-record.json' in assets and 'sbom.cdx.json' in assets)
     urls={name:assets[name]['browser_download_url'] for name in ('release-record.json','sbom.cdx.json')}
     record_bytes=public_asset(urls['release-record.json'],repo,tag,'release-record.json')
-    result=decode(record_bytes);validate_record(result,repo,commit,run_id,attempt)
+    result=decode(record_bytes);validate_record(result,repo,commit,run_id,attempt,service)
     require(result['published'] is True and result['protectedMain'] is True)
     sbom=public_asset(urls['sbom.cdx.json'],repo,tag,'sbom.cdx.json')
     require(sha(sbom)==result['sbomSha256'])
+    if service=='order':
+        # Release names and mutable target_commitish are not a Git tag binding.
+        obj=api('/repos/'+repo+'/git/ref/tags/'+tag)['object']
+        if obj['type']=='tag':obj=api('/repos/'+repo+'/git/tags/'+obj['sha'])['object']
+        require(obj['type']=='commit' and obj['sha']==commit)
+        require('image-scan.json' in assets)
+        scan=public_asset(assets['image-scan.json']['browser_download_url'],repo,tag,'image-scan.json')
+        require(sha(scan)==result['imageScanSha256'] and decode(scan)['pass'] is True)
     return result,urls,sha(record_bytes)
 
 def artifact_record_bytes(data,expected_digest):
@@ -188,17 +239,21 @@ def artifact_record_bytes(data,expected_digest):
         require(archive.namelist()==['release-record.json'])
         item=archive.getinfo('release-record.json')
         require(not item.flag_bits & 1 and 0<item.file_size<=8*1024**2)
+        mode=item.external_attr >> 16
+        require(stat.S_IFMT(mode) in (0,stat.S_IFREG) and not item.is_dir())
         record_bytes=archive.read(item)
     decode(record_bytes)
     return record_bytes
 
-def canonical_record_hash(repo,commit,run_id,attempt):
+def canonical_record_hash(repo,commit,run_id,attempt,service=None):
     """Bind release bytes to a server-owned artifact of the actual CI run."""
+    service_contract(repo,service)
+    name=f'published-evidence-order-{attempt}' if service=='order' else f'published-evidence-{attempt}'
     matches=[]
     for page in range(1,11):
         data=api(f'/repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100&page={page}')
         items=data['artifacts']
-        matches.extend(item for item in items if item['name']==f'published-evidence-{attempt}')
+        matches.extend(item for item in items if item['name']==name)
         if len(items)<100:break
     else:raise ValueError('artifact pagination refused')
     require(len(matches)==1);artifact=matches[0]
@@ -226,7 +281,7 @@ def validate_run(workflow,repo,commit,run_id,attempt):
     require(workflow['id']==run_id and workflow['repository']['full_name']==repo and workflow['head_sha']==commit and workflow['head_branch']=='main' and workflow['event']=='push')
     require(workflow['status']=='completed' and workflow['conclusion']=='success' and workflow['run_attempt']==attempt and workflow['path']=='.github/workflows/ci.yml')
 
-def verify_latest_run(repo,commit,run_id,attempt):
+def verify_latest_run(repo,commit,run_id,attempt,service=None):
     validate_run(api(f'/repos/{repo}/actions/runs/{run_id}'),repo,commit,run_id,attempt)
     runs=[]
     for page in range(1,11):
@@ -237,26 +292,54 @@ def verify_latest_run(repo,commit,run_id,attempt):
     require(runs)
     latest=max(runs,key=lambda item:(item['created_at'],item['id']))
     validate_run(latest,repo,commit,run_id,attempt)
+    if service=='order':
+        verify_order_matrix(repo,commit,run_id,attempt)
+
+def verify_order_matrix(repo,commit,run_id,attempt):
+    # B2 contract: matrix display names, both same-run checked artifacts and
+    # canonical published records. A green aggregate alone is insufficient.
+    jobs=[];artifacts=[]
+    for collection,path,key in ((jobs,f'actions/runs/{run_id}/attempts/{attempt}/jobs','jobs'),
+                                (artifacts,f'actions/runs/{run_id}/artifacts','artifacts')):
+        for page in range(1,11):
+            items=api(f'/repos/{repo}/{path}?per_page=100&page={page}')[key]
+            collection.extend(items)
+            if len(items)<100:break
+        else:raise ValueError('matrix pagination refused')
+    for name in ('validate','image (backend)','image (order)','ci-result'):
+        matches=[j for j in jobs if j['name']==name]
+        require(len(matches)==1)
+        job=matches[0]
+        require(job['run_id']==run_id and job['head_sha']==commit and
+                job['status']=='completed' and job['conclusion']=='success')
+    for name in (f'checked-image-{attempt}',f'checked-image-order-{attempt}',
+                 f'published-evidence-{attempt}',f'published-evidence-order-{attempt}'):
+        matches=[a for a in artifacts if a['name']==name]
+        require(len(matches)==1)
+        artifact=matches[0]
+        require(not artifact['expired'] and artifact['workflow_run']['id']==run_id and
+                artifact['workflow_run']['head_sha']==commit and DIGEST.fullmatch(artifact['digest']))
 
 def patch_values(text,repo,commit,result,urls,record_hash):
-    service=repo.split('/')[1].removesuffix('-app');require(service in ('backend','frontend'))
+    service,_,_,annotation=service_contract(repo,result.get('service'))
     image=re.search(r'^image:\s*\n(?:[ \t]+[^\n]*\n)*',text,re.M);require(image)
     block=image[0]
     for key,value in {'repository':result['imageRepository'],'tag':commit,'digest':result['imageDigest']}.items():
         block,count=re.subn(r'^  '+key+r':[^\n]*$', '  '+key+': '+json.dumps(value),block,flags=re.M);require(count==1)
     text=text[:image.start()]+block+text[image.end():]
     release=re.search(r'^release:\s*\n(?:[ \t]+[^\n]*\n)*',text,re.M);require(release)
-    values={'schemaVersion':'github-v1','sourceRepository':repo,'sourceCommit':commit,'runId':str(result['runId']),
+    values={'schemaVersion':annotation,'sourceRepository':repo,'sourceCommit':commit,'runId':str(result['runId']),
             'runAttempt':str(result['runAttempt']),'recordUrl':urls['release-record.json'],'recordSha256':record_hash,
             'sbomUrl':urls['sbom.cdx.json'],'sbomSha256':result['sbomSha256']}
+    if service=='order':values['service']='order'
     block='release:\n'+''.join('  '+key+': '+json.dumps(value)+'\n' for key,value in values.items())
     return text[:release.start()]+block+text[release.end():]
 
 def propose():
     repo,commit,run_id,attempt=identity()
-    result,urls,record_hash=release_data(repo,commit,run_id,attempt)
-    owner,app=repo.split('/');target=owner+'/application-manifest';service=app.removesuffix('-app')
-    require(service in ('backend','frontend'))
+    service,_,_,_=service_contract(repo,os.environ.get('RELEASE_SERVICE'))
+    result,urls,record_hash=release_data(repo,commit,run_id,attempt,service)
+    owner=repo.split('/')[0];target=owner+'/application-manifest'
     base=api('/repos/'+target+'/git/ref/heads/main')['object']['sha']
     branch=f'github/{service}-{commit}-{run_id}-{attempt}'
     path='environments/local/'+service+'.yaml'
@@ -279,27 +362,50 @@ def pr_snapshot(repo,number):
 
 def verify_entry(entry,owner):
     repository=entry['repository'];commit=entry['tag'];digest=entry['digest'];annotations=entry['release']
+    if repository==POSTGRES[0]:
+        require((repository,commit,digest)==POSTGRES and annotations=={})
+        require(entry['kind']=='StatefulSet' and entry['name'] in ('postgresql','order-postgresql') and
+                entry['containerType']=='containers' and entry['containerName']==entry['name'])
+        return None  # Platform image, never an application release.
     require(SHA.fullmatch(commit) and DIGEST.fullmatch(digest))
-    require(repository in ('ghcr.io/'+owner.lower()+'/backend-app','ghcr.io/'+owner.lower()+'/frontend-app'))
-    app=repository.rsplit('/',1)[1];repo=owner+'/'+app
-    require(annotations.get('account.lab/release-schema-version')=='github-v1' and annotations.get('account.lab/source-repository')==repo and annotations.get('account.lab/source-commit')==commit)
-    run_id=int(annotations['account.lab/github-run-id']);attempt=int(annotations['account.lab/github-run-attempt'])
-    result,urls,record_hash=release_data(repo,commit,run_id,attempt)
+    matches=[(name,source,schema,version) for name,(source,image,schema,version) in SERVICES.items()
+             if repository=='ghcr.io/'+owner.lower()+'/'+image]
+    require(len(matches)==1)
+    service,source,schema,version=matches[0];repo=owner+'/'+source
+    require(annotations.get('account.lab/release-schema-version')==version and
+            annotations.get('account.lab/source-repository')==repo and annotations.get('account.lab/source-commit')==commit)
+    require(annotations.get('account.lab/service')=='order' if service=='order' else 'account.lab/service' not in annotations)
+    if service=='order':
+        require(set(annotations)=={'account.lab/'+key for key in ('release-schema-version','service','source-repository',
+            'source-commit','github-run-id','github-run-attempt','image-digest','release-record-url','release-record-sha256','sbom-url','sbom-sha256')})
+    run_id=annotation_id(annotations['account.lab/github-run-id']);attempt=annotation_id(annotations['account.lab/github-run-attempt'])
+    result,urls,record_hash=release_data(repo,commit,run_id,attempt,service)
     require(result['imageDigest']==digest and annotations.get('account.lab/image-digest')==digest)
     require(annotations.get('account.lab/release-record-url')==urls['release-record.json'] and annotations.get('account.lab/release-record-sha256')==record_hash)
     require(annotations.get('account.lab/sbom-url')==urls['sbom.cdx.json'] and annotations.get('account.lab/sbom-sha256')==result['sbomSha256'])
-    verify_latest_run(repo,commit,run_id,attempt)
-    require(canonical_record_hash(repo,commit,run_id,attempt)==record_hash)
+    verify_latest_run(repo,commit,run_id,attempt,service)
+    require(canonical_record_hash(repo,commit,run_id,attempt,service)==record_hash)
+    if service=='order':
+        account,_,account_hash=release_data(repo,commit,run_id,attempt,'backend')
+        require(canonical_record_hash(repo,commit,run_id,attempt,'backend')==account_hash)
+        require(account['sourceScanSha256']==result['sourceScanSha256'])
+        require(account['archiveSha256']!=result['archiveSha256'] and account['imageDigest']!=digest)
     require(api('/repos/'+repo+'/git/ref/heads/main')['object']['sha']==commit)
     ref=repository+':'+commit
-    # Public GHCR reads deliberately receive no Docker credentials or API token.
+    # Public GHCR reads receive no API/registry credentials, including the reader token.
     with tempfile.TemporaryDirectory(prefix='gha-read-') as auth:
-        env={**os.environ,'DOCKER_CONFIG':auth};env.pop('GH_TOKEN',None)
+        env={**os.environ,'DOCKER_CONFIG':auth}
+        for key in ('GH_TOKEN','GITHUB_TOKEN','EVIDENCE_READ_TOKEN','ACTIONS_RUNTIME_TOKEN'):env.pop(key,None)
         require(run(['crane','digest',ref],env=env).decode().strip()==digest)
         data=run(['crane','config',repository+'@'+digest],env=env).rstrip(b'\n')
         config=decode(data);require('sha256:'+sha(data)==result['configDigest'])
         require(config['config']['Labels']['org.opencontainers.image.revision']==commit and config['config']['Labels']['org.opencontainers.image.source']=='https://github.com/'+repo)
-    return {'repository':repo,'sourceCommit':commit,'runId':run_id,'runAttempt':attempt,'digest':digest,'recordSha256':record_hash,'validUntil':result['validUntil']}
+        if service=='order':
+            manifest=decode(run(['crane','manifest',repository+'@'+digest],env=env))
+            require(manifest['mediaType'] in ('application/vnd.oci.image.manifest.v1+json','application/vnd.docker.distribution.manifest.v2+json'))
+            require('manifests' not in manifest and manifest['config']['digest']==result['configDigest'])
+            require(config['architecture']=='amd64' and config['os']=='linux' and config['config']['Entrypoint']==['/order-server'])
+    return {'repository':repo,'service':service,'sourceCommit':commit,'runId':run_id,'runAttempt':attempt,'digest':digest,'recordSha256':record_hash,'validUntil':result['validUntil']}
 
 def verify():
     repo,verifier,run_id,attempt=identity();require(repo.endswith('/application-manifest'))
@@ -327,11 +433,11 @@ def verify():
         if old.get(key(entry))==entry:continue
         selection=json.dumps({k:entry[k] for k in ('repository','tag','digest','release')},sort_keys=True)
         if selection not in cache:cache[selection]=verify_entry(entry,repo.split('/')[0])
-        verified.append(cache[selection])
+        if cache[selection] is not None:verified.append(cache[selection])
     require(pr_snapshot(repo,number)==(base,head))
     for item in verified:
         require(api('/repos/'+item['repository']+'/git/ref/heads/main')['object']['sha']==item['sourceCommit'])
-        verify_latest_run(item['repository'],item['sourceCommit'],item['runId'],item['runAttempt'])
+        verify_latest_run(item['repository'],item['sourceCommit'],item['runId'],item['runAttempt'],item['service'])
     deadline=min([now()+dt.timedelta(minutes=15)]+[timestamp(item['validUntil']) for item in verified]);require(deadline>now())
     report={'schema':'core-platform/github-manifest-verification/v1','repository':repo,'prNumber':int(number),
         'baseSha':base,'headSha':head,'verifierSha':verifier,'candidateTree':render['candidateTree'],
