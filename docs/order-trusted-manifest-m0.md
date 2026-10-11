@@ -75,6 +75,13 @@ fixture workload is installed by M0.
 
 PostgreSQL uses the separate platform allowlist:
 `docker.io/library/postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f`.
+The reserved workload names `postgresql` and `order-postgresql` are bound before
+image-family classification, in every namespace. Substituting any application or
+other registry image cannot opt either identity out of platform policy. Conversely,
+the fixed PostgreSQL image is rejected under an unknown workload or container
+identity. Namespace handling is unchanged: omitted namespaces use the render
+namespace (`account`); an explicit namespace still requires the fixed PVC in that
+same namespace. This policy does not grant namespace or deployment authority.
 Both DB names use StatefulSets, UID/GID/fsGroup 999, non-root, RuntimeDefault,
 read-only root filesystem, no privilege escalation, ALL capabilities dropped,
 no host namespaces/hostPath, and no service-account token automount. A same-render

@@ -10,11 +10,14 @@ const postgresDigest = "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5
 func platformPolicy(r, spec, c map[string]any, repo, tag, digest, containerType string) error {
 	meta := object(r["metadata"])
 	name := str(meta, "name")
-	if repo != postgresRepository && name != "order-postgresql" {
+	// Bind both reserved workload names before classifying the image family.
+	// Changing a DB image must never route that identity into app provenance.
+	fixedDB := name == "postgresql" || name == "order-postgresql"
+	if !fixedDB && repo != postgresRepository {
 		return nil
 	}
 	if repo != postgresRepository || tag != postgresTag || digest != postgresDigest ||
-		str(r, "kind") != "StatefulSet" || (name != "postgresql" && name != "order-postgresql") ||
+		str(r, "kind") != "StatefulSet" || !fixedDB ||
 		containerType != "containers" || str(c, "name") != name {
 		return fmt.Errorf("platform image identity rejected")
 	}

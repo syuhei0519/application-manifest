@@ -127,3 +127,95 @@ func TestPlatformContainerRoles(t *testing.T) {
 		}
 	}
 }
+
+// Synthetic image/identity cross-product: neither reserved DB name may escape
+// through any image family, and the platform image cannot acquire an app name.
+func TestPlatformIdentityBeforeImageFamily(t *testing.T) {
+	pgImage := postgresRepository + ":" + postgresTag + "@" + postgresDigest
+	appImages := []string{
+		"ghcr.io/syuhei0519/backend-app",
+		"ghcr.io/syuhei0519/backend-app-order",
+		"ghcr.io/syuhei0519/frontend-app",
+		"registry.gitlab.com/syuhei-platform-engineering-lab/backend-app",
+		"example.invalid/unknown",
+	}
+	for _, name := range []string{"postgresql", "order-postgresql"} {
+		base := strings.ReplaceAll(platformFixture, "order-postgresql", name)
+		for _, namespace := range []string{"", "account", "synthetic-other"} {
+			input := base
+			if namespace != "" {
+				input = strings.ReplaceAll(input, "metadata:\n", "metadata:\n  namespace: "+namespace+"\n")
+			}
+			t.Run(name+"/"+namespace+"/fixed", func(t *testing.T) {
+				out, err := inventory([]byte(input), "account")
+				if err != nil || len(out.Entries) != 1 {
+					t.Fatalf("fixed identity rejected: %v", err)
+				}
+			})
+			for _, repo := range appImages {
+				t.Run(name+"/"+namespace+"/"+repo, func(t *testing.T) {
+					image := repo + ":" + strings.Repeat("a", 40) + "@sha256:" + strings.Repeat("b", 64)
+					if _, err := inventory([]byte(strings.Replace(input, pgImage, image, 1)), "account"); err == nil {
+						t.Fatal("DB identity escaped through another image family")
+					}
+				})
+			}
+		}
+		for _, change := range [][2]string{
+			{postgresTag, "17.9-bookworm"},
+			{postgresDigest, "sha256:" + strings.Repeat("b", 64)},
+			{"name: " + name + "\n", "name: unknown\n"},
+			{"- name: " + name + "\n", "- name: unknown\n"},
+			{"kind: StatefulSet", "kind: Deployment"},
+			{"apiVersion: apps/v1", "apiVersion: unknown/v1"},
+			{"      containers:", "      initContainers:"},
+			{"      containers:", "      ephemeralContainers:"},
+			{"claimName: " + name + "-data", "claimName: unknown-data"},
+			{"kind: PersistentVolumeClaim\nmetadata:", "kind: PersistentVolumeClaim\nmetadata:\n  namespace: synthetic-other"},
+		} {
+			t.Run(name+"/binding/"+change[0], func(t *testing.T) {
+				if _, err := inventory([]byte(strings.Replace(base, change[0], change[1], 1)), "account"); err == nil {
+					t.Fatal("accepted invalid platform binding")
+				}
+			})
+		}
+		// Extra application containers also cannot escape DB policy, regardless
+		// of the container list in which they appear.
+		for _, role := range []string{"containers", "initContainers", "ephemeralContainers"} {
+			added := "      - name: app\n        image: " + appImages[0] + ":" + strings.Repeat("a", 40) + "@sha256:" + strings.Repeat("b", 64) + "\n"
+			if role != "containers" {
+				added = "      " + role + ":\n" + added
+			}
+			t.Run(name+"/"+role+"/app-sidecar", func(t *testing.T) {
+				input := strings.Replace(base, "      volumes:", added+"      volumes:", 1)
+				if _, err := inventory([]byte(input), "account"); err == nil {
+					t.Fatal("accepted application sidecar on fixed DB")
+				}
+			})
+		}
+	}
+	for _, kind := range []string{"Pod", "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "ReplicationController", "Job", "CronJob"} {
+		for _, repo := range appImages {
+			image := repo + ":" + strings.Repeat("a", 40) + "@sha256:" + strings.Repeat("b", 64)
+			base := strings.Replace(fixture(kind), img, image, 1)
+			t.Run(kind+"/"+repo+"/app", func(t *testing.T) {
+				if _, err := inventory([]byte(base), "account"); err != nil {
+					t.Fatalf("ordinary app handling changed: %v", err)
+				}
+			})
+			for _, name := range []string{"postgresql", "order-postgresql"} {
+				t.Run(kind+"/"+repo+"/"+name, func(t *testing.T) {
+					input := strings.Replace(base, "name: fixture", "name: "+name, 1)
+					if _, err := inventory([]byte(input), "account"); err == nil {
+						t.Fatal("reserved DB workload entered app inventory")
+					}
+				})
+			}
+		}
+		t.Run(kind+"/platform-under-app-identity", func(t *testing.T) {
+			if _, err := inventory([]byte(strings.Replace(fixture(kind), img, pgImage, 1)), "account"); err == nil {
+				t.Fatal("platform image accepted under app identity")
+			}
+		})
+	}
+}
