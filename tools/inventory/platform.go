@@ -26,6 +26,17 @@ func platformPolicy(r, spec, c map[string]any, repo, tag, digest, containerType 
 		security["allowPrivilegeEscalation"] != false || security["readOnlyRootFilesystem"] != true {
 		return fmt.Errorf("platform security context rejected")
 	}
+	// Container settings override Pod defaults. Keep the fixed Pod policy above,
+	// and accept only absent (inherited) or equivalent explicit overrides. Do not
+	// treat malformed/null overrides as absent in this untrusted rendered input.
+	for _, key := range []string{"runAsNonRoot", "runAsUser", "runAsGroup"} {
+		if value, exists := security[key]; exists && value != pod[key] {
+			return fmt.Errorf("platform container security override rejected: %s", key)
+		}
+	}
+	if value, exists := security["seccompProfile"]; exists && str(object(value), "type") != "RuntimeDefault" {
+		return fmt.Errorf("platform container seccomp override rejected")
+	}
 	for _, key := range []string{"hostNetwork", "hostPID", "hostIPC"} {
 		if v, ok := spec[key]; ok && v != false {
 			return fmt.Errorf("host namespace rejected")

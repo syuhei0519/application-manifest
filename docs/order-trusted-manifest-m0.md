@@ -82,6 +82,18 @@ fixed PVC is mandatory; PVC retains `Prune=false,Delete=false` and StatefulSet
 retains `Prune=confirm,Delete=confirm`, with no volumeClaimTemplates. New DB images
 are never treated as app GHCR releases. Existing scan-gate checks remain in force.
 
+The fixed Pod defaults remain required. Container overrides of `runAsUser`,
+`runAsGroup`, `runAsNonRoot` and `seccompProfile` must preserve effective UID/GID
+999, non-root and RuntimeDefault. Missing overrides inherit; equivalent explicit
+overrides are accepted. Null, malformed or conflicting overrides fail closed.
+PostgreSQL init/ephemeral containers and extra PostgreSQL sidecars remain outside
+the fixed image/container identity allowlist, even with safe security settings.
+Other application containers retain their existing inventory and scan checks.
+The generic render-only scan-gate is not the PostgreSQL identity/security gate;
+the trusted renderer must also run inventory before returning any provenance
+decision. Duplicating that policy in scan-gate was rejected to avoid divergent
+allowlists. A synthetic test-only render never authorizes a real release.
+
 ## Verification and remaining dependencies
 
 Synthetic fixture bytes under `ci/github/fixtures` use a fixed 2030 clock and fake
