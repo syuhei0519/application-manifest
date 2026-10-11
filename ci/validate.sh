@@ -4,12 +4,28 @@
 set -eu
 
 mkdir -p .rendered
-for chart in frontend backend postgresql; do
+# Complete fixed inventory: no PR-controlled list can remove an input from CI.
+charts='frontend backend postgresql'
+for path in charts/*/; do
+  case "$path" in charts/frontend/|charts/backend/|charts/postgresql/|charts/order/|charts/order-postgresql/) ;; *) echo 'unknown chart' >&2; exit 1 ;; esac
+done
+for path in environments/local/*.yaml; do
+  case "$path" in environments/local/frontend.yaml|environments/local/backend.yaml|environments/local/postgresql.yaml|environments/local/order.yaml|environments/local/order-postgresql.yaml) ;; *) echo 'unknown values' >&2; exit 1 ;; esac
+done
+for chart in order order-postgresql; do
+  if test -e "charts/$chart" || test -e "environments/local/$chart.yaml"; then
+    test -f "charts/$chart/Chart.yaml" && test -f "environments/local/$chart.yaml"
+    charts="$charts $chart"
+  fi
+done
+# Exclude stale output from previous fixture runs and all.yaml self-concatenation.
+rm -f .rendered/*.yaml
+for chart in $charts; do
   helm lint --strict "charts/$chart" -f "environments/local/$chart.yaml"
   helm template "$chart" "charts/$chart" -f "environments/local/$chart.yaml" > ".rendered/$chart.yaml"
 done
 
-cat .rendered/*.yaml > .rendered/all.yaml
+for chart in $charts; do cat ".rendered/$chart.yaml"; done > .rendered/all.yaml
 if grep -Eq '^kind: (Namespace|Secret|ClusterRole|ClusterRoleBinding)$' .rendered/all.yaml; then
   echo 'forbidden resource kind rendered' >&2
   exit 1

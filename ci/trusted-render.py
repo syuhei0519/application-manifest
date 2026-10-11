@@ -53,6 +53,27 @@ def snapshot(repo, tree, destination, prefixes):
         raise ValueError('empty snapshot')
     return files
 
+# Executed trusted-main policy, never an inventory supplied by the PR.
+ACTIVE_CHARTS=('frontend','backend','postgresql')
+INACTIVE_CHARTS=('order','order-postgresql')
+
+def chart_inventory(files,baseline=None):
+    names=set(ACTIVE_CHARTS+INACTIVE_CHARTS)
+    charts={p.split('/')[1] for p in files if p.startswith('charts/') and len(p.split('/'))>2}
+    values={p.removeprefix('environments/local/').removesuffix('.yaml') for p in files
+            if p.startswith('environments/local/') and p.endswith('.yaml')}
+    if charts-names or values-names:
+        raise ValueError('unknown chart or values inventory')
+    selected=[]
+    for chart in ACTIVE_CHARTS+INACTIVE_CHARTS:
+        exists=chart in charts
+        if exists != (chart in values) or (exists and 'charts/'+chart+'/Chart.yaml' not in files):
+            raise ValueError('chart/values pair incomplete')
+        if not exists and (chart in ACTIVE_CHARTS or (baseline is not None and chart in baseline)):
+            raise ValueError('required baseline chart missing')
+        if exists:selected.append(chart)
+    return selected
+
 # 認証情報・networkなし、read-only filesystemと資源/時間/出力上限でrenderする。
 # finallyで一時containerの除去を試み、エラー時に無制限の診断を保持しない。
 def sandbox(image, mounts, command, timeout=90, compiler=False):
@@ -136,14 +157,17 @@ def main(argv=None):
         sandbox(GO,[(trusted/'tools/inventory','/src',True),(output,'/out',False)],'cd /src; GOCACHE=/tmp/cache GOPATH=/tmp/go CGO_ENABLED=0 go build -p 2 -mod=vendor -o /out/inventory .',compiler=True)
         report={'schema':'core-platform/render-binding/v1','eligibleForAuthenticatedVerification':not a.test_only,'targetSha':a.target,'sourceSha':a.source,'candidateTree':merge,'verifierSha':a.verifier,'producerJobId':a.producer_job_id,'helmImage':HELM if RUNTIME=='docker' else None,'goImage':GO,'trustedInputs':trusted_files,'binarySha256':digest((output/'inventory').read_bytes()),'renders':{}}
         report['runtime']=RUNTIME; report['runtimeTools']=tool
+        baseline=None
         for name,tree in (('before',a.target),('candidate',merge)):
             inputs=root/name; inputs.mkdir(); files=snapshot(a.repo,tree,inputs,('charts','environments/local'))
+            charts=chart_inventory(files,baseline)
+            if name=='before':baseline=charts
             for lock in inputs.glob('charts/*/Chart.lock'):
                 # 依存Chartは同梱された固定入力を使う。Helmにdownloadさせない。
                 if not (lock.parent/'charts').exists():
                     raise ValueError('dependency archive not present: '+str(lock))
             helm='/trusted/helm' if RUNTIME=='linux-userns' else 'helm'
-            raw=sandbox(HELM,[(inputs,'/input',True),(output,'/trusted',True)],'cd /input; export HELM_PLUGINS=/nonexistent HELM_CACHE_HOME=/tmp/helm/cache HELM_CONFIG_HOME=/tmp/helm/config HELM_DATA_HOME=/tmp/helm/data; for chart in frontend backend postgresql; do '+helm+' template "$chart" "charts/$chart" --namespace account -f "environments/local/$chart.yaml" >> /tmp/render.yaml || exit 1; printf "\\n---\\n" >> /tmp/render.yaml; done; /trusted/inventory < /tmp/render.yaml')
+            raw=sandbox(HELM,[(inputs,'/input',True),(output,'/trusted',True)],'cd /input; export HELM_PLUGINS=/nonexistent HELM_CACHE_HOME=/tmp/helm/cache HELM_CONFIG_HOME=/tmp/helm/config HELM_DATA_HOME=/tmp/helm/data; for chart in '+' '.join(charts)+'; do '+helm+' template "$chart" "charts/$chart" --namespace account -f "environments/local/$chart.yaml" >> /tmp/render.yaml || exit 1; printf "\\n---\\n" >> /tmp/render.yaml; done; /trusted/inventory < /tmp/render.yaml')
             inventory=json.loads(raw)
             report['renders'][name]={'inputs':files,'inputSha256':digest(json.dumps(files,sort_keys=True,separators=(',',':')).encode()),'inventory':inventory}
         before=report['renders']['before']['inventory']; after=report['renders']['candidate']['inventory']

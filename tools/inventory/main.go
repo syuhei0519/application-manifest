@@ -77,6 +77,8 @@ func inventory(data []byte, namespace string) (Output, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	identities := map[string]bool{}
 	resources := map[string]bool{}
+	pvcs := map[string]bool{}
+	requiredPVCs := map[string]bool{}
 	for docs := 0; ; docs++ {
 		if docs > 5000 {
 			return result, fmt.Errorf("too many YAML documents")
@@ -124,9 +126,23 @@ func inventory(data []byte, namespace string) (Output, error) {
 			podMeta = path(r, "spec", "jobTemplate", "spec", "template", "metadata")
 			specPath = "spec.jobTemplate.spec.template.spec"
 		case "v1/ConfigMap", "v1/Service", "v1/ServiceAccount", "v1/PersistentVolumeClaim", "networking.k8s.io/v1/NetworkPolicy", "policy/v1/PodDisruptionBudget", "autoscaling/v2/HorizontalPodAutoscaler":
+			if len(podSpecPaths(r, "")) != 0 {
+				return result, fmt.Errorf("unscanned PodSpec in non-workload")
+			}
+			if kind == "PersistentVolumeClaim" {
+				pvcs[ns+"/"+name] = true
+				if err := pvcPolicy(r); err != nil {
+					return result, err
+				}
+			}
 			continue
 		default:
 			return result, fmt.Errorf("unclassified resource kind %s/%s; review required", api, kind)
+		}
+		for _, found := range podSpecPaths(r, "") {
+			if found != specPath {
+				return result, fmt.Errorf("unscanned PodSpec path")
+			}
 		}
 		if spec == nil {
 			return result, fmt.Errorf("PodSpec missing at %s %s", resourceKey, specPath)
@@ -164,6 +180,12 @@ func inventory(data []byte, namespace string) (Output, error) {
 				if err != nil {
 					return result, fmt.Errorf("%s/%s: %w", resourceKey, containerName, err)
 				}
+				if repo == postgresRepository {
+					requiredPVCs[ns+"/"+name+"-data"] = true
+				}
+				if err := platformPolicy(r, spec, c, repo, tag, digest, containerType); err != nil {
+					return result, err
+				}
 				identity := resourceKey + "/" + specPath + "/" + containerType + "/" + containerName
 				if identities[identity] {
 					return result, fmt.Errorf("duplicate container %s", identity)
@@ -174,6 +196,11 @@ func inventory(data []byte, namespace string) (Output, error) {
 					return result, fmt.Errorf("inventory exceeds 1000 containers")
 				}
 			}
+		}
+	}
+	for pvc := range requiredPVCs {
+		if !pvcs[pvc] {
+			return result, fmt.Errorf("platform PVC missing from render")
 		}
 	}
 	if len(result.Entries) == 0 {

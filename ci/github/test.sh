@@ -27,6 +27,7 @@ elif test -d tools/checksum; then
   for name in trusted_identity trusted_contract trusted_registry pre_merge_check trusted_attempts; do
     python3 -I "ci/${name}_test.py" -v
   done
+  python3 -I ci/trusted_render_test.py -v
   # Historical Linux-userns boundary fixture, isolated from checkout credentials.
   docker run --rm --network=none --memory=1g --cpus=2 --pids-limit=64 \
     --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined --cap-add=SYS_ADMIN \

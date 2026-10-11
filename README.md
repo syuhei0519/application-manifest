@@ -11,3 +11,5 @@ Frontend、Backend、PostgreSQLの実行時Desired Stateを所有します。各
 2026-10-01のPE-001読み取り確認では `kind-platform-lab` のfrontend/backend/PostgreSQL ApplicationはSynced / Healthyでした。これは将来の変更や新規環境の合格を保証しません。
 
 SQL/migration実装はbackend-app、実行Jobとaccount固有DB/PVCは本repository、Argo Application/AppProject/Namespaceはplatform-gitopsが所有します。固定版台帳の正本はplatform-gitopsの `bootstrap/versions.lock.yaml` です。[PE-001基準記録](https://gitlab.com/syuhei-platform-engineering-lab/platform-gitops/-/blob/main/docs/implementation/PE-001-baseline.md) と [PE-001 Issue](https://gitlab.com/syuhei-platform-engineering-lab/platform-gitops/-/work_items/1) を参照してください。
+
+Order evidence verifier scope and B2 fixture contract: [M0](docs/order-trusted-manifest-m0.md).
