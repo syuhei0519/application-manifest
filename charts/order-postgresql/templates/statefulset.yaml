@@ -1,0 +1,76 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: order-postgresql
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+  labels:
+    {{- include "order-postgresql.labels" . | nindent 4 }}
+spec:
+  serviceName: order-postgresql-headless
+  replicas: 1
+  updateStrategy: {type: RollingUpdate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: order-postgresql, app.kubernetes.io/instance: {{ .Release.Name }}}
+  template:
+    metadata:
+      labels:
+        {{- include "order-postgresql.labels" . | nindent 8 }}
+      annotations:
+        checksum/init: {{ include (print $.Template.BasePath "/init-configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: order-postgresql
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: order-postgresql
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}@{{ .Values.image.digest }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              umask 077
+              printf '%s:%s:%s:%s:%s\n' '*' '*' '{{ .Values.config.dbName }}' "$(cat /run/order-db/app-username)" "$(cat /run/order-db/app-password)" > /tmp/pgpass
+              exec docker-entrypoint.sh postgres -c max_connections={{ .Values.config.maxConnections }} -c shared_buffers={{ .Values.config.sharedBuffers }}
+          env:
+            - {name: POSTGRES_USER, value: postgres}
+            - {name: POSTGRES_DB, value: postgres}
+            - {name: POSTGRES_PASSWORD_FILE, value: /run/order-db/admin-password}
+            - {name: PGDATA, value: {{ .Values.config.pgData }}}
+            - {name: POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+            - {name: PGPASSFILE, value: /tmp/pgpass}
+          ports: [{name: postgresql, containerPort: 5432}]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: run, mountPath: /var/run/postgresql}
+            - {name: tmp, mountPath: /tmp}
+            - {name: init, mountPath: /docker-entrypoint-initdb.d}
+            - {name: order-db, mountPath: /run/order-db, readOnly: true}
+          startupProbe:
+            exec: {command: ["/bin/sh", "-ec", "pg_isready -U postgres -d postgres"]}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          livenessProbe:
+            exec: {command: ["/bin/sh", "-ec", "pg_isready -U postgres -d postgres"]}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "PGUSER=$(cat /run/order-db/app-username) psql -h $POD_IP -d {{ .Values.config.dbName }} -tAc 'SELECT 1' | grep -qx 1"]
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+      volumes:
+        - {name: data, persistentVolumeClaim: {claimName: order-postgresql-data}}
+        - {name: run, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}
+        - {name: init, configMap: {name: order-postgresql-init, defaultMode: 365}}
+        - name: order-db
+          secret: {secretName: {{ .Values.secrets.existingSecret }}, defaultMode: 288}
+{{- end }}

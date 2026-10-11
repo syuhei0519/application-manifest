@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "enabled",
+    "replicaCount",
+    "image",
+    "imagePullSecrets",
+    "serviceAccount",
+    "service",
+    "config",
+    "secrets",
+    "persistence",
+    "resources",
+    "podSecurityContext",
+    "securityContext"
+  ],
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "replicaCount": {
+      "const": 1
+    },
+    "image": {
+      "const": {
+        "repository": "docker.io/library/postgres",
+        "tag": "17.10-bookworm",
+        "digest": "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f",
+        "pullPolicy": "IfNotPresent"
+      }
+    },
+    "imagePullSecrets": {
+      "const": []
+    },
+    "serviceAccount": {
+      "const": {
+        "name": "order-postgresql",
+        "automountServiceAccountToken": false
+      }
+    },
+    "service": {
+      "const": {
+        "type": "ClusterIP",
+        "port": 5432
+      }
+    },
+    "config": {
+      "const": {
+        "dbName": "orders",
+        "pgData": "/var/lib/postgresql/data/pgdata",
+        "maxConnections": 30,
+        "sharedBuffers": "128MB"
+      }
+    },
+    "secrets": {
+      "const": {
+        "existingSecret": "order-db",
+        "adminPasswordKey": "admin-password",
+        "appUsernameKey": "app-username",
+        "appPasswordKey": "app-password"
+      }
+    },
+    "persistence": {
+      "const": {
+        "enabled": true,
+        "storageClass": "standard",
+        "size": "2Gi",
+        "accessModes": [
+          "ReadWriteOnce"
+        ]
+      }
+    },
+    "resources": {
+      "const": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "256Mi"
+        },
+        "limits": {
+          "cpu": "500m",
+          "memory": "512Mi"
+        }
+      }
+    },
+    "podSecurityContext": {
+      "const": {
+        "runAsUser": 999,
+        "runAsGroup": 999,
+        "fsGroup": 999,
+        "fsGroupChangePolicy": "OnRootMismatch",
+        "runAsNonRoot": true,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      }
+    },
+    "securityContext": {
+      "const": {
+        "allowPrivilegeEscalation": false,
+        "readOnlyRootFilesystem": true,
+        "capabilities": {
+          "drop": [
+            "ALL"
+          ]
+        }
+      }
+    }
+  }
+}

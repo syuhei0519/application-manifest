@@ -1,0 +1,9 @@
+{{- if .Values.enabled }}
+{{- if ne .Values.image.tag .Values.release.sourceCommit }}
+{{- fail "Order image tag must equal release sourceCommit" }}
+{{- end }}
+{{- $base := printf "https://github.com/syuhei0519/backend-app/releases/download/gha-order-%s-%s-%s/" .Values.image.tag .Values.release.runId .Values.release.runAttempt }}
+{{- if or (ne .Values.release.recordUrl (printf "%srelease-record.json" $base)) (ne .Values.release.sbomUrl (printf "%ssbom.cdx.json" $base)) }}
+{{- fail "Order release URLs must match source/run/attempt" }}
+{{- end }}
+{{- end }}

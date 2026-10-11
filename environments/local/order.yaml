@@ -1,0 +1,18 @@
+# Disabled: real release selection belongs to M2; enabling belongs to the deployment gate.
+enabled: false
+image:
+  repository: ghcr.io/syuhei0519/backend-app-order
+  tag: ''
+  digest: ''
+  pullPolicy: IfNotPresent
+release:
+  schemaVersion: github-v2
+  service: order
+  sourceRepository: syuhei0519/backend-app
+  sourceCommit: ''
+  runId: ''
+  runAttempt: ''
+  recordUrl: ''
+  recordSha256: ''
+  sbomUrl: ''
+  sbomSha256: ''

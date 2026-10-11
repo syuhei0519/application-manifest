@@ -1,0 +1,2 @@
+# Disabled: real release selection belongs to M2; enabling belongs to the deployment gate.
+enabled: false

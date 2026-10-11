@@ -1,0 +1,5 @@
+apiVersion: v2
+name: order
+description: Disabled Order preparation chart; requires separate release and deployment gates.
+type: application
+version: 0.1.0

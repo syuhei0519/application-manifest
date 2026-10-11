@@ -1,0 +1,18 @@
+# SYNTHETIC SAMPLE: fake image/release, render-only; never deploy or claim trusted release approval.
+enabled: true
+image:
+  repository: ghcr.io/syuhei0519/backend-app-order
+  tag: '1111111111111111111111111111111111111111'
+  digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+  pullPolicy: IfNotPresent
+release:
+  schemaVersion: github-v2
+  service: order
+  sourceRepository: syuhei0519/backend-app
+  sourceCommit: '1111111111111111111111111111111111111111'
+  runId: '123'
+  runAttempt: '1'
+  recordUrl: https://github.com/syuhei0519/backend-app/releases/download/gha-order-1111111111111111111111111111111111111111-123-1/release-record.json
+  recordSha256: '3333333333333333333333333333333333333333333333333333333333333333'
+  sbomUrl: https://github.com/syuhei0519/backend-app/releases/download/gha-order-1111111111111111111111111111111111111111-123-1/sbom.cdx.json
+  sbomSha256: '4444444444444444444444444444444444444444444444444444444444444444'
