@@ -146,8 +146,12 @@ func TestPlatformIdentityBeforeImageFamily(t *testing.T) {
 			if namespace != "" {
 				input = strings.ReplaceAll(input, "metadata:\n", "metadata:\n  namespace: "+namespace+"\n")
 			}
+			destination := namespace
+			if destination == "" {
+				destination = "account"
+			}
 			t.Run(name+"/"+namespace+"/fixed", func(t *testing.T) {
-				out, err := inventory([]byte(input), "account")
+				out, err := inventory([]byte(input), destination)
 				if err != nil || len(out.Entries) != 1 {
 					t.Fatalf("fixed identity rejected: %v", err)
 				}
@@ -155,7 +159,7 @@ func TestPlatformIdentityBeforeImageFamily(t *testing.T) {
 			for _, repo := range appImages {
 				t.Run(name+"/"+namespace+"/"+repo, func(t *testing.T) {
 					image := repo + ":" + strings.Repeat("a", 40) + "@sha256:" + strings.Repeat("b", 64)
-					if _, err := inventory([]byte(strings.Replace(input, pgImage, image, 1)), "account"); err == nil {
+					if _, err := inventory([]byte(strings.Replace(input, pgImage, image, 1)), destination); err == nil {
 						t.Fatal("DB identity escaped through another image family")
 					}
 				})

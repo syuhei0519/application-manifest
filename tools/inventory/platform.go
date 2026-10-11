@@ -40,11 +40,6 @@ func platformPolicy(r, spec, c map[string]any, repo, tag, digest, containerType 
 	if value, exists := security["seccompProfile"]; exists && str(object(value), "type") != "RuntimeDefault" {
 		return fmt.Errorf("platform container seccomp override rejected")
 	}
-	for _, key := range []string{"hostNetwork", "hostPID", "hostIPC"} {
-		if v, ok := spec[key]; ok && v != false {
-			return fmt.Errorf("host namespace rejected")
-		}
-	}
 	if v, ok := security["privileged"]; ok && v != false {
 		return fmt.Errorf("privileged platform rejected")
 	}

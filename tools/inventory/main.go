@@ -98,9 +98,15 @@ func inventory(data []byte, namespace string) (Output, error) {
 		api := str(r, "apiVersion")
 		meta := object(r["metadata"])
 		name := str(meta, "name")
-		ns := str(meta, "namespace")
-		if ns == "" {
-			ns = namespace
+		// The caller supplies the render destination, not merely a default.
+		// All admitted resources are namespaced; reject explicit escapes and
+		// malformed namespace values before workload/non-workload dispatch.
+		ns := namespace
+		if value, exists := meta["namespace"]; exists {
+			given, ok := value.(string)
+			if !ok || (given != "" && given != namespace) {
+				return result, fmt.Errorf("resource namespace outside render destination")
+			}
 		}
 		if name == "" || api == "" {
 			return result, fmt.Errorf("resource identity missing")
@@ -146,6 +152,15 @@ func inventory(data []byte, namespace string) (Output, error) {
 		}
 		if spec == nil {
 			return result, fmt.Errorf("PodSpec missing at %s %s", resourceKey, specPath)
+		}
+		// Apply to every supported PodSpec, before image-family classification.
+		for _, key := range []string{"hostNetwork", "hostPID", "hostIPC"} {
+			if value, exists := spec[key]; exists {
+				allowed, ok := value.(bool)
+				if !ok || allowed {
+					return result, fmt.Errorf("host namespace rejected: %s", key)
+				}
+			}
 		}
 		annotations := object(podMeta["annotations"])
 		release := map[string]string{}

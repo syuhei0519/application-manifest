@@ -78,3 +78,39 @@ and Order PVC, retain failed Job and nonsecret status, and fix/retest with forwa
 migration. No known-good Order rollback target exists yet. Only an authorized
 operator may suspend/disable Order sync; retry the whole Application after repair.
 Do not mark migration history successful by hand or reuse stale release evidence.
+
+## M1 attempt3: rendered PodSpec boundaries
+
+Independent Test at `e0f79a61643d31a29de73ffc54bb6a31c320f0df` found that
+injected Order `hostNetwork`, `hostPID`, and `hostIPC` values of `true` passed
+inventory and the structural/full security gate. The inventory digest was
+unchanged. This was an inherited application-image early-return gap; the fixed
+charts did not set these fields. The original failed Test remains failed.
+
+Inventory now checks these fields on every supported PodSpec before container
+image classification. Omitted or boolean false is accepted; true, null, strings,
+numbers, arrays and objects are rejected. Unknown kinds and hidden PodSpec paths
+remain rejected. The structural scanner independently walks every mapping,
+including unknown/hidden PodSpecs, and emits the blocking `LOCAL-HOST-NAMESPACE`
+finding for the same unsafe values. Scanner severity policy is unchanged.
+
+The separate namespace observation changed the inventory digest and was not a
+proven complete GitOps bypass. The adopted design requires the existing `account`
+namespace. Inventory's namespace argument now defines the render destination:
+all supported namespaced resources must omit namespace, specify an empty string,
+or match that destination. The CLI destination remains `account`; non-string
+namespace values and explicit escapes fail before resource dispatch. This covers
+Order, both fixed DB/PVC identities, and auxiliary resources. The M0 identity
+cross-product still tests other destinations by supplying that same destination
+to the parser, so image-family checks remain exercised rather than short-circuited
+by a namespace mismatch. No downstream GitOps bypass or live enforcement is claimed.
+
+Run `go test ./...` in `tools/inventory` and `tools/scan-gate`, then
+`bash ci/github/test.sh`, `sh ci/validate.sh`, the checksum tests and the existing
+security scan against complete renders. The new tests cover every supported
+PodSpec kind, Account/Order DB profiles, true/false/omitted/malformed fields,
+unknown/hidden PodSpecs and workload/auxiliary namespace boundaries.
+These are Implementation self-checks; a new independent Test and Review must
+assess the resulting head. Previous Readiness and PASS records do not transfer.
+Real image, kind, API/persistence, Synced/Healthy and imageID remain unverified;
+the existing B2/M2/P1/T7 follow-up responsibilities still apply. No デプロイ occurs.
