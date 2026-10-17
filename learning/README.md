@@ -31,6 +31,7 @@ clean checkout・実在するDockerfile・platform (`linux/amd64`) を照合し�
 後続の承認済みCloud buildでのみ、各sourceに対応する上表のDockerfileを使用します:
 
 ```bash
+set -euo pipefail
 # SOURCE / SERVICE / DOCKERFILE / OUTは承認済み入力。OUTはcheckout外。
 test "$(git rev-parse HEAD)" = "$SOURCE"
 test -z "$(git status --porcelain)"
@@ -65,6 +66,7 @@ CloudでHelm 4.2.4 / Python3と `requirements.txt` の依存を使って静的�
 
 ```bash
 python3 learning/validate.py
+python3 learning/check_build_failfast.py
 ```
 
 このfixtureは架空image IDの描画だけです。実image取得の根拠にはしません。
