@@ -1,0 +1,7 @@
+Historical intake edited derivative, attempt 1.
+Original intake lacked required AC originals/assignment and was blocked with
+MISSING_ACCEPTANCE_CRITERIA. No implementation or runtime acceptance occurred.
+Current Issue metadata/AC originals are attached retrospectively to the public
+Handoff solely for retry-binding continuity. They were absent from that intake.
+Original status, attempt and assignment are preserved; private original retained.
+No original private identifiers or digests are published.

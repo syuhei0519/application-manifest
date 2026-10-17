@@ -1,0 +1,27 @@
+Repair edited derivative, attempt 3; author checks only.
+Repair commit 4ce04c9765a1d2971e5dba00cbad056ff4c2a37a in
+syuhei0519/application-manifest; existing Draft PR29, no merge.
+Changed only learning/README.md and learning/check_build_failfast.py.
+Cloud build block now starts set -euo pipefail. Regression extracts that actual
+block and runs isolated synthetic Git/Docker; no real build or image archive.
+Command: python3 learning/check_build_failfast.py
+PASS wrong-head: nonzero exit, no synthetic Docker call.
+PASS dirty: nonzero exit, no synthetic Docker call.
+PASS wrong-image: nonzero exit after build/inspect, no tag/save.
+PASS success control: zero exit; synthetic build/inspect/tag/save in order.
+Old block extracted from c9f674219d58d3f4951ac1854bd9e0da568ac7d5:
+all three invalid cases returned zero and continued synthetic tag/save,
+confirming reproduction and regression sensitivity to the actual defect.
+Seven documented bash blocks: bash -n PASS. git diff --check PASS.
+Chart files are unchanged; historical render/schema checks are not relabelled
+as repair-head executions. Independent Test/Review and same-head CI remain
+separate gates. No manual CI rerun or external security DB workaround.
+All product AC remain unverified. No API test, image build, deployment or merge.
+System pin ead1cc4023c083c7b1bf703d8b371a0957997ed5.
+Source candidates: Account/Order d48a97851619912e7efc80c470912907ce965dc7;
+Payment bf3d1ab34b4553896fdb0b8d7acfc75185b77757;
+Notification 7cdbab9bae115c495053e247e6a84a277b9d52cc.
+Unmerged feature candidates are not main or accepted runtime images.
+The Manager-reported private download/dispatch failure remains in report-a2.
+No failed delivery counter/history was reset, reclassified or retried here.
+Consumer use approval is pending Manager; this document grants none.

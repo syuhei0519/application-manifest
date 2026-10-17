@@ -1,0 +1,65 @@
+{
+  "schema_version": "2.0",
+  "issue": {
+    "id": "platform-gitops#59",
+    "source": "https://github.com/syuhei0519/platform-gitops/issues/59",
+    "title": "[Order/Acceptance] 隔離KindでOrder Service統合受入を実施する",
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "verbatim": "Gitに固定したcode/config revisionからOrderの独立Deployment / ServiceとAPIが起動し、migration・作成/取得・代表不正入力4xxを確認できる。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      },
+      {
+        "id": "AC2",
+        "verbatim": "Order再起動後も作成済みOrderを取得でき、Account CRUDの代表正常系が維持される。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      },
+      {
+        "id": "AC3",
+        "verbatim": "実際のimageIDと使用imageの対応、code/config revision、cluster/context、実行結果、起動・再試行・所有資源だけのcleanup手順を短いrunbookへ記録する。local build / kind loadの場合も変更不能なimage識別子を照合し、tag名だけを証拠にしない。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      },
+      {
+        "id": "AC4",
+        "verbatim": "SecretをGit/成果物へ含めず、専用DB/PVCと所有範囲を確認し、既存Lab・Accountデータを変更しない。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      }
+    ]
+  },
+  "role": "implementation",
+  "task_id": "public-platform-gitops-59-a1",
+  "attempt": 1,
+  "upstream": [],
+  "system_status": "completed",
+  "status": "blocked",
+  "summary": "New learning configuration intake blocked before implementation: required AC originals/IDs absent. No repository or remote changes. attempt=1 records this newly scoped intake only and does not reset historical attempts; Manager must reconcile dispatch lineage before resuming. Edited derivative: public aliases/local summary bindings; see publication-safety.txt. Original outcome and assigned scope retained. Current AC metadata is retrospective context, not original intake input.",
+  "assignment": {
+    "scope": "Separate learning-only four-service deployment configuration and runbook; Draft PR only after contract inputs are complete.",
+    "ac_ids": [],
+    "completion_criteria": [
+      "Implement isolated learning config and short runbook, validate only changed config, produce one Japanese Draft PR and source/image/runtime handoff after complete Manager AC input."
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "intake-report",
+      "kind": "document",
+      "locator": "report-a1.txt",
+      "revision": "sha256:022866fa60be04b0642cd38410454049296262d74f35c0ba677a627fd6070711",
+      "summary": "Edited public summary of original stage artifact reference; see report-a1.txt."
+    }
+  ],
+  "evidence": [],
+  "ac_mapping": [],
+  "block_reasons": [
+    {
+      "code": "MISSING_ACCEPTANCE_CRITERIA",
+      "detail": "Dispatch omits mandatory AC verbatim text/source/IDs and per-Issue assigned AC IDs. Fixed System implementation role forbids external retrieval or inference to fill this omission.",
+      "required_action": "Manager supplies sourced complete AC originals and per-Issue assignment, and confirms existing logical attempt lineage/budget; preserve all historical attempts."
+    }
+  ],
+  "failure_reasons": [],
+  "knowledge_candidates": [],
+  "publication": "public_safe"
+}

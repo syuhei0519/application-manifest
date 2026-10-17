@@ -1,0 +1,168 @@
+{
+  "schema_version": "2.0",
+  "issue": {
+    "id": "application-manifest#22",
+    "source": "https://github.com/syuhei0519/application-manifest/issues/22",
+    "title": "[Notification/Deploy] Helm/GitOpsデプロイと稼働確認を完了する",
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "verbatim": "固定source commitから再現可能にbuildしたimageを隔離kindへloadし、独立Deployment/Serviceが稼働する",
+        "source": "https://github.com/syuhei0519/application-manifest/issues/22"
+      },
+      {
+        "id": "AC2",
+        "verbatim": "通知受付・状態取得・同一ID再送の重複抑止と再起動後の状態保持を確認できる",
+        "source": "https://github.com/syuhei0519/application-manifest/issues/22"
+      },
+      {
+        "id": "AC3",
+        "verbatim": "既存Order/Accountの代表API smokeが通る",
+        "source": "https://github.com/syuhei0519/application-manifest/issues/22"
+      },
+      {
+        "id": "AC4",
+        "verbatim": "source/manifestの固定Git revision、imageID、build/load/apply・cleanup手順を残す",
+        "source": "https://github.com/syuhei0519/application-manifest/issues/22"
+      }
+    ]
+  },
+  "role": "implementation",
+  "task_id": "public-application-manifest-22-a2",
+  "attempt": 2,
+  "upstream": [
+    {
+      "role": "implementation",
+      "task_id": "public-application-manifest-22-a1",
+      "attempt": 1,
+      "handoff_locator": "application-manifest-22-a1.handoff.json",
+      "revision": "sha256:90eb94d5cd87da09ae2d72292da0e9ddf8b0a37d8e06a20bf19d42e9ab13b03f",
+      "relationship": "retry_of"
+    }
+  ],
+  "system_status": "completed",
+  "status": "completed",
+  "summary": "Assigned implementation/configuration support and author offline validation completed; Japanese Draft PR29 at c9f674219d58d3f4951ac1854bd9e0da568ac7d5. All product/runtime AC remain unverified. Required CI and independent Test/Review are separate pending gates. No merge or deployment acceptance. Edited derivative: public aliases/local summary bindings; see publication-safety.txt. Original outcome and assigned scope retained.",
+  "assignment": {
+    "scope": "application-manifest learning-only four-service Chart/runbook implementation and offline configuration validation. Per-Issue AC1-4 are assigned references for support only; runtime/build/import/application acceptance is outside this stage.",
+    "ac_ids": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ],
+    "completion_criteria": [
+      "Implement a separate minimal learning configuration and runbook with owned DB/PVC, migration-before-API sequencing, probes, immutable local image identity, target/ownership/cleanup and private runtime Secret input.",
+      "Run only changed-path render/schema/syntax/fixture checks and preserve exact source pins and all unverified product/runtime AC.",
+      "Push only feature branch, create one Japanese Draft PR, and deliver revision/evidence plus independent review and image/runtime follow-up gates."
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "implementation",
+      "kind": "document",
+      "locator": "report-a2.txt",
+      "revision": "sha256:2c36231770c718878e61a9ce0cc42b2ef5c671134ae2455118d7ade8123c96bc",
+      "summary": "Edited public summary of original stage artifact reference; see report-a2.txt."
+    },
+    {
+      "id": "report",
+      "kind": "document",
+      "locator": "report-a2.txt",
+      "revision": "sha256:2c36231770c718878e61a9ce0cc42b2ef5c671134ae2455118d7ade8123c96bc",
+      "summary": "Edited public summary of original stage artifact reference; see report-a2.txt."
+    },
+    {
+      "id": "draft-pr",
+      "kind": "document",
+      "locator": "report-a2.txt",
+      "revision": "sha256:2c36231770c718878e61a9ce0cc42b2ef5c671134ae2455118d7ade8123c96bc",
+      "summary": "Edited public summary of original stage artifact reference; see report-a2.txt."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "config-checks",
+      "claim": "Configuration/runbook support and bounded author static verification are complete; runtime/product AC remain unverified.",
+      "artifact_ids": [
+        "implementation",
+        "report"
+      ],
+      "locator": "report-a2.txt",
+      "observation": "Codex Cloud, Helm4.2.4/Python3: all four service schema/lint/render contracts PASS; 12 rejection fixtures PASS; Kubeconform0.7.0 strict Kubernetes1.36.0 28 valid/0 invalid/0 error/0 skipped; seven bash syntax blocks PASS. No app suite/image build/scan or Kubernetes operation. learning/acceptance.json keeps all 12 product AC unverified."
+    },
+    {
+      "id": "remote-draft",
+      "claim": "Feature remote commit and Japanese Draft PR exist at tested head; no merge or Issue close.",
+      "artifact_ids": [
+        "implementation",
+        "draft-pr",
+        "report"
+      ],
+      "locator": "report-a2.txt",
+      "observation": "git push and ls-remote confirmed c9f674219d58d3f4951ac1854bd9e0da568ac7d5 on feat/learning-four-service-config; main remains df8c8b5d93e48bc1f0e5ced1678bba2e27d6a1f9. Connector create PR29 confirmed draft=true merged=false; gh read confirmed same head. CI validate in progress at report snapshot; no CI success claim."
+    }
+  ],
+  "ac_mapping": [
+    {
+      "ac_id": "AC1",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "config-checks",
+        "remote-draft"
+      ]
+    },
+    {
+      "ac_id": "AC2",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "config-checks",
+        "remote-draft"
+      ]
+    },
+    {
+      "ac_id": "AC3",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "config-checks",
+        "remote-draft"
+      ]
+    },
+    {
+      "ac_id": "AC4",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "config-checks",
+        "remote-draft"
+      ]
+    }
+  ],
+  "block_reasons": [],
+  "failure_reasons": [],
+  "knowledge_candidates": [],
+  "publication": "public_safe"
+}

@@ -1,0 +1,15 @@
+Historical configuration edited derivative, attempt 2.
+Code/config commit c9f674219d58d3f4951ac1854bd9e0da568ac7d5, Draft PR29.
+Author static checks: four service schema/strict Helm4.2.4 lint/render contracts,
+28 resources, 12 rejection fixtures PASS; Kubeconform0.7.0 strict Kubernetes1.36.0
+28 valid, zero invalid/error/skipped; seven runbook bash syntax blocks PASS.
+No runtime/image build/import/API/Kubernetes acceptance. Product AC unverified.
+Later independent Review found the missing fail-fast option in the Cloud build
+block. The historical stage status is retained, not promoted to current approval.
+Required CI on that head failed security DB validation: DB unknown, future,
+or expired. No policy change or manual CI rerun was performed.
+Manager reports independent static Test PASS but private canonical/CI-addendum
+bundle downloads failed, each after one limited retry, with library file
+transfer failed: download failed. Classified as Manager-reported dispatch
+failure. Producer upload success did not establish retrieval/consumption.
+Those failed deliveries remain unresolved; public Git is a separate route.

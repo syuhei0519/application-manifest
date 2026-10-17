@@ -1,0 +1,21 @@
+Producer public-safety review and scope record.
+Only edited derivatives of this implementation/static verification are present:
+Issue-specific Handoff retry closure, safe report summaries and Review response.
+Private originals and the private original-to-public mapping remain private.
+Public task aliases replace actual task identifiers; original artifact/upstream
+locators and digests become local references to these independently hashed
+public summaries. Original status/attempt/assignment and product-unverified
+boundaries are retained. Current Issue metadata is attached retrospectively to
+intake derivatives for binding continuity, not claimed as original intake input.
+The original bytes differ; comparison is producer-attested, not independently
+verified. Historical failure and retry counts are not reset.
+
+No original private ZIP/ID/digest, actual runtime/task/Library identifier,
+internal log, endpoint, kubeconfig, credential or Secret value is published.
+Source commit pins, public PR URLs and narrowly necessary test outcomes remain.
+Owner explicitly authorized publication of these nonconfidential derivatives
+in a dedicated evidence branch for this repair. This is the operation scope,
+not a new permission obtained from this producer record or a receipt.
+Consumer scope/purpose/expiry approval and independently supplied authorization
+pin must be provided separately by Manager. No Consumer approval or receipt
+is created here. Private download failure remains unresolved on that route.

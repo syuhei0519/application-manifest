@@ -1,0 +1,155 @@
+{
+  "schema_version": "2.0",
+  "issue": {
+    "id": "platform-gitops#59",
+    "source": "https://github.com/syuhei0519/platform-gitops/issues/59",
+    "title": "[Order/Acceptance] 隔離KindでOrder Service統合受入を実施する",
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "verbatim": "Gitに固定したcode/config revisionからOrderの独立Deployment / ServiceとAPIが起動し、migration・作成/取得・代表不正入力4xxを確認できる。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      },
+      {
+        "id": "AC2",
+        "verbatim": "Order再起動後も作成済みOrderを取得でき、Account CRUDの代表正常系が維持される。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      },
+      {
+        "id": "AC3",
+        "verbatim": "実際のimageIDと使用imageの対応、code/config revision、cluster/context、実行結果、起動・再試行・所有資源だけのcleanup手順を短いrunbookへ記録する。local build / kind loadの場合も変更不能なimage識別子を照合し、tag名だけを証拠にしない。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      },
+      {
+        "id": "AC4",
+        "verbatim": "SecretをGit/成果物へ含めず、専用DB/PVCと所有範囲を確認し、既存Lab・Accountデータを変更しない。",
+        "source": "https://github.com/syuhei0519/platform-gitops/issues/59"
+      }
+    ]
+  },
+  "role": "implementation",
+  "task_id": "public-platform-gitops-59-a3",
+  "attempt": 3,
+  "upstream": [
+    {
+      "role": "implementation",
+      "task_id": "public-platform-gitops-59-a2",
+      "attempt": 2,
+      "handoff_locator": "platform-gitops-59-a2.handoff.json",
+      "revision": "sha256:9e835dd7feedc59f05d497cf6b67c9634136e4d926055653b1a969c88718a07e",
+      "relationship": "retry_of"
+    }
+  ],
+  "system_status": "completed",
+  "status": "completed",
+  "summary": "Blocking Cloud build fail-fast Review finding repaired at 4ce04c9765a1d2971e5dba00cbad056ff4c2a37a, synthetic regression PASS; execution stage completed. Prior Library consumer retrieval failed as Manager-reported dispatch failure; safe Git derivative delivery is separate. No product/runtime acceptance, merge or Consumer use approval. Edited derivative: public aliases/local summary bindings; see publication-safety.txt. Original outcome and assigned scope retained.",
+  "assignment": {
+    "scope": "application-manifest learning-only four-service Chart/runbook implementation and offline configuration validation. Per-Issue AC1-4 are assigned references for support only; runtime/build/import/application acceptance is outside this stage.",
+    "ac_ids": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ],
+    "completion_criteria": [
+      "Implement a separate minimal learning configuration and runbook with owned DB/PVC, migration-before-API sequencing, probes, immutable local image identity, target/ownership/cleanup and private runtime Secret input.",
+      "Run only changed-path render/schema/syntax/fixture checks and preserve exact source pins and all unverified product/runtime AC.",
+      "Push only feature branch, create one Japanese Draft PR, and deliver revision/evidence plus independent review and image/runtime follow-up gates.",
+      "Apply the authorized one-shot Review repair, demonstrate fail-fast behavior with synthetic tools, and prepare safe fixed-Git derivatives while preserving original records and delivery failure."
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "implementation",
+      "kind": "document",
+      "locator": "report-a3.txt",
+      "revision": "sha256:f20b1e593b6d238d687192b60236f282143bcb3f7d093160fda64fde9e3db3f5",
+      "summary": "Edited public summary of original stage artifact reference; see report-a3.txt."
+    },
+    {
+      "id": "report",
+      "kind": "document",
+      "locator": "report-a3.txt",
+      "revision": "sha256:f20b1e593b6d238d687192b60236f282143bcb3f7d093160fda64fde9e3db3f5",
+      "summary": "Edited public summary of original stage artifact reference; see report-a3.txt."
+    },
+    {
+      "id": "draft-pr",
+      "kind": "document",
+      "locator": "report-a3.txt",
+      "revision": "sha256:f20b1e593b6d238d687192b60236f282143bcb3f7d093160fda64fde9e3db3f5",
+      "summary": "Edited public summary of original stage artifact reference; see report-a3.txt."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "repair-checks",
+      "claim": "Assigned configuration/runbook support repaired and statically checked; product AC remain unverified.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "locator": "report-a3.txt",
+      "observation": "Selected Codex Cloud: synthetic regression 3 fail cases plus success control PASS; original pinned README reproduces 3 unsafe continuations; seven bash syntax blocks and diff checks PASS. No real build or app/Kubernetes test. Publication/Consumer approval are separate."
+    }
+  ],
+  "ac_mapping": [
+    {
+      "ac_id": "AC1",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "repair-checks"
+      ]
+    },
+    {
+      "ac_id": "AC2",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "repair-checks"
+      ]
+    },
+    {
+      "ac_id": "AC3",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "repair-checks"
+      ]
+    },
+    {
+      "ac_id": "AC4",
+      "disposition": "covered",
+      "scope": "Assigned implementation/configuration and runbook support only for this AC; application/runtime/product acceptance remains unverified as separately recorded in learning/acceptance.json.",
+      "artifact_ids": [
+        "implementation",
+        "report",
+        "draft-pr"
+      ],
+      "evidence_ids": [
+        "repair-checks"
+      ]
+    }
+  ],
+  "block_reasons": [],
+  "failure_reasons": [],
+  "knowledge_candidates": [],
+  "publication": "public_safe"
+}
