@@ -1,5 +1,8 @@
 # application-manifest
 
+学習専用の手動・ローカルimage経路は [learning/README.md](learning/README.md)。
+Account/Orderを先に、Payment/Notificationを個別に追加する独立設定で、実配備・受入は未検証です。
+
 `charts/frontend`, `charts/backend`, `charts/postgresql` がaccount環境の実行状態を所有します。SecretとNamespaceは生成しません。
 
 Chartのimage・release既定値は初回image publishまで未設定です。`environments/local/frontend.yaml` と `backend.yaml` は検証済みのsource SHA・digest・pipeline由来を保持する稼働値です。新規環境で未設定の値を使った場合はschema検証が意図的に失敗し、dummy imageをデプロイ可能と扱いません。

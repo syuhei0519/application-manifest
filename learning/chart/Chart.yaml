@@ -1,0 +1,5 @@
+apiVersion: v2
+name: learning-service
+description: Isolated local-image learning path; render one independent service at a time
+type: application
+version: 0.1.0

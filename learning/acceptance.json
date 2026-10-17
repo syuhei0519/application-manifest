@@ -1,0 +1,201 @@
+{
+  "schema_version": "learning-scope-1",
+  "scope": "Implementation/configuration and offline render validation only; no product/runtime AC accepted",
+  "system_pin": "syuhei0519/ai-development-system@ead1cc4023c083c7b1bf703d8b371a0957997ed5",
+  "source": "Manager supplied verbatim current Issue AC and ordinal IDs in corrected dispatch; historical body is retained on Issue and not treated as extra current AC.",
+  "venue_override": "Owner instruction and merged System PR12: all non-Kubernetes work in Codex Cloud, actual Kubernetes behavior on the explicitly approved local-PC kind. Historical Cloud-kind venue is superseded without changing behavioral AC.",
+  "issues": [
+    {
+      "id": "platform-gitops#59",
+      "title": "[Order/Acceptance] 隔離KindでOrder Service統合受入を実施する",
+      "url": "https://github.com/syuhei0519/platform-gitops/issues/59",
+      "source_updated_at": "2026-10-17T17:17:06Z",
+      "criteria": [
+        {
+          "id": "AC1",
+          "verbatim": "Gitに固定したcode/config revisionからOrderの独立Deployment / ServiceとAPIが起動し、migration・作成/取得・代表不正入力4xxを確認できる。",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Local: wait Order migration Complete before API; create Order -> 201, GET same id/content -> 200; quantity=0 -> 400. Check independent Deployment, ClusterIP Service and DNS.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC2",
+          "verbatim": "Order再起動後も作成済みOrderを取得でき、Account CRUDの代表正常系が維持される。",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Local: create/get Order; record Pod UID, restart only owned Order Deployment, wait Available and verify changed UID plus same GET; Account create/get/update/delete -> expected 201/200/200/204.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC3",
+          "verbatim": "実際のimageIDと使用imageの対応、code/config revision、cluster/context、実行結果、起動・再試行・所有資源だけのcleanup手順を短いrunbookへ記録する。local build / kind loadの場合も変更不能なimage識別子を照合し、tag名だけを証拠にしない。",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Cloud: verify code/Manifest/render/archive pins. Local: record archive/config/node image/Pod imageID mapping, exact private context/cluster/namespace and execution/retry/cleanup inventory; fixed-byte delivery.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC4",
+          "verbatim": "SecretをGit/成果物へ含めず、専用DB/PVCと所有範囲を確認し、既存Lab・Accountデータを変更しない。",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Local: inspect four owned DB/PVC/Secret references and UID inventory; no production resources or credentials in artifacts; approved cleanup only. Check PVC persistence using owned DB Pod replacement if assigned.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        }
+      ]
+    },
+    {
+      "id": "application-manifest#21",
+      "title": "[Payment/Deploy] Helm/GitOpsデプロイと稼働確認を完了する",
+      "url": "https://github.com/syuhei0519/application-manifest/issues/21",
+      "source_updated_at": "2026-10-17T17:17:12Z",
+      "criteria": [
+        {
+          "id": "AC1",
+          "verbatim": "固定source commitから再現可能にbuildしたimageを隔離kindへloadし、独立Deployment/Serviceが稼働する",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Cloud: authorized fixed PR48 source build and Docker archive identity/hash. Local: verify bytes, load into approved kind nodes, wait migration before independent Payment API; record Service/DNS/probes.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC2",
+          "verbatim": "模擬成功・拒否・再送・状態取得と再起動後の状態保持が確認できる",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Local: POST /api/payments with simulate_result success/decline -> 201 succeeded/declined; identical request_id replay -> 200 same id/result; GET -> 200; restart owned API, changed Pod UID and same persisted GET/replay.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC3",
+          "verbatim": "既存Order/Accountの代表API smokeが通る",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Local: reuse same-revision Account CRUD and Order create/get/one invalid-input smoke from baseline; do not repeat unrelated suites.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC4",
+          "verbatim": "source/manifestの固定Git revision、imageID、build/load/apply・cleanup手順を残す",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Cloud: approved fixed source/Manifest/render/archive bytes. Local: config/node image/Pod imageID correspondence and build/import/apply/retry/owned cleanup evidence via README.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        }
+      ]
+    },
+    {
+      "id": "application-manifest#22",
+      "title": "[Notification/Deploy] Helm/GitOpsデプロイと稼働確認を完了する",
+      "url": "https://github.com/syuhei0519/application-manifest/issues/22",
+      "source_updated_at": "2026-10-17T17:17:15Z",
+      "criteria": [
+        {
+          "id": "AC1",
+          "verbatim": "固定source commitから再現可能にbuildしたimageを隔離kindへloadし、独立Deployment/Serviceが稼働する",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Cloud: authorized fixed PR49 source build and archive identity/hash. Local: bytes/load/node identity, migration before independent Notification Deployment/Service; readiness and DNS.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC2",
+          "verbatim": "通知受付・状態取得・同一ID再送の重複抑止と再起動後の状態保持を確認できる",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Local: POST /api/notifications with canonical request_id -> 201 sent; exact replay -> 200 same id; GET -> 200. Query only owned notifications DB through approved private local access to confirm one notification_sink_receipts row for the id, including after replay and API restart with changed Pod UID; no external delivery.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC3",
+          "verbatim": "既存Order/Accountの代表API smokeが通る",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Local: reuse same-revision Account CRUD and Order create/get/one invalid-input smoke from baseline.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        },
+        {
+          "id": "AC4",
+          "verbatim": "source/manifestの固定Git revision、imageID、build/load/apply・cleanup手順を残す",
+          "implementation_scope": "Chart/runbook/offline validation support only",
+          "paths": [
+            "learning/chart",
+            "learning/README.md",
+            "learning/validate.py"
+          ],
+          "product_outcome": "unverified",
+          "followup_owner": "Manager dispatches authorized Cloud image build/delivery and independent local Kubernetes Test",
+          "runtime_method": "Cloud: fixed source/Manifest/render/archive bytes. Local: config/node image/Pod imageID correspondence and build/import/apply/retry/owned cleanup record via README.",
+          "failure_action": "Stop dependent apply/acceptance; retain owned DB/PVC and evidence; return exact blocker to Manager within existing retry budget."
+        }
+      ]
+    }
+  ]
+}

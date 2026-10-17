@@ -1,0 +1,6 @@
+{{- if or (gt (len .Release.Namespace) 63) (not (regexMatch "^learning-[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Release.Namespace)) -}}
+{{- fail "explicit dedicated learning-* namespace required" -}}
+{{- end -}}
+{{- if ne .Release.Name (include "learning.name" .) -}}
+{{- fail "release name must be learning-<service>" -}}
+{{- end -}}

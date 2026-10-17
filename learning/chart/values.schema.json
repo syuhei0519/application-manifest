@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "service",
+    "owner",
+    "imageConfigID",
+    "sourceCommits",
+    "database"
+  ],
+  "properties": {
+    "service": {
+      "enum": [
+        "account",
+        "order",
+        "payment",
+        "notification"
+      ]
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "imageConfigID": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "sourceCommits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account",
+        "order",
+        "payment",
+        "notification"
+      ],
+      "properties": {
+        "account": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "order": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "payment": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "notification": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "imageConfigID",
+        "upstreamDigest",
+        "storageClass",
+        "size"
+      ],
+      "properties": {
+        "imageConfigID": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "upstreamDigest": {
+          "const": "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f"
+        },
+        "storageClass": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+        },
+        "size": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*Gi$"
+        }
+      }
+    }
+  }
+}
