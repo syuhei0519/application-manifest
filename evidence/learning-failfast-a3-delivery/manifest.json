@@ -1,0 +1,188 @@
+{
+  "schema_version": "1.0",
+  "document_type": "artifact_delivery",
+  "artifacts": [
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/application-manifest-21-a1.handoff.json",
+        "size": 3184,
+        "sha256": "95fb47859acd42019a91d0b887b1cabf8a22d6cdd4f405cd99750d2fd5d407db"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-application-manifest-21-a1.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/application-manifest-21-a2.handoff.json",
+        "size": 7139,
+        "sha256": "6b693f63c747af8615c3bf346c4c35b66d64f8ef375f06120ebf72b336a369aa"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-application-manifest-21-a2.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/application-manifest-21-a3.handoff.json",
+        "size": 6597,
+        "sha256": "6fca59dd876905cc0e1957823bdc732b480944581878bfb84e56b2b0c66e0398"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-application-manifest-21-a3.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/application-manifest-22-a1.handoff.json",
+        "size": 3203,
+        "sha256": "90eb94d5cd87da09ae2d72292da0e9ddf8b0a37d8e06a20bf19d42e9ab13b03f"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-application-manifest-22-a1.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/application-manifest-22-a2.handoff.json",
+        "size": 7158,
+        "sha256": "4b56f0b0c584cb840b3b6c3d5e978a440c614c4e00a1a53665f415c8caf2d270"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-application-manifest-22-a2.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/application-manifest-22-a3.handoff.json",
+        "size": 6616,
+        "sha256": "bae6e5ea576233bc6808a68bb7d6c1a16db52afdbc598757ac25c65f3ee12bcf"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-application-manifest-22-a3.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/platform-gitops-59-a1.handoff.json",
+        "size": 3506,
+        "sha256": "0457ce8b8451a5d5d72f613fb923eea8ff4d7b3a03a5c39a2897ba2fd25ee86c"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-platform-gitops-59-a1.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/platform-gitops-59-a2.handoff.json",
+        "size": 7451,
+        "sha256": "9e835dd7feedc59f05d497cf6b67c9634136e4d926055653b1a969c88718a07e"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-platform-gitops-59-a2.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/platform-gitops-59-a3.handoff.json",
+        "size": 6909,
+        "sha256": "8f59173da0d5e536e712c57a926dedd9c5a98054b077763a67961ce38b049b33"
+      },
+      "representation": "edited_derivative",
+      "format": "handoff-v2",
+      "public_classification": "public_safe",
+      "source_alias": "public-platform-gitops-59-a3.handoff.json; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/publication-safety.txt",
+        "size": 1505,
+        "sha256": "f7e8b367afcd6895aaded40d73e6d82c4112c87ec2af1135770100d07c4da8d5"
+      },
+      "representation": "edited_derivative",
+      "format": "text",
+      "public_classification": "public_safe",
+      "source_alias": "public-publication-safety.txt; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/report-a1.txt",
+        "size": 503,
+        "sha256": "022866fa60be04b0642cd38410454049296262d74f35c0ba677a627fd6070711"
+      },
+      "representation": "edited_derivative",
+      "format": "text",
+      "public_classification": "public_safe",
+      "source_alias": "public-report-a1.txt; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/report-a2.txt",
+        "size": 1125,
+        "sha256": "2c36231770c718878e61a9ce0cc42b2ef5c671134ae2455118d7ade8123c96bc"
+      },
+      "representation": "edited_derivative",
+      "format": "text",
+      "public_classification": "public_safe",
+      "source_alias": "public-report-a2.txt; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/report-a3.txt",
+        "size": 1815,
+        "sha256": "f20b1e593b6d238d687192b60236f282143bcb3f7d093160fda64fde9e3db3f5"
+      },
+      "representation": "edited_derivative",
+      "format": "text",
+      "public_classification": "public_safe",
+      "source_alias": "public-report-a3.txt; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    },
+    {
+      "reference": {
+        "repository": "syuhei0519/application-manifest",
+        "commit": "04ae5d4d5066779bbbc9cc8a776711aa3777d4fc",
+        "path": "evidence/learning-failfast-a3/review-response.md",
+        "size": 1106,
+        "sha256": "bcab81f131b7fda6ec061fa78771dd118994befe951ad6ad5da80eaf3e8542b7"
+      },
+      "representation": "edited_derivative",
+      "format": "text",
+      "public_classification": "public_safe",
+      "source_alias": "public-review-response.md; private-original-held-separately; producer-attested-comparison; independent-comparison-pending"
+    }
+  ]
+}
