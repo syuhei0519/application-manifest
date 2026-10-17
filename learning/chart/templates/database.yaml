@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "learning.name" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.database.storageClass | quote }}
+  resources: {requests: {storage: {{ .Values.database.size | quote }}}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "learning.name" . }}-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+data:
+  10-app.sh: |
+    #!/bin/sh
+    set -eu
+    app_password="$(cat /run/db/app-password)"
+    psql --set=ON_ERROR_STOP=1 --set=app_password="$app_password" <<'SQL'
+    SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD %L', '{{ .Values.service }}_app', :'app_password') \gexec
+    SELECT format('CREATE DATABASE %I OWNER %I', '{{ include "learning.database" . }}', '{{ .Values.service }}_app') \gexec
+    SQL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "learning.name" . }}-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector: {learning.local/workload: {{ include "learning.name" . }}-db}
+  ports: [{name: postgresql, port: 5432, targetPort: postgresql}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "learning.name" . }}-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "learning.name" . }}-db
+  replicas: 1
+  selector:
+    matchLabels: {learning.local/workload: {{ include "learning.name" . }}-db}
+  template:
+    metadata:
+      labels:
+        {{- include "learning.labels" . | nindent 8 }}
+        learning.local/workload: {{ include "learning.name" . }}-db
+      annotations:
+        learning.local/upstream-digest: {{ .Values.database.upstreamDigest | quote }}
+        learning.local/image-config-id: {{ .Values.database.imageConfigID | quote }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext: {runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, fsGroup: 999, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: postgresql
+          image: {{ include "learning.dbImage" . | quote }}
+          imagePullPolicy: Never
+          env:
+            - {name: POSTGRES_USER, value: postgres}
+            - {name: POSTGRES_DB, value: postgres}
+            - {name: POSTGRES_PASSWORD_FILE, value: /run/db/admin-password}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{name: postgresql, containerPort: 5432}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: run, mountPath: /var/run/postgresql}
+            - {name: tmp, mountPath: /tmp}
+            - {name: init, mountPath: /docker-entrypoint-initdb.d, readOnly: true}
+            - {name: credentials, mountPath: /run/db, readOnly: true}
+          startupProbe:
+            exec: {command: [pg_isready, -U, postgres, -d, postgres]}
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            exec: {command: [pg_isready, -U, postgres, -d, postgres]}
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - >-
+                  PGPASSWORD="$(cat /run/db/app-password)" psql -h 127.0.0.1
+                  -U {{ .Values.service }}_app -d {{ include "learning.database" . }}
+                  -v ON_ERROR_STOP=1 -tAc 'SELECT 1' | grep -qx 1
+            periodSeconds: 5
+            timeoutSeconds: 2
+      volumes:
+        - {name: data, persistentVolumeClaim: {claimName: {{ include "learning.name" . }}-data}}
+        - {name: run, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}
+        - {name: init, configMap: {name: {{ include "learning.name" . }}-init, defaultMode: 365}}
+        - name: credentials
+          secret: {secretName: {{ include "learning.name" . }}-db, defaultMode: 288}

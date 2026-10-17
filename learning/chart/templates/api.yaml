@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "learning.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {learning.local/workload: {{ include "learning.name" . }}}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "learning.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 300
+  selector:
+    matchLabels: {learning.local/workload: {{ include "learning.name" . }}}
+  template:
+    metadata:
+      labels:
+        {{- include "learning.labels" . | nindent 8 }}
+        learning.local/workload: {{ include "learning.name" . }}
+      annotations:
+        {{- include "learning.annotations" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: {{ include "learning.image" . | quote }}
+          imagePullPolicy: Never
+          env:
+            {{- include "learning.env" . | nindent 12 }}
+          ports: [{name: http, containerPort: 8080}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+          startupProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+      volumes: [{name: tmp, emptyDir: {}}]

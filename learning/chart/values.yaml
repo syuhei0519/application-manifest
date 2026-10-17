@@ -1,0 +1,16 @@
+# Render explicitly for account, order, payment or notification. No usable image defaults.
+service: account
+owner: ''
+imageConfigID: ''
+# Source candidates, not assertions of merged features or accepted images.
+sourceCommits:
+  account: d48a97851619912e7efc80c470912907ce965dc7
+  order: d48a97851619912e7efc80c470912907ce965dc7
+  payment: bf3d1ab34b4553896fdb0b8d7acfc75185b77757
+  notification: 7cdbab9bae115c495053e247e6a84a277b9d52cc
+database:
+  imageConfigID: ''
+  upstreamDigest: sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
+  # kind commonly names its local-path-provisioned class "standard"; verify locally.
+  storageClass: standard
+  size: 1Gi
