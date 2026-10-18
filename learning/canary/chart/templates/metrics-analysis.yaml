@@ -1,0 +1,39 @@
+{{- if and .Values.analysis.enabled (eq .Values.analysis.mode "metrics") }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: learning-account-metrics
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  args:
+    - {name: service}
+    - {name: namespace}
+    - {name: latest-hash}
+    - {name: stable-hash}
+    - {name: case}
+  metrics:
+    {{- range $name, $query := (.Files.Get "files/revision-queries.json" | fromJson) }}
+    - name: {{ $name }}
+      count: 1
+      failureLimit: 0
+      inconclusiveLimit: 0
+      consecutiveErrorLimit: 0
+      {{- if hasSuffix "requests" $name }}
+      successCondition: 'len(result) == 1 && result[0] >= 20 && !isNaN(result[0]) && !isInf(result[0])'
+      failureCondition: 'len(result) != 1 || !(result[0] >= 20) || isNaN(result[0]) || isInf(result[0])'
+      {{- else }}
+      {{- $threshold := ternary "0.99" "0.95" (hasSuffix "availability" $name) }}
+      successCondition: 'len(result) == 1 && result[0] >= {{ $threshold }} && result[0] <= 1 && !isNaN(result[0]) && !isInf(result[0])'
+      failureCondition: 'len(result) != 1 || !(result[0] >= {{ $threshold }}) || !(result[0] <= 1) || isNaN(result[0]) || isInf(result[0])'
+      {{- end }}
+      provider:
+        prometheus:
+          address: http://learning-prometheus.observability.svc.cluster.local:9090
+          timeout: 5
+          query: {{ $query | quote }}
+    {{- end }}
+{{- end }}

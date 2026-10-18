@@ -118,6 +118,42 @@ def verify_analysis(objects, baseline, case):
     return rollout, template
 
 
+def verify_metrics(objects):
+    assert {(o['kind'], o['metadata']['name']) for o in objects} == {
+        ('Rollout', 'learning-account-canary'), ('AnalysisTemplate', 'learning-account-metrics'),
+        *[('Service', n) for n in ('learning-account', 'learning-account-stable', 'learning-account-canary')]}
+    assert len(objects) == 5
+    assert all(o['metadata']['namespace'] == 'learning-fixture' for o in objects)
+    rollout = next(o for o in objects if o['kind'] == 'Rollout')
+    steps = rollout['spec']['strategy']['canary']['steps']
+    assert steps[0:2] == [dict(setWeight=10), dict(pause={})]
+    assert steps[2]['analysis']['templates'] == [dict(templateName='learning-account-metrics')]
+    assert steps[2]['analysis']['args'][2:4] == [
+        dict(name='latest-hash', valueFrom=dict(podTemplateHashValue='Latest')),
+        dict(name='stable-hash', valueFrom=dict(podTemplateHashValue='Stable'))]
+    assert steps[3:] == [dict(setWeight=50), dict(pause={}), dict(setWeight=100), dict(pause={})]
+    template = next(o for o in objects if o['kind'] == 'AnalysisTemplate')
+    assert template['metadata']['annotations']['argocd.argoproj.io/sync-wave'] == '-1'
+    queries = json.loads((CHART / 'files/revision-queries.json').read_text())
+    assert set(queries) == {r+'-'+m for r in ('latest','stable') for m in ('requests','availability','latency')}
+    assert len(template['spec']['metrics']) == 6
+    for metric in template['spec']['metrics']:
+        for key, value in dict(count=1, failureLimit=0, inconclusiveLimit=0, consecutiveErrorLimit=0).items():
+            assert metric[key] == value
+        assert metric['provider'] == dict(prometheus=dict(
+            address='http://learning-prometheus.observability.svc.cluster.local:9090', timeout=5, query=queries[metric['name']]))
+        threshold = '20' if metric['name'].endswith('requests') else ('0.99' if metric['name'].endswith('availability') else '0.95')
+        assert 'len(result) == 1' in metric['successCondition']
+        assert 'result[0] >= ' + threshold in metric['successCondition']
+        assert 'len(result) != 1' in metric['failureCondition']
+        assert '!isNaN(result[0]) && !isInf(result[0])' in metric['successCondition']
+        q = queries[metric['name']]
+        assert all(x in q for x in ['[5m]', 'account_namespace="{{args.namespace}}"', 'learning_service="{{args.service}}"',
+                                    'rollout_revision="{{args.', 'sum by(instance)(increase(', 'count_over_time(', 'timestamp(', 'le="+Inf"'])
+        assert 'vector(0)' not in q
+    return rollout, template
+
+
 def verify_provider(objects):
     assert len(objects) == 3
     assert {(o['kind'], o['metadata']['name']) for o in objects} == {
@@ -212,6 +248,32 @@ def main():
         if args.output:
             (args.output / ('analysis-' + case + '.yaml')).write_text(yaml.safe_dump_all(objs,sort_keys=False))
     assert len({json.dumps(p,sort_keys=True) for p in pod_templates}) == 5
+    for profile in ('metrics-good', 'metrics-candidate'):
+        current = copy.deepcopy(values)
+        current.update(yaml.safe_load((ROOT / 'profiles' / (profile + '.yaml')).read_text()))
+        Draft7Validator(SCHEMA).validate(current)
+        objs = render(current)
+        rollout, template = verify_metrics(objs)
+        Draft7Validator(schemas['Rollout']).validate(rollout)
+        Draft7Validator(schemas['AnalysisTemplate']).validate(template)
+        for mutation in ('resource', 'pause', 'hash', 'query', 'timeout', 'error-limit'):
+            bad = copy.deepcopy(objs)
+            r = next(o for o in bad if o['kind'] == 'Rollout')
+            m = next(o for o in bad if o['kind'] == 'AnalysisTemplate')['spec']['metrics'][0]
+            if mutation == 'resource': bad.append(dict(kind='ConfigMap',metadata=dict(name='forbidden')))
+            if mutation == 'pause': r['spec']['strategy']['canary']['steps'].pop(1)
+            if mutation == 'hash': r['spec']['strategy']['canary']['steps'][2]['analysis']['args'][2] = dict(name='latest-hash',value='main')
+            if mutation == 'query': m['provider']['prometheus']['query'] = 'vector(1)'
+            if mutation == 'timeout': m['provider']['prometheus']['timeout'] = 30
+            if mutation == 'error-limit': m['consecutiveErrorLimit'] = 3
+            expect_rejection(lambda: verify_metrics(bad))
+        if args.output:
+            (args.output / (profile + '.yaml')).write_text(yaml.safe_dump_all(objs,sort_keys=False))
+        bad = copy.deepcopy(current)
+        bad['telemetry']['enabled'] = False
+        assert list(Draft7Validator(SCHEMA).iter_errors(bad))
+        render(bad,success=False)
+    print('PASS metrics gate: 10% preparation pause, six revision queries, Prometheus timeout5s/error0, schemas and safety rejections')
     provider_objects = render({'owner':'synthetic-fixture'}, release='learning-account-analysis-provider', chart=FIXTURE)
     verify_provider(provider_objects)
     bad = copy.deepcopy(provider_objects)

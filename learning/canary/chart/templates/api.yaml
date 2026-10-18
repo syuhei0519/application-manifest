@@ -19,9 +19,13 @@ spec:
       steps:
         - setWeight: 10
         {{- if .Values.analysis.enabled }}
+        {{- if eq .Values.analysis.mode "metrics" }}
+        # Seed counters and collect multiple scrapes before starting inline analysis.
+        - pause: {}
+        {{- end }}
         - analysis:
             templates:
-              - templateName: learning-account-analysis
+              - templateName: {{ if eq .Values.analysis.mode "metrics" }}learning-account-metrics{{ else }}learning-account-analysis{{ end }}
             args:
               - {name: service, value: account}
               - {name: namespace, value: {{ .Release.Namespace | quote }}}

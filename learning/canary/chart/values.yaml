@@ -10,3 +10,4 @@ telemetry:
 analysis:
   enabled: false
   case: success
+  mode: fixed

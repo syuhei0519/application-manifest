@@ -67,6 +67,12 @@
             "missing",
             "timeout"
           ]
+        },
+        "mode": {
+          "enum": [
+            "fixed",
+            "metrics"
+          ]
         }
       }
     }
@@ -116,6 +122,40 @@
               "good",
               "candidate"
             ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "analysis": {
+            "properties": {
+              "enabled": {
+                "const": true
+              },
+              "mode": {
+                "const": "metrics"
+              }
+            },
+            "required": [
+              "enabled",
+              "mode"
+            ]
+          }
+        },
+        "required": [
+          "analysis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "telemetry": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
           }
         }
       }
