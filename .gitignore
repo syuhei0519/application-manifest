@@ -8,3 +8,12 @@ __pycache__/
 .validation/
 .oci/
 .oci-budget-*/
+
+# Generated evidence stays in CI artifacts.
+/docs/evidence/**
+!/docs/evidence/
+!/docs/evidence/README.md
+
+# Immutable shared modules are materialized by ci/shared-tools.sh.
+/tools/release-record/
+/tools/scan-gate/

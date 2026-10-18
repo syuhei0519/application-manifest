@@ -1,4 +1,4 @@
-module core-platform/image-inventory
+module github.com/syuhei0519/application-manifest/tools/inventory
 
 go 1.27.0
 
