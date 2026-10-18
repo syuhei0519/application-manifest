@@ -2,7 +2,7 @@
 
 既存 `learning/chart` は変更していません。このAPI専用chartの明示利用時だけRolloutへ移行します。
 既定の描画対象はAccount Rolloutと3 Servicesだけ。DB/DB Service/PVC/Secret/migration Jobを含みません。
-Issue #11の明示opt-in時だけ、末尾のAnalysisTemplateとHTTP fixtureを追加します。
+Issue #11の明示opt-in時だけAnalysisTemplateを追加します。HTTP providerは別のlocal Test専用fixtureです。
 `mode=deployment,revision=good` は元のAccount Deploymentと公開Serviceだけを描画します。
 復帰PodSpecは、同じsource/image/owner/telemetry値を渡した既存chartのAPIと一致します。
 
@@ -244,13 +244,15 @@ AnalysisTemplateの単一metricはcount=1、failureLimit/inconclusiveLimit/conse
 | missing | value自体を省略 | asFloatの評価Error | 自動abort、50%へ進まない |
 | timeout | 3秒遅延（webは1秒timeout） | Error | 自動abort、50%へ進まない |
 
-4つの追加資源はAnalysisTemplateと、固定HTTP fixtureのConfigMap/Deployment/ClusterIP Serviceです。
+Argo管理chartの追加資源はAnalysisTemplateだけです。固定HTTP providerのConfigMap/Deployment/ClusterIP Serviceは
+別chart `learning/canary/fixture` に分離し、local Test担当が事前apply・Ready確認・片付けを行います。
+Application sourceには含めず、ArgoへDeployment/ConfigMapの作成・更新権限を追加しません。
 fixtureは認証不要、Secret/ServiceAccount作成なし・Pod tokenなし。外部公開/Ingress/NodePortはありません。
 固定Python imageはplatform `learning/istio` と同じdigestで、追加package不要です。
 1 replica、requests 25m/32Mi、limits 200m/64Mi、read-only root filesystemと非root実行です。
 このproviderは指定caseとhashを返す学習用であり、実revisionの品質や実SLOを測定しません。
-追加資源はsync-wave=-1。Argo CDはprovider Readyを待ってからRolloutを同期します。
-直接のHelm renderを使う場合も、provider Readyを更新前に別途確認してください。
+AnalysisTemplateだけsync-wave=-1です。providerはArgoのsync waveやhealth判定では管理しません。
+local Test担当が以下の独立fixtureを事前applyし、Ready確認後にApplicationを更新してください。
 
 ### Cloudで再現（clusterへ接続しない）
 
@@ -274,6 +276,7 @@ CIは同じ検証を実行し、架空imageのrenderを既存artifactに保存�
 1. platform側の追加Role/resource inclusionsと、opt-in AppProjectを先に固定commitから描画します。
    Managerが対象context/namespace/ownerと追加権限への適用を確認した後、local Test担当だけが適用します。
    既存DB/PVC/Secret/migrationと他サービス・監視を維持し、固定Python image到達性も確認します。
+   下記の独立fixtureをlocal Test担当が事前applyし、Ready確認後だけAccountの同期へ進みます。
 2. 本README既存の `k` / `c` / `r` を使います。pluginは必ず `kubectl argo rollouts --context=... --namespace=...` の順です。
    既存のoperation空・終端確認、prune=false、RespectIgnoreDifferences=trueをそのまま守ります。
    最初にanalysis enabled・case=success・revision=goodを既知良好stableにします。
@@ -306,6 +309,29 @@ k get analysisrun "$RUN" -o jsonpath='owner={.metadata.ownerReferences}{"\n"}arg
 
 runtime受入は5caseのRun/Rollout statusが揃って初めて判断します。Cloud/CI成功だけではAC完了ではありません。
 試験終了時は進行中operationを終了し、既存Deployment復帰手順を守ります。analysis disabledへ戻すだけでは
-prune=falseのため追加4資源は消えません。Application停止・Account復帰後、所有UID/labelと他利用なしを確認して
-`learning-account-analysis` AnalysisTemplateと`learning-account-analysis-provider` ConfigMap/Deployment/Serviceだけを解除します。
+prune=falseのためAnalysisTemplateは消えません。Application停止・Account復帰後、所有UID/labelと他利用なしを確認して
+`learning-account-analysis` AnalysisTemplateを個別解除し、独立fixtureはlocal Test担当が下記の手順で片付けます。
 生成RunはownerReferenceと完了状態を確認して個別に扱い、namespace/DB/CRDを一括削除しません。
+
+
+### 独立provider fixtureの事前配置と片付け
+
+Cloudで以下を描画します。Applicationのchart/path/valueFilesは変更せず、この出力をArgo syncに含めません。
+入力はownerと明示learning-* namespaceだけで、image/URL/名前の上書きは拒否します。
+
+```bash
+# Cloud: 非秘密の確認済みowner/namespaceを使用する。
+helm template learning-account-analysis-provider learning/canary/fixture \
+  --namespace "$NAMESPACE" --kube-version 1.36.4 --set-string owner="$OWNER" > "$OUT/provider-fixture.yaml"
+# local Test: 同名資源の不在、context/namespace/ownerと描画3資源を照合してから実行。
+k apply -f "$OUT/provider-fixture.yaml"
+k rollout status deployment/learning-account-analysis-provider --timeout=120s
+# Ready/Service endpointを確認後にのみAccount Applicationを同期する。
+# 試験終了・Account復帰後: 所有UID/labelと他利用なしを再確認する。
+k delete deployment learning-account-analysis-provider --wait=true
+k delete service learning-account-analysis-provider
+k delete configmap learning-account-analysis-provider
+```
+
+fixture失敗・未ReadyならAccount更新を開始しません。既存の同名資源は無条件に上書きせず停止します。
+fixtureへの追加apply/削除はlocal Test担当の操作であり、Argo SAへの一般Deployment/ConfigMap権限追加で代替しません。

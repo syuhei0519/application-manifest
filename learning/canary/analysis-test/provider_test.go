@@ -51,7 +51,7 @@ func TestFixedProvider(t *testing.T) {
 	}
 	// Bind only loopback and an OS-selected port in Cloud. The deployed fixture uses ClusterIP.
 	script := `import sys; sys.path.insert(0, sys.argv[1]); from provider import Handler, ThreadingHTTPServer; s=ThreadingHTTPServer(('127.0.0.1',0),Handler); print(s.server_port,flush=True); s.serve_forever()`
-	cmd := exec.Command("python3", "-B", "-c", script, filepath.Join(chart, "files"))
+	cmd := exec.Command("python3", "-B", "-c", script, filepath.Join(chart, "..", "fixture", "files"))
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
