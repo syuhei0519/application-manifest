@@ -64,10 +64,18 @@ controllerでのabort遷移は独立local Testで確認する。窓全体の完�
    Collector SAが対象namespaceのPodを読め、他namespaceのPod・Secret・Node・ReplicaSetを読めないことを確認する。
    `k8sattributes` はnamespace補正後、Pod UIDだけで関連付けし、Pod labelのhash/serviceを抽出する。
    `resource_to_telemetry_conversion=false` を維持し、HTTP counter/histogramとheartbeatだけへ2 labelをコピーする。
-2. ApplicationのGit固定targetRevisionを新manifest headへ、valueFilesを `../profiles/metrics-good.yaml` へ設定し、
-   初回stableをReadyにする。chart/schema/owner/image境界や同期・Deployment復帰の操作は既存手順と同じ。
+2. 既存の完全な非秘密Account valuesを保持したまま、`revision: good` と
+   `analysis: {enabled: true, mode: metrics, case: success}` を指定する（最上位の `mode: rollout` とは別）。
+   修正済みplatform `learning/progressive-delivery/application.py` にこのvaluesと固定manifest headを渡し、
+   **AppProjectとApplicationの両方**を新しい出力ファイルへ生成する。具体的なコマンドは下記。
+   local Test担当が生成した両資源をapplyし、既存手順のoperation確認・手動syncで初回stableをReadyにする。
+   generatorはmetrics-good profile、優先度の高いvaluesObjectのenabled=true/mode=metrics、
+   AppProjectのRollout/Service/AnalysisTemplateだけの許可を同時に設定する。
    goodの初回はAnalysisを省略すること、telemetryが有効であることを確認する。
-3. valueFilesを `../profiles/metrics-candidate.yaml` へ変更し、手動syncして10%準備pauseまで待つ。
+3. 同じ完全valuesの `revision` を `candidate` にして**両資源を再生成・apply**し、
+   手動syncして10%準備pauseまで待つ。valueFilesだけをpatchしない。
+   古いvaluesObjectのenabled=false/mode=fixedはprofileより優先され、古いAppProjectはAnalysisTemplateを拒否するため、
+   profile・valuesObject・AppProjectを一組のdesiredとして更新する。
    live Ready Podの `rollouts-pod-template-hash`、Run args予定値、canary1/stable9を照合する。
    `target_info.k8s_pod_uid` と実Pod UID、HTTP/heartbeatのjob/instance/hash/serviceを確認する。
    同じimageの2hashが同時に分離/exportできない場合は停止して調査し、Analysisを始めない。
@@ -90,10 +98,24 @@ controllerでのabort遷移は独立local Testで確認する。窓全体の完�
 7. 欠測/低sampleは負荷を行わない別hashで試す。稼働中instanceの一部HTTP欠測はCloud promtool fixtureで確認済み。
    provider失敗/timeoutは実固定provider対loopback fixtureで確認済み。実controllerまでの確認が必要なら、
    Test担当が別applyした専用Prometheus互換fixtureを使う。API/DB停止やArgo権限拡大を代用しない。
-8. 違反後は良好profileをdesiredへ戻し、既存READMEのoperation停止・終端確認・再sync2回・保存したApplication再applyを行う。
+8. 違反後はoperation停止・終端確認の後、確認済み良好revision/caseの完全valuesからAppProject/Applicationを再生成し、
+   両方をdesiredへ戻す。既存READMEの再sync2回・保存したApplication再applyを行う。
    `spec.paused=false`、failed RS縮退、良好hash Ready、代表API/保存した基準行GETを確認する。
    終了時は既存READMEのDeployment復帰を行い、専用fixture/転送/合成行だけ片付ける。
    元DB/PVC/既存Secret/migrationを再apply・削除しない。
+
+Application/AppProjectの生成（platform checkoutでCloud実行。`ACCOUNT_VALUES` は既存の完全な非秘密values）:
+
+```sh
+python3 learning/progressive-delivery/application.py \
+  --namespace "$NAMESPACE" --control-namespace "$CONTROL_NAMESPACE" \
+  --manifest-commit "$MANIFEST_COMMIT" --values "$ACCOUNT_VALUES" \
+  --output "$OUT/metrics-application.yaml"
+# ローカル担当が両資源を確認・applyし、既存wrapperでpruneなし手動syncする。
+```
+
+再生成時は新規出力ファイルを使う。固定manifest commitとimage/source/owner/telemetry値を保持する。
+case変更時も完全valuesから両資源を生成し直し、古いvaluesObjectを残したprofile patchで代用しない。
 
 latency負例（確認済みのcanary loopback先だけ。並列1・1 req/s・timeout2秒・retry/redirectなし）:
 

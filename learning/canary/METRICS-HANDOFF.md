@@ -96,3 +96,40 @@ metrics-good初回stable→metrics-candidate10%準備pause→全10 Podのbaselin
 stable/canaryの少数負荷→query/Run判定→違反abort→良好profileへdesired復帰/再sync2回→
 代表API/基準行GET→元Deployment復帰/専用fixture・合成行cleanup。
 権限の追加拡張、API故障注入framework、全feature再試験は不要。
+
+### 独立Review P1: Application生成経路の訂正
+
+初回Handoff後の独立Reviewで、platform generatorが `analysis.mode: metrics` を拒否すること、
+valueFilesだけの変更では古いvaluesObject/AppProjectが残り、Analysis消失または許可不足になることを確認した。
+初回のchart単体成功はApplication結合成功を示していなかった。
+
+修正platform headは `58c6ae9ae07c4dd820e3d3d385193ea50ff6582c`（同じDraft PR93）。
+明示metrics入力からmetrics-good/candidate profile、valuesObjectのenabled/mode/case、
+AppProjectのRollout/Service/AnalysisTemplate許可を一括生成する。
+mode省略のfixed互換とanalysis省略時のmanualを維持し、disabledとmetricsの組合せは拒否する。
+AppProject以外のRole/権限は変更せず、ArgoのConfigMap/Deployment createを追加していない。
+manifest PR36はMETRICS.mdと本追記だけを変更し、完全valuesからAppProject/Applicationを両方生成・適用する手順へ訂正した。
+backend PR55のheadは上表から不変。
+
+差分中心のCloud自己検証:
+
+```sh
+# platform root。既存の固定Python依存/PATH上のHelmを使う。
+python3 learning/progressive-delivery/test_application.py --manifest-repo ../application-manifest
+python3 learning/progressive-delivery/validate.py --output /tmp/issue15-p1-progressive
+sh ci/test-docs-check.sh
+# manifest root
+sh ci/test-docs-check.sh
+```
+
+新結合回帰は10通りの生成Applicationを、そのvalueFiles→valuesObjectの実優先順でHelmへ渡し、
+描画資源kindとAppProject許可集合の完全一致を確認して成功した。
+metricsは10%→準備pause→Prometheus Analysis（6 metric）→50/100、manual/fixedも従来経路を維持。
+3入力負例、Reviewer提示CLIによるmetrics入力の受理、既存AppProject/Application schema・限定権限・Lua health、
+両repoのdocs回帰各14ケースとdiff checkも成功した。
+CIへは固定manifest `a817e00f42a659d1dcd8a9766ad2727cc4beee18` のcheckoutとこの結合テストだけを追加した。
+query26/実provider/helper/実API/metadata試験の全再実行はしていない。
+P2のreset一律拒否はManagerから撤回の連絡を受領し、reset条件を変更していない。
+
+この追記を含むmanifest最終headはPR36のheadで確認する。新headのCIと独立再Reviewは別途確認が必要。
+local Testは修正済みplatform generatorを使い、保存するAppProject/Applicationと固定manifest commitを一組で引き継ぐ。
