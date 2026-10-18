@@ -24,4 +24,4 @@ MR !39は最新backend source mainを通常freshnessRequired=trueで検証・統
 
 platform-gitops MR !10の実受入で、別の隔離kindへbackup checksum、全records、schema history、既知rowの一致を確認。DB prune confirmとPVC prune=falseを実測し、承認した隔離DB prune/recreateでも同PVCとdata markerを保持。Application cascade deleteのconfirm待ちでDB/PVC/data保護を確認。直接kubectlを実行する操作者の権限は別であり、Argo annotationだけで全削除を禁止したと主張しない。
 
-[秘密値なし実証跡](../evidence/PE007-rollback-runtime.json)。PW、Secret data、認証header、SQL backup内容は含めない。試験用kind/DB/PVC/dataと専用kubeconfigは最終監査後に削除し、SourceLabは保持する。
+[秘密値なし実証跡](https://github.com/syuhei0519/application-manifest/blob/c8bad893f660a1b973e528d14d9b299d9b0d8a5f/docs/evidence/PE007-rollback-runtime.json)。PW、Secret data、認証header、SQL backup内容は含めない。試験用kind/DB/PVC/dataと専用kubeconfigは最終監査後に削除し、SourceLabは保持する。

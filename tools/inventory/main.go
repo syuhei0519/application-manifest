@@ -70,7 +70,7 @@ func imageParts(image string) (string, string, string, error) {
 }
 
 func inventory(data []byte, namespace string) (Output, error) {
-	result := Output{Schema: "core-platform/image-inventory/v1", RenderSHA256: hash(data), Entries: []Entry{}}
+	result := Output{Schema: "github.com/syuhei0519/application-manifest/tools/inventory/v1", RenderSHA256: hash(data), Entries: []Entry{}}
 	if len(data) > 20<<20 {
 		return result, fmt.Errorf("render exceeds 20 MiB")
 	}
