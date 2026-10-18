@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Offline render/schema fixtures for this learning path only. No cluster calls."""
+import argparse
 import copy
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -89,6 +91,8 @@ def verify(service, objects):
             assert env['PGPASSWORD']['valueFrom']['secretKeyRef'] == {
                 'name': name + '-db', 'key': 'app-password'}
             assert 'DATABASE_URL' not in env
+            if not any(x['name'] == 'OTEL_EXPORTER_OTLP_ENDPOINT' for x in container['env']):
+                assert not {'POD_NAMESPACE', 'POD_UID', 'DEPLOYMENT_ENVIRONMENT'} & env.keys()
     assert job['spec']['backoffLimit'] == 0
     assert job['spec']['activeDeadlineSeconds'] == 180
     assert job['spec']['template']['spec']['containers'][0]['args'] == ['migrate']
@@ -105,7 +109,71 @@ def verify(service, objects):
         assert svc['spec'].get('type', 'ClusterIP') == 'ClusterIP'
 
 
+def account_telemetry(values, directory, namespace='learning-fixture', output=None):
+    """Verify and optionally seal only the API Deployment; never apply resources."""
+    assert values['service'] == 'account', 'Account values required'
+    assert values['telemetry']['enabled'] is False, 'use the existing opt-in-off values as baseline'
+    VALIDATOR.validate(values)
+    on_values = copy.deepcopy(values)
+    on_values['telemetry']['enabled'] = True
+    enabled = list(yaml.safe_load_all(render(on_values, directory, namespace=namespace)))
+    disabled = list(yaml.safe_load_all(render(values, directory, namespace=namespace)))
+    assert len(enabled) == len(disabled)
+    api_pairs = []
+    for on, off in zip(enabled, disabled):
+        if on['kind'] != 'Deployment':
+            assert on == off, 'non-API resources, including the completed migration Job, must be unchanged'
+            continue
+        assert on['metadata']['name'] == 'learning-account'
+        assert on['metadata']['namespace'] == namespace
+        unchanged = copy.deepcopy(on)
+        containers = unchanged['spec']['template']['spec']['containers']
+        assert len(containers) == 1 and containers[0]['name'] == 'api'
+        env = containers[0]['env']
+        assert env[-4:] == [
+            {'name': 'OTEL_EXPORTER_OTLP_ENDPOINT', 'value': 'http://otel-collector.observability.svc.cluster.local:4318'},
+            {'name': 'DEPLOYMENT_ENVIRONMENT', 'value': 'local'},
+            {'name': 'POD_NAMESPACE', 'value': 'account'},
+            {'name': 'POD_UID', 'valueFrom': {'fieldRef': {'fieldPath': 'metadata.uid'}}}]
+        del env[-4:]
+        assert unchanged == off, 'API change must be exactly the four telemetry env inputs'
+        api_pairs.append((off, on))
+    assert len(api_pairs) == 1
+    if output:
+        assert not output.exists(), 'use a new output directory; preserve previous fixed bytes'
+        output.mkdir(parents=True)
+        files = []
+        for name, obj in zip(('account-api-before.yaml', 'account-api-telemetry.yaml'), api_pairs[0]):
+            data = yaml.safe_dump(obj, sort_keys=False).encode('utf-8')
+            (output / name).write_bytes(data)
+            files.append({'path': name, 'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+        obj = api_pairs[0][0]
+        inventory = {
+            'resources': [{'apiVersion': obj['apiVersion'], 'kind': 'Deployment',
+                           'namespace': namespace, 'name': 'learning-account',
+                           'owner': obj['metadata']['labels']['learning.local/owner']}],
+            'files': files,
+            'excluded_from_apply_and_restore': ['Job', 'StatefulSet', 'PersistentVolumeClaim',
+                                                'Secret', 'ConfigMap', 'Service'],
+            'baseline': 'existing approved opt-in-off values; verify against the actual API before application'}
+        (output / 'inventory.json').write_text(json.dumps(inventory, indent=2) + '\n')
+    print('PASS Account telemetry only: API delta is exactly four env inputs; Job/DB/other objects unchanged; apply/restore inventory is one Deployment')
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--account-telemetry-only', action='store_true', help='run only the R1 Account deployment boundary check')
+    parser.add_argument('--account-values', type=Path, help='existing approved opt-in-off values, without changing image/DB/other settings')
+    parser.add_argument('--namespace', default='learning-fixture')
+    parser.add_argument('--output', type=Path, help='new directory for Deployment-only before/telemetry files and fixed inventory')
+    args = parser.parse_args()
+    if (args.account_values or args.output) and not args.account_telemetry_only:
+        parser.error('--account-values/--output require --account-telemetry-only')
+    if args.account_telemetry_only:
+        values = yaml.safe_load(args.account_values.read_text()) if args.account_values else fixture('account')
+        with tempfile.TemporaryDirectory(prefix='account-telemetry-') as tmp:
+            account_telemetry(values, Path(tmp), args.namespace, args.output)
+        return
     assert list(VALIDATOR.iter_errors(DEFAULTS)), 'unconfigured defaults must fail'
     identities = set()
     with tempfile.TemporaryDirectory(prefix='learning-render-') as tmp:
@@ -123,6 +191,7 @@ def main():
             run(['helm', 'lint', '--strict', '--namespace', 'learning-fixture',
                  str(CHART), '-f', str(directory / 'fixture.yaml')])
             print(f'PASS {service}: schema, strict lint, 7 resources, ownership/DB/image/probe contracts')
+        account_telemetry(fixture('account'), directory)
         # Rejection fixtures exercise the Helm entry point as well as JSON Schema.
         bad_cases = []
         for key, value in [('imageConfigID', ''), ('imageConfigID', 'latest'),
@@ -137,13 +206,20 @@ def main():
         values = fixture('account')
         values['sourceCommits']['account'] = 'main'
         bad_cases.append(values)
+        for service in ('order', 'payment', 'notification'):
+            values = fixture(service)
+            values['telemetry']['enabled'] = True
+            bad_cases.append(values)
+        values = fixture('account')
+        values['telemetry']['enabled'] = 'true'
+        bad_cases.append(values)
         for values in bad_cases:
             assert list(VALIDATOR.iter_errors(values))
             render(values, directory, ok=False)
         for namespace in ('default', 'account', 'kube-system'):
             render(fixture('account'), directory, namespace=namespace, ok=False)
         render(fixture('account'), directory, release='wrong', ok=False)
-        print('PASS 12 rejection fixtures: missing/mutable identity, credential field, namespace/release boundaries')
+        print('PASS 16 rejection fixtures: identity, credentials, namespace/release, Account-only boolean opt-in')
     print('PASS learning path only; synthetic image IDs, no Kubernetes/runtime/image-build acceptance')
 
 

@@ -39,7 +39,7 @@ spec:
           image: {{ include "learning.image" . | quote }}
           imagePullPolicy: Never
           env:
-            {{- include "learning.env" . | nindent 12 }}
+            {{- include "learning.apiEnv" . | nindent 12 }}
           ports: [{name: http, containerPort: 8080}]
           securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
           resources:

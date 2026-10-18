@@ -184,3 +184,51 @@ cleanupは証跡配送後、削除が許可された今回の専用namespace内�
 database.yaml削除は当該PVCも削除し、local-pathのreclaimによりデータを失うことを明示して承認範囲と照合します。
 Secretとnamespaceも今回所有分だけ個別削除します。cluster、node、PV一括削除、他namespace、既存Labは対象外です。
 cleanupが失敗/不明ならその対象と結果を記録して停止し、再作成やwildcard削除で回避しません。
+
+## Account telemetry opt-in
+
+`learning/chart`の`telemetry.enabled`は既定`false`。既定offの全サービスrenderは変更しない。
+Accountに限り`true`を指定でき、Order/Payment/Notificationのtrueは拒否する。
+監視側はplatform-gitopsの独立`learning/monitoring/chart`を使用する。
+既存DB/Secret/PVC/imageは変更せず、backendの再buildもこのopt-inに含めない。
+
+```yaml
+telemetry:
+  enabled: true
+```
+
+有効時は既存SDK用の固定Collector endpoint、environment=local、`POD_NAMESPACE=account`、
+実Pod UID（Downward API）の4入力だけをAPI専用helperから追加する。
+migration Jobには追加せず、完了済みJobのimmutable PodTemplateを変更しない。
+`POD_NAMESPACE=account`はlegacy SDK互換値で、実namespaceではない。
+専用CollectorでAccount/local/互換namespaceをfilterしてから、承認済み実`learning-*` namespaceへ
+resource属性を補正する。実namespaceを監視valuesに明示し、互換値を実namespaceとして表示しない。
+この属性検査は送信者認証ではない。実SDK/環境でnamespace制約がセキュリティ境界として使われている場合は
+互換値で迂回せずManagerへ報告する。
+
+送信対象imageに既存SDKと40桁buildCommitが入っていること、固定endpointへのService DNS/配線、
+実namespace/Pod UID/source/image identityを後続の承認済みkind受入で確認する。
+起動検査不一致、同名Collectorとの衝突、既存権限不足は停止。匿名Viewerのlive適用も別承認が必要。
+Cloudの`python3 learning/validate.py`はschema/renderの確認だけでlive AC合格を意味しない。
+正常200と安全な400、5m窓経過後のidle、所有Collector停止/復旧によるmissingの手順は
+[監視runbook](https://github.com/syuhei0519/platform-gitops/tree/main/learning/monitoring)を参照する。
+監視opt-inでは**Account API Deploymentだけ**を配送・適用・復旧対象にする。
+全chart renderや`api.yaml` template全体（Serviceも含む）はapplyしない。
+Jobの削除・再実行、DB/StatefulSet/PVC/Secret/ConfigMap/Serviceの適用は対象外。
+既存の固定済み完全values（telemetry.enabled=false、同じsource/image/DB/owner等）から次を実行する。
+既存設定を変更せず、telemetryの4入力だけを差分として検査する。cluster操作は行わない。
+
+```sh
+python3 learning/validate.py --account-telemetry-only \
+  --account-values existing-account-values.yaml --namespace "$ACCOUNT_NAMESPACE" \
+  --output account-telemetry-delivery
+```
+
+新規出力directoryには`account-api-before.yaml`（復旧用）、`account-api-telemetry.yaml`（適用用）、
+`inventory.json`（1 Deploymentのnamespace/name/ownerと両ファイルのsize/SHA256）だけが入る。
+両YAMLをparseし、inventoryが実Account Deploymentと一致することを確認してbytesを固定・配送する。
+実AccountとbeforeのPodTemplateが一致しなければ停止し、既存値を取得し直して別の固定成果物を作る。
+以前の成果物を上書きしない。合成fixtureによる出力を実対象の適用ファイルに流用しない。
+Managerが対象/操作を承認した後のみ`account-api-telemetry.yaml`をapplyし、Account rolloutを確認する。
+復旧も保存済み`account-api-before.yaml`だけをapplyする。両操作ともinventoryは
+`apps/v1 Deployment learning-account`の1件だけで、完了済みmigration Jobには触れない。

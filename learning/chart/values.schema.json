@@ -7,7 +7,8 @@
     "owner",
     "imageConfigID",
     "sourceCommits",
-    "database"
+    "database",
+    "telemetry"
   ],
   "properties": {
     "service": {
@@ -84,6 +85,40 @@
           "pattern": "^[1-9][0-9]*Gi$"
         }
       }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "telemetry": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "service": {
+            "const": "account"
+          }
+        }
+      }
+    }
+  ]
 }

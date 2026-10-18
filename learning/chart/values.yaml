@@ -2,6 +2,10 @@
 service: account
 owner: ''
 imageConfigID: ''
+# Account only. The fixed Collector rewrites the legacy SDK namespace to the
+# approved real learning namespace; this is not sender authentication.
+telemetry:
+  enabled: false
 # Source candidates, not assertions of merged features or accepted images.
 sourceCommits:
   account: d48a97851619912e7efc80c470912907ce965dc7
