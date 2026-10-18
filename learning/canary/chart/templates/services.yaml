@@ -1,0 +1,19 @@
+{{- $root := . -}}
+{{- $names := list "learning-account" -}}
+{{- if eq .Values.mode "rollout" -}}
+{{- $names = list "learning-account" "learning-account-stable" "learning-account-canary" -}}
+{{- end -}}
+{{- range $name := $names }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "learning.labels" $root | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {learning.local/workload: learning-account{{ if eq $root.Values.mode "rollout" }}-canary{{ end }}}
+  ports: [{name: http, port: 8080, targetPort: http}]
+{{- end }}

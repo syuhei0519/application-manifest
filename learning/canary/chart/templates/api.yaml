@@ -1,0 +1,69 @@
+apiVersion: {{ if eq .Values.mode "rollout" }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+kind: {{ if eq .Values.mode "rollout" }}Rollout{{ else }}Deployment{{ end }}
+metadata:
+  name: {{ include "learning.name" . }}{{ if eq .Values.mode "rollout" }}-canary{{ end }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  replicas: {{ if eq .Values.mode "rollout" }}10{{ else }}1{{ end }}
+  revisionHistoryLimit: 2
+  {{- if eq .Values.mode "rollout" }}
+  paused: false
+  strategy:
+    canary:
+      stableService: learning-account-stable
+      canaryService: learning-account-canary
+      maxSurge: 0
+      maxUnavailable: 1
+      steps:
+        - setWeight: 10
+        - pause: {}
+        - setWeight: 50
+        - pause: {}
+        - setWeight: 100
+        - pause: {}
+  {{- end }}
+  progressDeadlineSeconds: 300
+  selector:
+    matchLabels: {learning.local/workload: {{ include "learning.name" . }}{{ if eq .Values.mode "rollout" }}-canary{{ end }}}
+  template:
+    metadata:
+      labels:
+        {{- include "learning.labels" . | nindent 8 }}
+        learning.local/workload: {{ include "learning.name" . }}{{ if eq .Values.mode "rollout" }}-canary{{ end }}
+      annotations:
+        {{- include "learning.annotations" . | nindent 8 }}
+        {{- if eq .Values.mode "rollout" }}
+        learning.local/config-revision: {{ .Values.revision | quote }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: {{ include "learning.image" . | quote }}
+          imagePullPolicy: Never
+          env:
+            {{- include "learning.apiEnv" . | nindent 12 }}
+          ports: [{name: http, containerPort: 8080}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+          startupProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet: {path: {{ if eq .Values.revision "failed" }}/__learning_not_ready{{ else }}/readyz{{ end }}, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+      volumes: [{name: tmp, emptyDir: {}}]

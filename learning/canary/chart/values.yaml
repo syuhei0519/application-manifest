@@ -1,0 +1,8 @@
+# Explicit API-only opt-in. The existing learning/chart remains unchanged.
+owner: ''
+imageConfigID: ''
+sourceCommit: e030275abbf52ecd27b7152ce597b3d89be3f830
+mode: rollout
+revision: good
+telemetry:
+  enabled: false
