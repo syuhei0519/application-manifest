@@ -1,0 +1,33 @@
+{{- if .Values.analysis.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: learning-account-analysis
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  args:
+    - {name: service}
+    - {name: namespace}
+    - {name: latest-hash}
+    - {name: stable-hash}
+    - {name: case}
+  metrics:
+    - name: fixed-account-result
+      count: 1
+      failureLimit: 0
+      inconclusiveLimit: 0
+      consecutiveErrorLimit: 0
+      successCondition: >-
+        asFloat(result.value) == 1 && result["latest-hash"] == "{{ "{{args.latest-hash}}" }}" && result["stable-hash"] == "{{ "{{args.stable-hash}}" }}" && result["latest-hash"] != "" && result["stable-hash"] != "" && result.service == "{{ "{{args.service}}" }}" && result.namespace == "{{ "{{args.namespace}}" }}"
+      failureCondition: >-
+        asFloat(result.value) == 0 || result["latest-hash"] != "{{ "{{args.latest-hash}}" }}" || result["stable-hash"] != "{{ "{{args.stable-hash}}" }}" || result["latest-hash"] == "" || result["stable-hash"] == "" || result.service != "{{ "{{args.service}}" }}" || result.namespace != "{{ "{{args.namespace}}" }}"
+      provider:
+        web:
+          url: "http://learning-account-analysis-provider.{{ .Release.Namespace }}.svc.cluster.local:8080/measure?service={{ "{{args.service}}" }}&namespace={{ "{{args.namespace}}" }}&latest-hash={{ "{{args.latest-hash}}" }}&stable-hash={{ "{{args.stable-hash}}" }}&case={{ "{{args.case}}" }}"
+          jsonPath: "{$}"
+          timeoutSeconds: 1
+{{- end }}

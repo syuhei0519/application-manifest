@@ -1,7 +1,8 @@
 # Account 手動Canaryと復帰
 
 既存 `learning/chart` は変更していません。このAPI専用chartの明示利用時だけRolloutへ移行します。
-描画対象はAccount Rolloutと3 Servicesだけ。DB/DB Service/PVC/Secret/ConfigMap/migration Jobを含みません。
+既定の描画対象はAccount Rolloutと3 Servicesだけ。DB/DB Service/PVC/Secret/migration Jobを含みません。
+Issue #11の明示opt-in時だけAnalysisTemplateを追加します。HTTP providerは別のlocal Test専用fixtureです。
 `mode=deployment,revision=good` は元のAccount Deploymentと公開Serviceだけを描画します。
 復帰PodSpecは、同じsource/image/owner/telemetry値を渡した既存chartのAPIと一致します。
 
@@ -222,3 +223,115 @@ k delete service learning-account-stable learning-account-canary
 公開Serviceに残る `argocd.argoproj.io/tracking-id` annotationは、このApplicationの値だけを確認して解除します。
 元DeploymentのPodを1つ置換し、基準行を再GETして試験行だけDELETEします。4API/4DB/監視Ready、同一DB/PVCを確認します。
 失敗ならそこで停止してManagerへ返し、DBを作り直しません。CRD/controller全体の撤去はplatform側の別承認範囲です。
+
+## Issue #11: 固定結果によるinline analysis（opt-in）
+
+`analysis: {enabled: true, case: success}` を明示したAccountだけ、10%の次をinline analysisに置き換えます。
+成功すると**手動promoteなしで50% pauseへ**進み、その後の50/100% pauseは従来どおりです。
+既定はdisabledで、従来の10/50/100%手動CanaryとDeployment復帰は同じです。
+`revision=failed` はreadiness試験用なのでanalysisとの併用を拒否します。#15の実SLO、#8の全体適用は対象外です。
+
+Rolloutから渡す引数はservice=`account`、実namespace、`Latest`/`Stable`のpodTemplateHash、caseです。
+Pod annotation `learning.local/analysis-case` を変えるため、同一imageでもcase更新で新hash/新Runになります。
+AnalysisTemplateの単一metricはcount=1、failureLimit/inconclusiveLimit/consecutiveErrorLimit=0、web timeout=1秒。
+成功条件は値1と要求したservice/namespace/両hashの一致・非空を要求します。hash不一致はFailedです。
+
+| case | HTTP fixture | provider measurement / Runの期待 | Rolloutの期待 |
+| --- | --- | --- | --- |
+| success | value=1、要求hashを返す | Successful | 50% pauseへ自動進行 |
+| failure | value=0 | Failed | 自動abort、50%へ進まない |
+| inconclusive | value=0.5 | Inconclusive | AnalysisRunInconclusiveでpause、50%へ進まない |
+| missing | value自体を省略 | asFloatの評価Error | 自動abort、50%へ進まない |
+| timeout | 3秒遅延（webは1秒timeout） | Error | 自動abort、50%へ進まない |
+
+Argo管理chartの追加資源はAnalysisTemplateだけです。固定HTTP providerのConfigMap/Deployment/ClusterIP Serviceは
+別chart `learning/canary/fixture` に分離し、local Test担当が事前apply・Ready確認・片付けを行います。
+Application sourceには含めず、ArgoへDeployment/ConfigMapの作成・更新権限を追加しません。
+fixtureは認証不要、Secret/ServiceAccount作成なし・Pod tokenなし。外部公開/Ingress/NodePortはありません。
+固定Python imageはplatform `learning/istio` と同じdigestで、追加package不要です。
+1 replica、requests 25m/32Mi、limits 200m/64Mi、read-only root filesystemと非root実行です。
+このproviderは指定caseとhashを返す学習用であり、実revisionの品質や実SLOを測定しません。
+AnalysisTemplateだけsync-wave=-1です。providerはArgoのsync waveやhealth判定では管理しません。
+local Test担当が以下の独立fixtureを事前applyし、Ready確認後にApplicationを更新してください。
+
+### Cloudで再現（clusterへ接続しない）
+
+```bash
+# Helm 4.2.4、Go 1.27.1、learning/requirements.txtのPython依存
+python3 learning/validate.py
+python3 learning/canary/validate.py --output /tmp/account-analysis-fixture
+# 測定と条件式は固定Argo Rollouts v1.10.1の実web providerで実行する。
+go -C learning/canary/analysis-test test -timeout 90s -v ./...
+```
+
+Python検証は固定公式CRDのchecksumとRollout/AnalysisTemplate/AnalysisRun schema、5つのPodTemplate差分、
+権限外resource/改変step/hash引数等の拒否、既定Canary・復帰一致を照合します。
+AnalysisRunのschema specimenは構造試験に過ぎず、controller生成の証拠ではありません。
+Go検証はloopbackのPython fixtureへHTTPアクセスし、上の5caseとhash不一致を実providerで照合します。
+Go moduleはcontrollerと同じv1.10.1に固定し、go.sumを保持します。
+CIは同じ検証を実行し、架空imageのrenderを既存artifactに保存します。実配備には使いません。
+
+### Manager承認・独立Review後のlocal Test（Cloudでは未実施）
+
+1. platform側の追加Role/resource inclusionsと、opt-in AppProjectを先に固定commitから描画します。
+   Managerが対象context/namespace/ownerと追加権限への適用を確認した後、local Test担当だけが適用します。
+   既存DB/PVC/Secret/migrationと他サービス・監視を維持し、固定Python image到達性も確認します。
+   下記の独立fixtureをlocal Test担当が事前applyし、Ready確認後だけAccountの同期へ進みます。
+2. 本README既存の `k` / `c` / `r` を使います。pluginは必ず `kubectl argo rollouts --context=... --namespace=...` の順です。
+   既存のoperation空・終端確認、prune=false、RespectIgnoreDifferences=trueをそのまま守ります。
+   最初にanalysis enabled・case=success・revision=goodを既知良好stableにします。
+   **初回作成がstep/analysisを飛ばしたことは成功受入に数えません。** 既存Rolloutの更新なら初期化中のRunも区別します。
+3. Cloudで確認済みの実image valuesにanalysisを追加して、platform `application.py` で各caseのApplicationを生成します。
+   `revision=candidate` と `analysis.case` を入力し、固定Manifest commitを維持します。
+   `valuesObject.analysis` を含む更新Applicationを保存・再applyして、従来どおり手動syncします。
+   進行中operationを上書きしません。新hash/新Runの生成を確認するまでcaseを変えません。
+4. success更新を観測します。新RunのownerReferenceがAccount RolloutのUID、argsのlatest-hashが
+   `.status.currentPodHash`、stable-hashが更新前の`.status.stableRS`と一致することを記録します。
+   service/namespace/case、Run UID/name、measurement phase、Rollout step/phase/abort/pauseConditionsも残します。
+   **promote前に**Run Successful→50% pauseを確認し、その後だけ50/100%を一段ずつpromoteしてstable化します。
+5. 安定したsuccessを基準にfailure/inconclusive/missing/timeoutを一つずつ更新します。
+   各caseのannotation、新hash・新Runとargs、終端Run phase、50%へ未進行を確認します。
+   Failed/Errorは自動abort、Inconclusiveはpauseを要求します。**負例を手動promoteしてはいけません。**
+   Run待ちやApplication operationが止まった場合は成功扱いせず記録して停止します。
+6. 各負例の後は必要なら `r abort learning-account-canary` を実行し、既存手順で同期operationを終了確認します。
+   desired Applicationのcase=success・既知良好revisionへ戻して再同期します。
+   明示 `r pause` 後のabortは `.spec.paused=true` を残し得ます。abort単体を復帰完了とせず、
+   chartのpaused:false同期・安定RS・API/基準行GETと同じdesiredでの再同期を確認してから次caseへ進みます。
+
+観測コマンド例（既存関数と、実際にRolloutが生成したRun名を使用）:
+
+```bash
+r get rollout learning-account-canary
+k get rollout learning-account-canary -o jsonpath='hash={.status.currentPodHash}{"\n"}stable={.status.stableRS}{"\n"}step={.status.currentStepIndex}{"\n"}abort={.status.abort}{"\n"}pause={.status.pauseConditions}{"\n"}'
+k get analysisruns -o wide
+k get analysisrun "$RUN" -o jsonpath='owner={.metadata.ownerReferences}{"\n"}args={.spec.args}{"\n"}phase={.status.phase}{"\n"}metrics={.status.metricResults}{"\n"}'
+```
+
+runtime受入は5caseのRun/Rollout statusが揃って初めて判断します。Cloud/CI成功だけではAC完了ではありません。
+試験終了時は進行中operationを終了し、既存Deployment復帰手順を守ります。analysis disabledへ戻すだけでは
+prune=falseのためAnalysisTemplateは消えません。Application停止・Account復帰後、所有UID/labelと他利用なしを確認して
+`learning-account-analysis` AnalysisTemplateを個別解除し、独立fixtureはlocal Test担当が下記の手順で片付けます。
+生成RunはownerReferenceと完了状態を確認して個別に扱い、namespace/DB/CRDを一括削除しません。
+
+
+### 独立provider fixtureの事前配置と片付け
+
+Cloudで以下を描画します。Applicationのchart/path/valueFilesは変更せず、この出力をArgo syncに含めません。
+入力はownerと明示learning-* namespaceだけで、image/URL/名前の上書きは拒否します。
+
+```bash
+# Cloud: 非秘密の確認済みowner/namespaceを使用する。
+helm template learning-account-analysis-provider learning/canary/fixture \
+  --namespace "$NAMESPACE" --kube-version 1.36.4 --set-string owner="$OWNER" > "$OUT/provider-fixture.yaml"
+# local Test: 同名資源の不在、context/namespace/ownerと描画3資源を照合してから実行。
+k apply -f "$OUT/provider-fixture.yaml"
+k rollout status deployment/learning-account-analysis-provider --timeout=120s
+# Ready/Service endpointを確認後にのみAccount Applicationを同期する。
+# 試験終了・Account復帰後: 所有UID/labelと他利用なしを再確認する。
+k delete deployment learning-account-analysis-provider --wait=true
+k delete service learning-account-analysis-provider
+k delete configmap learning-account-analysis-provider
+```
+
+fixture失敗・未ReadyならAccount更新を開始しません。既存の同名資源は無条件に上書きせず停止します。
+fixtureへの追加apply/削除はlocal Test担当の操作であり、Argo SAへの一般Deployment/ConfigMap権限追加で代替しません。

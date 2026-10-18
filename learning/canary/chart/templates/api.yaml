@@ -18,7 +18,21 @@ spec:
       maxUnavailable: 1
       steps:
         - setWeight: 10
+        {{- if .Values.analysis.enabled }}
+        - analysis:
+            templates:
+              - templateName: learning-account-analysis
+            args:
+              - {name: service, value: account}
+              - {name: namespace, value: {{ .Release.Namespace | quote }}}
+              - name: latest-hash
+                valueFrom: {podTemplateHashValue: Latest}
+              - name: stable-hash
+                valueFrom: {podTemplateHashValue: Stable}
+              - {name: case, value: {{ .Values.analysis.case | quote }}}
+        {{- else }}
         - pause: {}
+        {{- end }}
         - setWeight: 50
         - pause: {}
         - setWeight: 100
@@ -36,6 +50,9 @@ spec:
         {{- include "learning.annotations" . | nindent 8 }}
         {{- if eq .Values.mode "rollout" }}
         learning.local/config-revision: {{ .Values.revision | quote }}
+        {{- if .Values.analysis.enabled }}
+        learning.local/analysis-case: {{ .Values.analysis.case | quote }}
+        {{- end }}
         {{- end }}
     spec:
       automountServiceAccountToken: false

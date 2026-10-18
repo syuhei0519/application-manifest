@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-account-analysis-provider
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+data:
+  provider.py: |
+    {{- .Files.Get "files/provider.py" | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-account-analysis-provider
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {learning.local/workload: learning-account-analysis-provider}
+  template:
+    metadata:
+      labels:
+        {{- include "learning.labels" . | nindent 8 }}
+        learning.local/workload: learning-account-analysis-provider
+      annotations:
+        learning.local/provider-checksum: {{ .Files.Get "files/provider.py" | sha256sum | quote }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: provider
+          # Same fixed Python image as platform learning/istio; no package installation.
+          image: docker.io/library/python@sha256:9bbb8720ae0a24a6ca8dd678bfdf57818fe70caf54c52a53ec01d8db43405056
+          imagePullPolicy: IfNotPresent
+          command: [python3, -B, /fixture/provider.py]
+          ports: [{name: http, containerPort: 8080}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 25m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 64Mi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          volumeMounts: [{name: fixture, mountPath: /fixture, readOnly: true}]
+      volumes:
+        - name: fixture
+          configMap: {name: learning-account-analysis-provider}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-account-analysis-provider
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {learning.local/workload: learning-account-analysis-provider}
+  ports: [{name: http, port: 8080, targetPort: http}]

@@ -15,6 +15,7 @@ from jsonschema import Draft7Validator
 
 ROOT = Path(__file__).resolve().parent
 CHART = ROOT / 'chart'
+FIXTURE = ROOT / 'fixture'
 SOURCE = 'e030275abbf52ecd27b7152ce597b3d89be3f830'
 UPSTREAM = 'https://raw.githubusercontent.com/argoproj/argo-rollouts/356117c8e9a21b74b58c2c01d640aa91994522b5/manifests/install.yaml'
 UPSTREAM_SHA = 'be25242c55bab7650e0b845da11dbce811f7427deae367e224435e0d766ebe5a'
@@ -28,11 +29,11 @@ def fixture():
     return values
 
 
-def render(values, namespace='learning-fixture', release='learning-account', success=True):
+def render(values, namespace='learning-fixture', release='learning-account', success=True, chart=CHART):
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / 'values.yaml'
         path.write_text(yaml.safe_dump(values))
-        result = subprocess.run(['helm', 'template', release, str(CHART), '--namespace', namespace,
+        result = subprocess.run(['helm', 'template', release, str(chart), '--namespace', namespace,
                                  '--kube-version', '1.36.4', '-f', str(path)], capture_output=True, text=True)
         assert (result.returncode == 0) == success, result.stderr
         return list(yaml.safe_load_all(result.stdout)) if success else []
@@ -77,10 +78,80 @@ def verify(objects, mode='rollout', namespace='learning-fixture'):
     return workload
 
 
+def verify_analysis(objects, baseline, case):
+    expected = {(o['kind'], o['metadata']['name']) for o in baseline} | {
+        ('AnalysisTemplate', 'learning-account-analysis')}
+    assert len(objects) == 5
+    assert {(o['kind'], o['metadata']['name']) for o in objects} == expected
+    for obj in objects:
+        assert obj['metadata']['namespace'] == 'learning-fixture'
+        assert obj['metadata']['labels']['learning.local/owner'] == 'synthetic-fixture'
+        assert obj['metadata']['labels']['learning.local/service'] == 'account'
+    rollout = next(o for o in objects if o['kind'] == 'Rollout')
+    steps = rollout['spec']['strategy']['canary']['steps']
+    assert steps[0] == {'setWeight': 10}
+    assert steps[2:] == [{'setWeight':50}, {'pause':{}}, {'setWeight':100}, {'pause':{}}]
+    analysis = steps[1]['analysis']
+    assert analysis['templates'] == [{'templateName':'learning-account-analysis'}]
+    assert analysis['args'] == [dict(name='service',value='account'), dict(name='namespace',value='learning-fixture'),
+        dict(name='latest-hash',valueFrom={'podTemplateHashValue':'Latest'}),
+        dict(name='stable-hash',valueFrom={'podTemplateHashValue':'Stable'}), dict(name='case',value=case)]
+    assert rollout['spec']['template']['metadata']['annotations']['learning.local/analysis-case'] == case
+    normalized = copy.deepcopy(rollout)
+    normalized['spec']['strategy']['canary']['steps'][1] = {'pause':{}}
+    del normalized['spec']['template']['metadata']['annotations']['learning.local/analysis-case']
+    assert normalized == next(o for o in baseline if o['kind'] == 'Rollout')
+    for obj in baseline:
+        if obj['kind'] == 'Service':
+            assert obj == next(o for o in objects if (o['kind'],o['metadata']['name']) == (obj['kind'],obj['metadata']['name']))
+    for obj in objects:
+        if (obj['kind'], obj['metadata']['name']) not in {(o['kind'],o['metadata']['name']) for o in baseline}:
+            assert obj['metadata']['annotations']['argocd.argoproj.io/sync-wave'] == '-1'
+    template = next(o for o in objects if o['kind'] == 'AnalysisTemplate')
+    assert template['spec']['args'] == [dict(name=n) for n in ('service','namespace','latest-hash','stable-hash','case')]
+    metric = template['spec']['metrics'][0]
+    for key, value in dict(count=1, failureLimit=0, inconclusiveLimit=0, consecutiveErrorLimit=0).items():
+        assert metric[key] == value
+    assert metric['provider'] == {'web':dict(
+        url='http://learning-account-analysis-provider.learning-fixture.svc.cluster.local:8080/measure?service={{args.service}}&namespace={{args.namespace}}&latest-hash={{args.latest-hash}}&stable-hash={{args.stable-hash}}&case={{args.case}}',
+        jsonPath='{$}', timeoutSeconds=1)}
+    return rollout, template
+
+
+def verify_provider(objects):
+    assert len(objects) == 3
+    assert {(o['kind'], o['metadata']['name']) for o in objects} == {
+        (kind, 'learning-account-analysis-provider') for kind in ('ConfigMap','Deployment','Service')}
+    for obj in objects:
+        assert obj['metadata']['namespace'] == 'learning-fixture'
+        assert obj['metadata']['labels']['learning.local/owner'] == 'synthetic-fixture'
+        assert obj['metadata']['labels']['learning.local/service'] == 'account'
+        assert not obj['metadata'].get('annotations')
+    provider = next(o for o in objects if o['kind'] == 'Deployment')
+    assert provider['spec']['replicas'] == 1
+    selector = {'learning.local/workload':'learning-account-analysis-provider'}
+    assert provider['spec']['selector']['matchLabels'] == selector
+    assert all(provider['spec']['template']['metadata']['labels'][k] == v for k,v in selector.items())
+    pod = provider['spec']['template']['spec']
+    assert pod['automountServiceAccountToken'] is False
+    assert pod['securityContext']['runAsNonRoot'] is True
+    container = pod['containers'][0]
+    assert container['image'] == 'docker.io/library/python@sha256:9bbb8720ae0a24a6ca8dd678bfdf57818fe70caf54c52a53ec01d8db43405056'
+    assert container['resources'] == dict(requests=dict(cpu='25m',memory='32Mi'),limits=dict(cpu='200m',memory='64Mi'))
+    assert container['securityContext'] == dict(allowPrivilegeEscalation=False,readOnlyRootFilesystem=True,capabilities={'drop':['ALL']})
+    assert container['command'] == ['python3','-B','/fixture/provider.py']
+    config = next(o for o in objects if o['kind'] == 'ConfigMap')
+    assert config['data'] == {'provider.py':(FIXTURE/'files/provider.py').read_text()}
+    assert pod['volumes'] == [dict(name='fixture',configMap=dict(name=config['metadata']['name']))]
+    assert provider['spec']['template']['metadata']['annotations']['learning.local/provider-checksum'] == hashlib.sha256(config['data']['provider.py'].encode()).hexdigest()
+    service = next(o for o in objects if o['kind'] == 'Service' and o['metadata']['name'] == 'learning-account-analysis-provider')
+    assert service['spec'] == dict(type='ClusterIP',selector=selector,ports=[dict(name='http',port=8080,targetPort='http')])
+
+
 def expect_rejection(call):
     try:
         call()
-    except (AssertionError, ValueError):
+    except (AssertionError, ValueError, KeyError):
         return
     raise AssertionError('negative fixture unexpectedly accepted')
 
@@ -92,7 +163,8 @@ def main():
     values = fixture()
     data = urllib.request.urlopen(UPSTREAM, timeout=60).read()
     assert hashlib.sha256(data).hexdigest() == UPSTREAM_SHA
-    crd = next(x for x in yaml.safe_load_all(data) if x['kind'] == 'CustomResourceDefinition' and x['metadata']['name'] == 'rollouts.argoproj.io')
+    crds = list(yaml.safe_load_all(data))
+    crd = next(x for x in crds if x['kind'] == 'CustomResourceDefinition' and x['metadata']['name'] == 'rollouts.argoproj.io')
     rollout_schema = next(v['schema']['openAPIV3Schema'] for v in crd['spec']['versions'] if v['name'] == 'v1alpha1')
     baseline = render(values)
     good = verify(baseline)
@@ -110,6 +182,58 @@ def main():
             args.output.mkdir(parents=True, exist_ok=True)
             (args.output / (rev + '.yaml')).write_text(yaml.safe_dump_all(objs, sort_keys=False))
         assert yaml.safe_load((ROOT / 'profiles' / (rev + '.yaml')).read_text()) == {'revision':rev}
+    schemas = {x['spec']['names']['kind']: next(v['schema']['openAPIV3Schema'] for v in x['spec']['versions'] if v['name']=='v1alpha1')
+               for x in crds if x['kind']=='CustomResourceDefinition'}
+    pod_templates = []
+    for case in ('success', 'failure', 'inconclusive', 'missing', 'timeout'):
+        current = copy.deepcopy(values)
+        current['revision'] = 'candidate'
+        current['analysis'] = dict(enabled=True, case=case)
+        Draft7Validator(SCHEMA).validate(current)
+        objs = render(current)
+        manual = render(dict(current, analysis=dict(enabled=False,case=case)))
+        rollout, template = verify_analysis(objs, manual, case)
+        Draft7Validator(schemas['Rollout']).validate(rollout)
+        Draft7Validator(schemas['AnalysisTemplate']).validate(template)
+        # Structural specimen only: a real generated Run/ownerReference must be observed locally.
+        run = dict(apiVersion='argoproj.io/v1alpha1',kind='AnalysisRun',metadata=dict(name='schema-fixture',namespace='learning-fixture'),
+                   spec=dict(metrics=template['spec']['metrics'],args=[dict(name=n,value=v) for n,v in
+                       [('service','account'),('namespace','learning-fixture'),('latest-hash','new-fixture'),('stable-hash','stable-fixture'),('case',case)]]))
+        Draft7Validator(schemas['AnalysisRun']).validate(run)
+        pod_templates.append(rollout['spec']['template'])
+        for mutation in ('namespace','provider-resource','step','hash-arg','limit'):
+            bad = copy.deepcopy(objs)
+            if mutation == 'namespace': bad[0]['metadata']['namespace'] = 'other'
+            if mutation == 'provider-resource': bad.append(dict(kind='Deployment',metadata=dict(name='learning-account-analysis-provider')))
+            if mutation == 'step': next(o for o in bad if o['kind']=='Rollout')['spec']['strategy']['canary']['steps'][1] = {'pause':{}}
+            if mutation == 'hash-arg': next(o for o in bad if o['kind']=='Rollout')['spec']['strategy']['canary']['steps'][1]['analysis']['args'][2] = dict(name='latest-hash',value='main')
+            if mutation == 'limit': next(o for o in bad if o['kind']=='AnalysisTemplate')['spec']['metrics'][0]['consecutiveErrorLimit'] = 4
+            expect_rejection(lambda: verify_analysis(bad,manual,case))
+        if args.output:
+            (args.output / ('analysis-' + case + '.yaml')).write_text(yaml.safe_dump_all(objs,sort_keys=False))
+    assert len({json.dumps(p,sort_keys=True) for p in pod_templates}) == 5
+    provider_objects = render({'owner':'synthetic-fixture'}, release='learning-account-analysis-provider', chart=FIXTURE)
+    verify_provider(provider_objects)
+    bad = copy.deepcopy(provider_objects)
+    bad[0]['metadata']['namespace'] = 'other'
+    expect_rejection(lambda: verify_provider(bad))
+    bad = copy.deepcopy(provider_objects)
+    next(o for o in bad if o['kind']=='Deployment')['spec']['selector']['matchLabels'] = {}
+    expect_rejection(lambda: verify_provider(bad))
+    render({'owner':'synthetic-fixture'},namespace='default',release='learning-account-analysis-provider',chart=FIXTURE,success=False)
+    render({'owner':'synthetic-fixture'},release='learning-account',chart=FIXTURE,success=False)
+    render({'owner':'synthetic-fixture','image':'latest'},release='learning-account-analysis-provider',chart=FIXTURE,success=False)
+    if args.output:
+        (args.output / 'provider-fixture.yaml').write_text(yaml.safe_dump_all(provider_objects,sort_keys=False))
+
+    for analysis in ({'enabled':True,'case':'unknown'}, {'enabled':'true','case':'success'}, {'enabled':True,'case':'success','url':'https://other'}):
+        bad = dict(values,analysis=analysis)
+        assert list(Draft7Validator(SCHEMA).iter_errors(bad))
+        render(bad,success=False)
+    for mode,revision in (('deployment','good'),('rollout','failed')):
+        bad = dict(values,mode=mode,revision=revision,analysis=dict(enabled=True,case='success'))
+        assert list(Draft7Validator(SCHEMA).iter_errors(bad))
+        render(bad,success=False)
     recovery_values = dict(values, mode='deployment', revision='good')
     recovery_objects = render(recovery_values)
     recovery = verify(recovery_objects, 'deployment')
@@ -153,6 +277,8 @@ def main():
         file = Path(tmp) / 'values.yaml'
         file.write_text(yaml.safe_dump(values))
         subprocess.run(['helm','lint','--strict',str(CHART),'--namespace','learning-fixture','-f',str(file)],check=True)
+    print('PASS independent fixture: 3 local-Test resources; Argo chart has no provider resources; fixed owner/namespace/release/image boundary.')
+    print('PASS opt-in analysis: five case PodTemplates; Latest/Stable args; pinned Rollout/AnalysisTemplate/AnalysisRun schemas; provider boundary; negative fixtures. Controller/cluster AC untested.')
     print('PASS Account: three revisions match pinned Rollout CRD; 10/50/100 pauses; 4 API-only resources; disjoint selectors; DB/Secret/SDK contract; recovery equals existing API; 17 negative fixtures. Runtime untested.')
 
 
