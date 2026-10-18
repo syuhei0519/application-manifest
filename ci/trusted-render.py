@@ -129,16 +129,7 @@ def main(argv=None):
     if not re.fullmatch('[0-9]+',a.producer_job_id):
         p.error('numeric producing job ID required')
     if not a.test_only:
-        if (os.environ.get('CI_COMMIT_REF_PROTECTED') != 'true'
-                or os.environ.get('CI_COMMIT_BRANCH') != 'main'
-                or os.environ.get('CI_COMMIT_SHA') != a.verifier
-                or os.environ.get('CI_JOB_ID') != a.producer_job_id
-                or a.producer_job_id == '0'):
-            raise ValueError('non-test output requires protected-main producing job identity; operator runs must use --test-only')
-        git(a.repo,'merge-base','--is-ancestor',a.verifier,'origin/main')
-        canonical=git(a.repo,'show',a.verifier+':ci/trusted-render.py')
-        if canonical!=Path(__file__).read_bytes():
-            raise ValueError('running verifier is not the fixed trusted source')
+        raise ValueError('offline rendering required; use the protected GitHub verification workflow')
     if RUNTIME=='linux-userns':
         module=Path(__file__).with_name('namespace_sandbox.py')
         if not a.test_only and git(a.repo,'show',a.verifier+':ci/namespace_sandbox.py')!=module.read_bytes():
@@ -153,7 +144,7 @@ def main(argv=None):
         tool={}
         if RUNTIME=='linux-userns':
             tool={'helmArchiveSha256':NS.HELM_ARCHIVE_SHA256,'helmBinarySha256':NS.prepare_helm(output/'helm'),'limits':NS.cgroup_limits()}
-        trusted_files=snapshot(a.repo,a.verifier,trusted,('tools/inventory','tools/release-record'))
+        trusted_files=snapshot(a.repo,a.verifier,trusted,('tools/inventory',))
         sandbox(GO,[(trusted/'tools/inventory','/src',True),(output,'/out',False)],'cd /src; GOCACHE=/tmp/cache GOPATH=/tmp/go CGO_ENABLED=0 go build -p 2 -mod=vendor -o /out/inventory .',compiler=True)
         report={'schema':'core-platform/render-binding/v1','eligibleForAuthenticatedVerification':not a.test_only,'targetSha':a.target,'sourceSha':a.source,'candidateTree':merge,'verifierSha':a.verifier,'producerJobId':a.producer_job_id,'helmImage':HELM if RUNTIME=='docker' else None,'goImage':GO,'trustedInputs':trusted_files,'binarySha256':digest((output/'inventory').read_bytes()),'renders':{}}
         report['runtime']=RUNTIME; report['runtimeTools']=tool
