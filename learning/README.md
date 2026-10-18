@@ -232,3 +232,47 @@ python3 learning/validate.py --account-telemetry-only \
 Managerが対象/操作を承認した後のみ`account-api-telemetry.yaml`をapplyし、Account rolloutを確認する。
 復旧も保存済み`account-api-before.yaml`だけをapplyする。両操作ともinventoryは
 `apps/v1 Deployment learning-account`の1件だけで、完了済みmigration Jobには触れない。
+
+## Order → Payment の任意配線（静的検証のみ）
+
+`orderPaymentURL` は既定 `''`（未設定も同じ）です。無効時は従来の描画を維持し、
+`ORDER_PAYMENT_URL` 自体を出力しません。有効化は `service: order` のAPIだけに限定します。
+
+```yaml
+service: order
+orderPaymentURL: http://learning-payment:8080
+```
+
+基点 `9dfe26057cd2f3404278dd0dca614a7d68c11352` の `templates/_helpers.tpl` は
+`learning-<service>` を生成し、`templates/api.yaml` のServiceは `.Release.Namespace`、
+port `8080` / targetPort `http`、API containerPort `8080` を使用します。
+上記の相対名は、既存手順どおりPaymentとOrderを**同じ、明示された `learning-*` namespace**へ
+描画する場合のoriginです。固定された実namespace名はchartにありません。
+実namespace/DNS/ready EndpointSliceは後続LocalTestで照合し、推測で補いません。
+URLはこのoriginまたは空文字だけをschemaで許可し、他サービスの非空値、別host、path、認証情報付きURLは拒否します。
+
+対象backendは独立検証済みPR51 head `92a337ca50b310bf7895116b035618b2fe98bca6` です。
+[固定通信仕様](https://github.com/syuhei0519/backend-app/blob/92a337ca50b310bf7895116b035618b2fe98bca6/docs/order-payment-communication.md)
+に従い `POST /api/orders/{id}/payments`、既存Paymentのrequest_id重複防止、
+downstream 2秒 / route 5秒、1 POST・自動retryなしを利用します。成功/拒否/replay/conflictを区別し、
+応答喪失はunknown outcomeとして同じrequest_id・同じ入力で手動回復します。
+この配線はsource/image pinを更新しないため、後続担当は承認済みOrder imageがこのbackend headに
+対応することを確認してください。既存imageのまま設定しても新API実装の証明にはなりません。
+
+```bash
+python3 learning/validate.py --order-payment-only
+```
+
+既存fixtureで未設定=空、APIのenv 1件だけの差分、migrationのraw bytes不変、
+DB/PVC/Service等の非API資源不変、他サービスと不正値の拒否を検証します。
+Helm renderは実Service DNS疎通の合格ではありません。
+
+有効化・無効化・復旧は後続承認済みLocalTestだけで行います。実values/image/namespaceを固定し、
+既存手順でoff/onを別々に描画して、差分がOrder Deploymentの当該envだけであることを確認します。
+適用対象はOrder Deploymentのみで、Service、完了migration Job、DB、Secret、PVCへ再適用しません。
+無効化は `orderPaymentURL: ''` として当該envを除きます。復旧は保存済みの変更前Order Deployment
+（image/configを含む）を復元し、rollout/readinessを確認します。DB rollbackや新しいstateは不要です。
+
+未検証: 実imageの対応、実namespaceでのPayment Service/EndpointSlice/DNS、Order Service経由の
+成功・拒否・同一request_id replay/conflict・timeout/応答喪失、実適用と復旧。
+独立Test/Review、同一headのCI、Managerの製品AC最終判断は別工程です。

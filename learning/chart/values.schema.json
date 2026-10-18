@@ -97,6 +97,14 @@
           "type": "boolean"
         }
       }
+    },
+    "orderPaymentURL": {
+      "type": "string",
+      "enum": [
+        "",
+        "http://learning-payment:8080"
+      ],
+      "description": "同一namespaceの既存Payment Service origin。空は無効、Order API専用。"
     }
   },
   "allOf": [
@@ -116,6 +124,26 @@
         "properties": {
           "service": {
             "const": "account"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "orderPaymentURL"
+        ],
+        "properties": {
+          "orderPaymentURL": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "service": {
+            "const": "order"
           }
         }
       }

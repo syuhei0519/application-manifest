@@ -6,6 +6,8 @@ imageConfigID: ''
 # approved real learning namespace; this is not sender authentication.
 telemetry:
   enabled: false
+# Order API専用。空は無効、有効値は http://learning-payment:8080。
+orderPaymentURL: ''
 # Source candidates, not assertions of merged features or accepted images.
 sourceCommits:
   account: d48a97851619912e7efc80c470912907ce965dc7
