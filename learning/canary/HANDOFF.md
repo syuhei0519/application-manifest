@@ -163,3 +163,8 @@ guard成功/required CIは未確認。Bの2 branchは変更していない。
 次の担当はManager。元archiveの正規配送が可能になった環境で、head/祖先/prerequisiteを確認し
 backend→platformの順に元commitだけをfast-forward配送する。その後新guardで同render/CIを確認し、
 Lane A/Bの固定SHAへ独立Reviewを再依頼する。実cluster受入とCore3 Secret前提は引き続き未完了。
+
+公開後のCI追記: platform `63cef5817a68797e17059db5f8f349aa36df09f0` はvalidateのjob準備で失敗、
+ログで `Unable to resolve action` / guard SHAの `unable to find version` を確認した。
+guardの実行失敗ではなく、元commit未公開によるAction解決失敗。manifestのcode/Handoff headはCI実行中で、
+この追記を含む最終HEADもrequired成功の確認が必要。
