@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "imageConfigID",
+    "sourceCommit",
+    "mode",
+    "revision",
+    "telemetry"
+  ],
+  "properties": {
+    "owner": {
+      "type": "string",
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "imageConfigID": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "sourceCommit": {
+      "const": "e030275abbf52ecd27b7152ce597b3d89be3f830"
+    },
+    "mode": {
+      "enum": [
+        "rollout",
+        "deployment"
+      ]
+    },
+    "revision": {
+      "enum": [
+        "good",
+        "candidate",
+        "failed"
+      ]
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "deployment"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "revision": {
+            "const": "good"
+          }
+        }
+      }
+    }
+  ]
+}
