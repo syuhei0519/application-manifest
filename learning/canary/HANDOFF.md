@@ -8,8 +8,8 @@ implementation/single-issue/handoffを確認し、この単一Markdownへ集約�
 
 | repo | 固定main / 実装commit | branch / Draft PR |
 | --- | --- | --- |
-| platform-gitops | main `3a62ce5b087e7e2215b74028acac6b878679e40c` / code `239b4eb1c293348bb888ae2e36213cb657e10a92` | `feat/learning-account-canary` / [PR90](https://github.com/syuhei0519/platform-gitops/pull/90) |
-| application-manifest | main `8e2490db23285869625c926c2c14f04ae8d3911a` / code `d859f55d25a276e57c235c8a366806ab311432ef` | `feat/learning-account-canary` / [PR34](https://github.com/syuhei0519/application-manifest/pull/34) |
+| platform-gitops | main `3a62ce5b087e7e2215b74028acac6b878679e40c` / code `6959b6fb22216405952f02a3ae819cc4bcc6e357` | `feat/learning-account-canary` / [PR90](https://github.com/syuhei0519/platform-gitops/pull/90) |
+| application-manifest | main `8e2490db23285869625c926c2c14f04ae8d3911a` / code `324f4249bec3b2d24fc77a525711c0f1648be7d4` | `feat/learning-account-canary` / [PR34](https://github.com/syuhei0519/application-manifest/pull/34) |
 
 code commit以後の本Handoff追記を含む最終HEADはPRで追える。どちらも未マージ。
 backend/監視/Istioは変更していない。実cluster、新規kind、API課金、Secret値取得、main push、権限変更は実行していない。
@@ -44,7 +44,7 @@ Cloud自己検証（独立Test/Reviewではない）:
 | manifest: `python3 learning/validate.py` | 4サービスrender、schema/lint、Secret/DB/ownership/probes、Account telemetry/Order env境界と既存負例が成功 |
 | manifest: `python3 learning/check_build_failfast.py` | 既存4 fixture成功。実image buildではない |
 | manifest: `python3 learning/canary/validate.py --output /tmp/account-fixture` | 3revisionの固定公式Rollout schema、10/50/100、4 API資源、復帰API一致、17負例が成功 |
-| platform: `python3 learning/progressive-delivery/validate.py --output /tmp/platform-fixture` | 公式checksum、6 CRDs選別、サンプルschema、Application/AppProject schema、限定Role、namespace負例、Lua health7ケース成功 |
+| platform: `python3 learning/progressive-delivery/validate.py --output /tmp/platform-fixture` | 公式checksum、6 CRDs選別、サンプルschema、Application/AppProject schema、限定Role/leader-election Lease権限、namespace負例、Lua health8ケース成功 |
 | 各repo: `sh ci/test-docs-check.sh` / `sh ci/validate.sh` | 既存docs回帰14ケースと既存render検証が成功 |
 | manifest: `(cd tools/inventory && go test ./...)` | 成功 |
 | platform: `(cd tools/bootstrap && go test ./...)` | 成功 |
@@ -55,7 +55,11 @@ Cloud自己検証（独立Test/Reviewではない）:
 
 依存はHelm4.2.4、PyYAML6.0.3/jsonschema4.26.0、platform Lua実行用lupa2.6。
 CIへ同じstatic検証hookを追加し、新renderも既存 `.rendered` security経路に含めた。
-PR作成時点のGitHub CIは両repoともvalidate実行中で、required成功は未確認。
+GitHub CI: platform初回commitはSource and rendered security checksでvalidate/ci-resultが失敗。
+追記した最新codeのCIとmanifest CIは実行中で、required成功は未確認。
+CI security-results artifactのdownloadは配信先Azure BlobでForbiddenとなり取得拒否。
+job/stepの失敗summaryは取得済みだが、remoteの詳細findingは未取得で、ローカル12件と同一原因と断定していない。
+この取得を別経路へ迂回していない。
 CRDオブジェクト自体はkubeconform既定catalogでschema未提供のため、その検査を成功扱いにしない。
 CRDは固定公式bytes＋metadata labelだけの変更、Rollout/サンプル/Applicationのinstance schemaは別途成功している。
 
@@ -63,7 +67,7 @@ CRDは固定公式bytes＋metadata labelだけの変更、Rollout/サンプル/A
 対象はbackend-app共有Action `ba8b3d211ac3e497900abd6c6f44f45388e3801c` の `tools/scan-gate/render.go`。
 公式CRDの`hostNetwork/hostPID/hostIPC`のschema宣言を、汎用mapping walkが実Podの値と判断して拒否する。
 実Podはhost namespaceを使っていない。guard除外・CRD隠し・schemaの削除・guard弱体化は行っていない。
-platformの既存security stepもこのまま拒否する見込み。修正先はLane A所有外なので変更していない。
+platformの既存security stepは初回CIで失敗しており、このローカル拒否も未解消。修正先はLane A所有外なので変更していない。
 Managerが共有tool所有者へ調整し、schema宣言を区別しつつ未知PodSpecの拒否を維持する修正を別途Reviewする必要がある。
 これは既存security gateによる拒否であり、sandboxのauto-review拒否ではない。
 
