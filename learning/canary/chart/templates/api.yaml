@@ -9,6 +9,7 @@ spec:
   replicas: {{ if eq .Values.mode "rollout" }}10{{ else }}1{{ end }}
   revisionHistoryLimit: 2
   {{- if eq .Values.mode "rollout" }}
+  paused: false
   strategy:
     canary:
       stableService: learning-account-stable

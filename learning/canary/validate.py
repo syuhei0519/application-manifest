@@ -70,6 +70,7 @@ def verify(objects, mode='rollout', namespace='learning-fixture'):
     assert env['POD_NAMESPACE']['value'] == 'account'
     if mode == 'rollout':
         assert workload['spec']['replicas'] == 10
+        assert workload['spec']['paused'] is False
         assert workload['spec']['strategy']['canary'] == dict(stableService='learning-account-stable', canaryService='learning-account-canary',
             maxSurge=0, maxUnavailable=1, steps=[dict(setWeight=10), dict(pause={}), dict(setWeight=50), dict(pause={}), dict(setWeight=100), dict(pause={})])
         assert 'workloadRef' not in workload['spec']

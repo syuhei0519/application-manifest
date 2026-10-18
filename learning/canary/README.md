@@ -130,6 +130,9 @@ DB/PVCを削除しません。削除対象はこのRolloutのownerReferenceを�
 failed Podのreadiness失敗、Rollout status/conditions、API/基準行GETを観測し、timeoutを待たず停止入口を試します。
 
 ```bash
+# readiness失敗はstep10の自動pauseへ到達しない場合がある。明示pauseからabortする。
+k argo rollouts pause learning-account-canary
+k get rollout learning-account-canary -o jsonpath='{.spec.paused}{"\n"}'
 k argo rollouts abort learning-account-canary
 k argo rollouts get rollout learning-account-canary
 # stable RSへの復帰とAPI/基準行を確認。abortだけではdesiredのfailedは直らない。
@@ -137,6 +140,7 @@ c patch application learning-account --type=merge \
   -p '{"spec":{"source":{"helm":{"valueFiles":["../profiles/candidate.yaml"]}}}}'
 c patch application learning-account --type=merge \
   -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false}}}"
+# chartのpaused:falseも再同期され、手動pauseが解除されたことを確認する。
 k argo rollouts status learning-account-canary --timeout=300s
 # 同じdesiredで再syncをもう1回行い、failedが再投入されないことを確認する。
 c patch application learning-account --type=merge \
