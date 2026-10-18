@@ -1,4 +1,4 @@
-{{- if .Values.analysis.enabled }}
+{{- if and .Values.analysis.enabled (ne (default "fixed" .Values.analysis.mode) "metrics") }}
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:

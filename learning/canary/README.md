@@ -335,3 +335,8 @@ k delete configmap learning-account-analysis-provider
 
 fixture失敗・未ReadyならAccount更新を開始しません。既存の同名資源は無条件に上書きせず停止します。
 fixtureへの追加apply/削除はlocal Test担当の操作であり、Argo SAへの一般Deployment/ConfigMap権限追加で代替しません。
+
+## Metrics gate（Issue 15）
+
+Prometheusによる明示opt-in profile・準備pause・欠測拒否・負荷/復帰は [METRICS.md](METRICS.md) を参照。
+既存の手動/固定結果Analysisの手順と履歴は保持する。

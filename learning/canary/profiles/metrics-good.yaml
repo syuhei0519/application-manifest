@@ -1,0 +1,3 @@
+revision: good
+telemetry: {enabled: true}
+analysis: {enabled: true, mode: metrics, case: success}
