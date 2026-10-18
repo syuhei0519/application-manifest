@@ -91,3 +91,75 @@ Coreはcontrol namespace内のsettings/登録/Redis前提を参照する。passw
 
 Account保存データ・他サービス・監視を保護し、同一imageのためmigrationの再実行は不要。
 失敗/timeout時は対象APIの進行を止め、DB/Secret/PVCを再作成しない。独立ReviewはManagerの別担当であり、本自己検証で代替していない。
+
+### Review指摘の限定修正（2026-10-18追記）
+
+上記の初回失敗・未実施記録は保持する。今回のcode commitは
+manifest `64909ec615ab36a6d0a4b91825c01019b5f16a55`、
+platform `63cef5817a68797e17059db5f8f349aa36df09f0`。branch/既存PRは上表と同じ。
+manifestの本追記を含む最終HEADはPR34で追える。
+
+- manifest `learning/canary/README.md`: plugin専用 `r()` へ全11呼出しを置換。
+  abort直後は進行停止/abort/既存API維持だけを確認し、candidateのGit profile同期と
+  `spec.paused=false` 確認後にfailed RS縮退・既知良好版/API復帰を判定する順序へ修正した。
+  各sync前後のoperation確認、意図したfailed試験の進行中operation停止と終端確認、
+  直接operation patch全4箇所の `RespectIgnoreDifferences=true` を追記した。
+- platform `.github/workflows/ci.yml`: 共有Actionを `fa921cd2aace14f9052b79aa6dc6f37cb07dd274` に固定。
+  `learning/progressive-delivery/README.md` に同じ同期境界とCore3 Secretの未解消前提を記載。
+  空settings/非秘密登録は個別承認後のlocal bootstrap、Redis authはユーザー管理のprivateファイルから
+  最終作成する手順を示した。認証情報の生成/入力/取得やcluster操作は実施していない。
+- 同imageのinfo/warn/readiness404設定revision、replica比の試験範囲を維持。
+  chart/render/DB/PVC/Secrets/migrationは変更していない。バイナリ更新や実traffic10%の受入ではない。
+
+自己検証:
+
+```bash
+# manifest（既存固定依存とHelm 4.2.4を使用）
+python3 learning/canary/validate.py --output /tmp/review-account-render
+# platform（既存固定依存を使用）
+python3 learning/progressive-delivery/validate.py --output /tmp/review-platform-render
+```
+
+両方成功。manifestは公式Rollout schema/3revision/API専用4資源/復帰API一致/17負例、
+platformは公式checksum/6 CRDs/限定RBAC/Application schema/8 Lua healthケースが成功した。
+platformの描画script/入力は元commitから不変。同じfixture renderを新guardへ渡す検証は下記配送待ち。
+pluginの通信しない回帰確認は、manifest repoで次を実行できる:
+
+```bash
+python3 - <<'PY'
+import re, subprocess
+from pathlib import Path
+text = Path('learning/canary/README.md').read_text()
+for block in re.findall(r'```bash\n(.*?)```', text, re.S):
+    subprocess.run(['bash', '-n'], input=block, text=True, check=True)
+defs = '\n'.join(re.findall(r'^[krc]\(\) \{.*$', text, re.M))
+calls = re.findall(r'^r .*$', text, re.M)
+stub = '''kubectl() { [[ "$1" == argo && "$2" == rollouts && "$3" == --context=fixture-context && "$4" == --namespace=learning-fixture ]]; }
+CONTEXT=fixture-context
+NAMESPACE=learning-fixture
+'''
+subprocess.run(['bash', '-e'], input=stub+defs+'\n'+'\n'.join(calls), text=True, check=True)
+assert subprocess.run(['bash'], input=stub+defs+'\nk argo rollouts status learning-account-canary\n', text=True).returncode != 0
+assert len(calls) == 11 and 'k argo rollouts' not in text
+patches = re.findall(r'^c patch application learning-account --type=merge \\\n  -p (.*)$', text, re.M)
+ops = [p for p in patches if 'operation' in p]
+assert len(ops) == 4 and all('RespectIgnoreDifferences=true' in p for p in ops)
+print('PASS bash syntax; 11 plugin-first calls; old wrapper rejected; 4 sync options')
+PY
+```
+
+実行結果は成功。実kubectl/pluginやcontrollerによる復帰受入を代替しない。
+`git diff --check` も両repoで成功。今回のCI結果は公開後に確認するため、この時点で成功とはしない。
+
+**Lane B配送の阻害（未解消）**: 非公開Libraryの元commit archiveは、現在の公式materializeと
+consumer-local宛先への1回の再試行の両方で `download failed`。helperはHTTP statusを返さず、
+401/403と断定していない。ローカルファイルを読めないため、bundle復元・prerequisite/commit同一性確認・配送pushは未実施。
+一般ダウンローダ/別資格情報/権限拡張へ迂回せず、元commitを再生成していない。archiveの公開保存もしていない。
+正規Git readでbackend PR54は `e8bec488994debb100571676ebd94bec5c2bbc6f`、
+platform PR89は `336a2e6c0d556935c6da2f4adb127d8fa1190dfe` と基準一致を確認。
+共有guard SHAのGit fetchは `not our ref`。新Action参照はこの元commitの公開待ちで、
+guard成功/required CIは未確認。Bの2 branchは変更していない。
+
+次の担当はManager。元archiveの正規配送が可能になった環境で、head/祖先/prerequisiteを確認し
+backend→platformの順に元commitだけをfast-forward配送する。その後新guardで同render/CIを確認し、
+Lane A/Bの固定SHAへ独立Reviewを再依頼する。実cluster受入とCore3 Secret前提は引き続き未完了。
