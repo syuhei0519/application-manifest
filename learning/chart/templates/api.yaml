@@ -40,6 +40,10 @@ spec:
           imagePullPolicy: Never
           env:
             {{- include "learning.apiEnv" . | nindent 12 }}
+            {{- if .Values.orderPaymentURL }}
+            {{- if ne .Values.service "order" }}{{ fail "orderPaymentURL is Order-only" }}{{ end }}
+            - {name: ORDER_PAYMENT_URL, value: {{ .Values.orderPaymentURL | quote }}}
+            {{- end }}
           ports: [{name: http, containerPort: 8080}]
           securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
           resources:

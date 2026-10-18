@@ -160,15 +160,65 @@ def account_telemetry(values, directory, namespace='learning-fixture', output=No
     print('PASS Account telemetry only: API delta is exactly four env inputs; Job/DB/other objects unchanged; apply/restore inventory is one Deployment')
 
 
+def order_payment(directory):
+    """Order API-only opt-in; all other objects and migration raw bytes stay fixed."""
+    url = 'http://learning-payment:8080'
+    for service in SERVICES:
+        values = fixture(service)
+        absent = copy.deepcopy(values)
+        del absent['orderPaymentURL']
+        VALIDATOR.validate(absent)
+        disabled = render(values, directory)
+        assert render(absent, directory) == disabled, 'absent and empty must render identically'
+        values['orderPaymentURL'] = url
+        if service != 'order':
+            assert list(VALIDATOR.iter_errors(values))
+            render(values, directory, ok=False)
+            continue
+        VALIDATOR.validate(values)
+        enabled = render(values, directory)
+        before = list(yaml.safe_load_all(disabled))
+        after = list(yaml.safe_load_all(enabled))
+        assert len(before) == len(after)
+        deployments = 0
+        for off, on in zip(before, after):
+            if on['kind'] != 'Deployment':
+                assert off == on, 'non-API resource changed'
+                continue
+            deployments += 1
+            assert on['metadata']['name'] == 'learning-order'
+            env = on['spec']['template']['spec']['containers'][0]['env']
+            assert env.pop() == {'name': 'ORDER_PAYMENT_URL', 'value': url}
+            assert on == off, 'only the one API env may change'
+        assert deployments == 1
+        migration = lambda text: [part for part in text.split('---')
+                                  if '# Source: learning-service/templates/migration.yaml' in part]
+        assert len(migration(disabled)) == 1
+        assert migration(enabled) == migration(disabled), 'migration bytes changed'
+        for bad in (True, 8080, [], 'https://learning-payment:8080',
+                    'http://learning-payment:8080/', 'http://other:8080',
+                    'http://user:pass@learning-payment:8080', ' '):
+            values['orderPaymentURL'] = bad
+            assert list(VALIDATOR.iter_errors(values))
+            render(values, directory, ok=False)
+    print('PASS Order payment: absent=empty for all four services; one Order API env only; migration bytes and all non-API objects unchanged; other services and 8 invalid values rejected')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--account-telemetry-only', action='store_true', help='run only the R1 Account deployment boundary check')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--order-payment-only', action='store_true', help='run only Order payment opt-in checks')
+    mode.add_argument('--account-telemetry-only', action='store_true', help='run only the R1 Account deployment boundary check')
     parser.add_argument('--account-values', type=Path, help='existing approved opt-in-off values, without changing image/DB/other settings')
     parser.add_argument('--namespace', default='learning-fixture')
     parser.add_argument('--output', type=Path, help='new directory for Deployment-only before/telemetry files and fixed inventory')
     args = parser.parse_args()
     if (args.account_values or args.output) and not args.account_telemetry_only:
         parser.error('--account-values/--output require --account-telemetry-only')
+    if args.order_payment_only:
+        with tempfile.TemporaryDirectory(prefix='order-payment-') as tmp:
+            order_payment(Path(tmp))
+        return
     if args.account_telemetry_only:
         values = yaml.safe_load(args.account_values.read_text()) if args.account_values else fixture('account')
         with tempfile.TemporaryDirectory(prefix='account-telemetry-') as tmp:
@@ -192,6 +242,7 @@ def main():
                  str(CHART), '-f', str(directory / 'fixture.yaml')])
             print(f'PASS {service}: schema, strict lint, 7 resources, ownership/DB/image/probe contracts')
         account_telemetry(fixture('account'), directory)
+        order_payment(directory)
         # Rejection fixtures exercise the Helm entry point as well as JSON Schema.
         bad_cases = []
         for key, value in [('imageConfigID', ''), ('imageConfigID', 'latest'),
