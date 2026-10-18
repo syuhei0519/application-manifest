@@ -6,3 +6,7 @@ mode: rollout
 revision: good
 telemetry:
   enabled: false
+# Fixed-result learning gate; manual Canary remains the default.
+analysis:
+  enabled: false
+  case: success

@@ -47,6 +47,28 @@
           "type": "boolean"
         }
       }
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "case"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "case": {
+          "enum": [
+            "success",
+            "failure",
+            "inconclusive",
+            "missing",
+            "timeout"
+          ]
+        }
+      }
     }
   },
   "allOf": [
@@ -62,6 +84,38 @@
         "properties": {
           "revision": {
             "const": "good"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "analysis": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "analysis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "const": "rollout"
+          },
+          "revision": {
+            "enum": [
+              "good",
+              "candidate"
+            ]
           }
         }
       }
