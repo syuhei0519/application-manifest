@@ -184,3 +184,31 @@ cleanupは証跡配送後、削除が許可された今回の専用namespace内�
 database.yaml削除は当該PVCも削除し、local-pathのreclaimによりデータを失うことを明示して承認範囲と照合します。
 Secretとnamespaceも今回所有分だけ個別削除します。cluster、node、PV一括削除、他namespace、既存Labは対象外です。
 cleanupが失敗/不明ならその対象と結果を記録して停止し、再作成やwildcard削除で回避しません。
+
+## Account telemetry opt-in
+
+`learning/chart`の`telemetry.enabled`は既定`false`。既定offの全サービスrenderは変更しない。
+Accountに限り`true`を指定でき、Order/Payment/Notificationのtrueは拒否する。
+監視側はplatform-gitopsの独立`learning/monitoring/chart`を使用する。
+既存DB/Secret/PVC/imageは変更せず、backendの再buildもこのopt-inに含めない。
+
+```yaml
+telemetry:
+  enabled: true
+```
+
+有効時は既存SDK用の固定Collector endpoint、environment=local、`POD_NAMESPACE=account`、
+実Pod UID（Downward API）の4入力だけを追加する。shared helperを使うmigrationにも同じ入力が付くが、
+migrationはSDKを起動しない。`POD_NAMESPACE=account`はlegacy SDK互換値で、実namespaceではない。
+専用CollectorでAccount/local/互換namespaceをfilterしてから、承認済み実`learning-*` namespaceへ
+resource属性を補正する。実namespaceを監視valuesに明示し、互換値を実namespaceとして表示しない。
+この属性検査は送信者認証ではない。実SDK/環境でnamespace制約がセキュリティ境界として使われている場合は
+互換値で迂回せずManagerへ報告する。
+
+送信対象imageに既存SDKと40桁buildCommitが入っていること、固定endpointへのService DNS/配線、
+実namespace/Pod UID/source/image identityを後続の承認済みkind受入で確認する。
+起動検査不一致、同名Collectorとの衝突、既存権限不足は停止。匿名Viewerのlive適用も別承認が必要。
+Cloudの`python3 learning/validate.py`はschema/renderの確認だけでlive AC合格を意味しない。
+正常200と安全な400、5m窓経過後のidle、所有Collector停止/復旧によるmissingの手順は
+[監視runbook](https://github.com/syuhei0519/platform-gitops/tree/main/learning/monitoring)を参照する。
+このopt-inだけを既存Account valuesへ追加してrender/bytes照合し、承認されたAccount rolloutの範囲で使う。

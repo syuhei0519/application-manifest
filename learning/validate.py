@@ -89,6 +89,8 @@ def verify(service, objects):
             assert env['PGPASSWORD']['valueFrom']['secretKeyRef'] == {
                 'name': name + '-db', 'key': 'app-password'}
             assert 'DATABASE_URL' not in env
+            if not any(x['name'] == 'OTEL_EXPORTER_OTLP_ENDPOINT' for x in container['env']):
+                assert not {'POD_NAMESPACE', 'POD_UID', 'DEPLOYMENT_ENVIRONMENT'} & env.keys()
     assert job['spec']['backoffLimit'] == 0
     assert job['spec']['activeDeadlineSeconds'] == 180
     assert job['spec']['template']['spec']['containers'][0]['args'] == ['migrate']
@@ -123,6 +125,25 @@ def main():
             run(['helm', 'lint', '--strict', '--namespace', 'learning-fixture',
                  str(CHART), '-f', str(directory / 'fixture.yaml')])
             print(f'PASS {service}: schema, strict lint, 7 resources, ownership/DB/image/probe contracts')
+        # The opt-in only adds four non-secret SDK inputs; existing DB wiring stays intact.
+        values = fixture('account')
+        values['telemetry']['enabled'] = True
+        VALIDATOR.validate(values)
+        enabled = list(yaml.safe_load_all(render(values, directory)))
+        disabled = list(yaml.safe_load_all(render(fixture('account'), directory)))
+        for on, off in zip(enabled, disabled):
+            if on['kind'] in ('Deployment', 'Job'):
+                env = on['spec']['template']['spec']['containers'][0]['env']
+                extra = env[-4:]
+                assert extra == [
+                    {'name': 'OTEL_EXPORTER_OTLP_ENDPOINT', 'value': 'http://otel-collector.observability.svc.cluster.local:4318'},
+                    {'name': 'DEPLOYMENT_ENVIRONMENT', 'value': 'local'},
+                    {'name': 'POD_NAMESPACE', 'value': 'account'},
+                    {'name': 'POD_UID', 'valueFrom': {'fieldRef': {'fieldPath': 'metadata.uid'}}}]
+                # Migration does not initialize the SDK; the API uses the same helper.
+                del env[-4:]
+            assert on == off
+        print('PASS Account opt-in: exactly four SDK inputs, real Pod UID, existing objects/DB wiring unchanged')
         # Rejection fixtures exercise the Helm entry point as well as JSON Schema.
         bad_cases = []
         for key, value in [('imageConfigID', ''), ('imageConfigID', 'latest'),
@@ -137,13 +158,20 @@ def main():
         values = fixture('account')
         values['sourceCommits']['account'] = 'main'
         bad_cases.append(values)
+        for service in ('order', 'payment', 'notification'):
+            values = fixture(service)
+            values['telemetry']['enabled'] = True
+            bad_cases.append(values)
+        values = fixture('account')
+        values['telemetry']['enabled'] = 'true'
+        bad_cases.append(values)
         for values in bad_cases:
             assert list(VALIDATOR.iter_errors(values))
             render(values, directory, ok=False)
         for namespace in ('default', 'account', 'kube-system'):
             render(fixture('account'), directory, namespace=namespace, ok=False)
         render(fixture('account'), directory, release='wrong', ok=False)
-        print('PASS 12 rejection fixtures: missing/mutable identity, credential field, namespace/release boundaries')
+        print('PASS 16 rejection fixtures: identity, credentials, namespace/release, Account-only boolean opt-in')
     print('PASS learning path only; synthetic image IDs, no Kubernetes/runtime/image-build acceptance')
 
 

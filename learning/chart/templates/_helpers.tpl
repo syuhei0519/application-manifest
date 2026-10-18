@@ -28,4 +28,14 @@ learning.local/image-config-id: {{ .Values.imageConfigID | quote }}
 - name: PGPASSWORD
   valueFrom:
     secretKeyRef: {name: {{ include "learning.name" . }}-db, key: app-password}
+{{- if .Values.telemetry.enabled }}
+{{- if ne .Values.service "account" }}{{ fail "telemetry is Account-only" }}{{ end }}
+- {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability.svc.cluster.local:4318"}
+- {name: DEPLOYMENT_ENVIRONMENT, value: local}
+# Legacy SDK compatibility input, NOT the real deployment namespace.
+- {name: POD_NAMESPACE, value: account}
+- name: POD_UID
+  valueFrom:
+    fieldRef: {fieldPath: metadata.uid}
+{{- end }}
 {{- end -}}
