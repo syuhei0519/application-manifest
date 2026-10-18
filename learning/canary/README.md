@@ -80,9 +80,23 @@ Test担当は既存Account CRUD契約で専用の行を作成・GET・更新し�
 復帰renderが一致することを確認します。差があれば移行を止め、baselineを確定します。
 同時に古いHelm/GitOps操作をしない担当合意を取ります。
 
+`r` はplugin名の後へcontext/namespaceを渡す専用関数です。通常のkubectl操作は `k`/`c` を使います。
+以下の各operation patch前には `.operation` が空であることを確認し、進行中operationを上書きしません。
+通常syncでは次の表示を繰り返し、`operation=`（空）かつ `phase=Succeeded` を確認してから
+次のprofile変更/operation patch/解除へ進みます。途中のRollout観測・一段ずつのpromoteは行えます。
+Failed/Error/timeoutは成功扱いにせず停止します。意図的なfailed試験だけは、後述のabort後に終了確認します。
+RolloutのhealthやpauseとApplicationの同期operation終了は別々に確認します。
+
+```bash
+# patch前、およびpatch後の完了確認。出力を確認するまで後続操作をしない。
+c get application learning-account \
+  -o jsonpath='operation={.operation}{"\n"}phase={.status.operationState.phase}{"\n"}'
+```
+
 ```bash
 # ローカル専用。CONTEXT/NAMESPACE/CONTROL_NAMESPACEは直前に検証した明示入力。
 k() { kubectl --context="$CONTEXT" --namespace="$NAMESPACE" "$@"; }
+r() { kubectl argo rollouts --context="$CONTEXT" --namespace="$NAMESPACE" "$@"; }
 c() { kubectl --context="$CONTEXT" --namespace="$CONTROL_NAMESPACE" "$@"; }
 k scale deployment/learning-account --replicas=0
 k wait --for=delete pod -l learning.local/workload=learning-account --timeout=120s
@@ -90,8 +104,9 @@ k wait --for=delete pod -l learning.local/workload=learning-account --timeout=12
 # 承認済みApplication（good）を登録し、pruneなしで初回手動sync。
 c apply -f "$GITOPS_APPLICATION"
 c patch application learning-account --type=merge \
-  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false}}}"
-k argo rollouts status learning-account-canary --timeout=300s
+  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false,\"syncOptions\":[\"RespectIgnoreDifferences=true\"]}}}"
+# 上記のoperation終了確認（空 / Succeeded）後にRolloutを確認する。
+r status learning-account-canary --timeout=300s
 ```
 
 初回goodの作成は通常stepをスキップして全replicaがstableになります。これを10%観測と数えません。
@@ -108,16 +123,18 @@ Application自体は手動登録であり、別のGitOps親から再applyされ�
 c patch application learning-account --type=merge \
   -p '{"spec":{"source":{"helm":{"valueFiles":["../profiles/candidate.yaml"]}}}}'
 c patch application learning-account --type=merge \
-  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false}}}"
-k argo rollouts get rollout learning-account-canary
+  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false,\"syncOptions\":[\"RespectIgnoreDifferences=true\"]}}}"
+# 各stepを観測する。Applicationのoperationが進行中なら、まだ次のsyncは行わない。
+r get rollout learning-account-canary
 # pauseConditions/currentStepIndex/RS desired・ready数・Pod annotation/imageIDを確認してから一段ずつ。
-k argo rollouts promote learning-account-canary
+r promote learning-account-canary
 # 50% pauseで同じ確認、API/基準行GET
-k argo rollouts promote learning-account-canary
+r promote learning-account-canary
 # 100% pauseで同じ確認。stable Podが0になり得るのでreplica比として記録。
-k argo rollouts promote learning-account-canary
-k argo rollouts status learning-account-canary --timeout=300s
+r promote learning-account-canary
+r status learning-account-canary --timeout=300s
 c get application learning-account -o jsonpath='{.status.health.status}{"\n"}'
+# operation終了（空 / Succeeded）を確認してからfailed試験へ進む。
 ```
 
 pauseではApplication health Suspended、進行中Progressing、完了Healthyを確認します。
@@ -131,21 +148,45 @@ failed Podのreadiness失敗、Rollout status/conditions、API/基準行GETを�
 
 ```bash
 # readiness失敗はstep10の自動pauseへ到達しない場合がある。明示pauseからabortする。
-k argo rollouts pause learning-account-canary
+r pause learning-account-canary
 k get rollout learning-account-canary -o jsonpath='{.spec.paused}{"\n"}'
-k argo rollouts abort learning-account-canary
-k argo rollouts get rollout learning-account-canary
-# stable RSへの復帰とAPI/基準行を確認。abortだけではdesiredのfailedは直らない。
+r abort learning-account-canary
+r get rollout learning-account-canary
+# ここでは進行停止・abort状態・spec.paused=true・既存API/基準行GETを確認する。
+# 明示pause中はcontrollerのRS調整も止まる。failed RS縮退や復帰完了をここで要求しない。
+```
+
+candidateへの変更前にfailed試験の同期operationを確認します。まだ `Running` なら、
+Coreのoperation停止として次のpatchを行い、`.operation` が空、phaseが終端
+（Succeeded/Failed/Error）になるまで確認します。Running以外ならこのpatchを実行しません。
+Failed/Errorは失敗試験の結果として残します。終了しない/停止操作が失敗した場合は後続syncをせずManagerへ返します。
+
+```bash
+c get application learning-account \
+  -o jsonpath='operation={.operation}{"\n"}phase={.status.operationState.phase}{"\n"}'
+# operationが存在しphase=Runningの場合だけ。testで終了済みoperationの上書きを防ぐ。
+c patch application learning-account --type=json \
+  -p '[{"op":"test","path":"/status/operationState/phase","value":"Running"},{"op":"replace","path":"/status/operationState/phase","value":"Terminating"}]'
+# operationが空・phase終端になったことを上のgetで確認してからcandidateへ戻す。
+# abortだけではdesiredのfailedも明示pauseも直らない。
 c patch application learning-account --type=merge \
   -p '{"spec":{"source":{"helm":{"valueFiles":["../profiles/candidate.yaml"]}}}}'
 c patch application learning-account --type=merge \
-  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false}}}"
-# chartのpaused:falseも再同期され、手動pauseが解除されたことを確認する。
-k argo rollouts status learning-account-canary --timeout=300s
+  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false,\"syncOptions\":[\"RespectIgnoreDifferences=true\"]}}}"
+# operation終了（空 / Succeeded）とchartのpaused:falseの同期を確認する。
+k get rollout learning-account-canary -o jsonpath='{.spec.paused}{"\n"}'
+# false確認後に初めてfailed RS縮退・既知良好candidateのReady/安定RS・API/基準行GETを確認する。
+r get rollout learning-account-canary
+r status learning-account-canary --timeout=300s
 # 同じdesiredで再syncをもう1回行い、failedが再投入されないことを確認する。
 c patch application learning-account --type=merge \
-  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false}}}"
+  -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false,\"syncOptions\":[\"RespectIgnoreDifferences=true\"]}}}"
+# operation終了（空 / Succeeded）、failed RSが0、candidate/API/基準行GETを再確認する。
 ```
+
+CoreでのTerminatingへの遷移は固定版の
+[TerminateOperation](https://github.com/argoproj/argo-cd/blob/e258ee23c3e52266d407572f4bcdfe7d9ed36cb5/server/application/application.go)
+と同じ状態変更です。Applicationの同期停止とRolloutのabortを混同しません。
 
 Gitの固定commitにあるgood/candidate/failed profileとApplicationの選択pathを併せてdesiredとして記録します。
 Gitのchart/source/imageを変えず、失敗profileから確認済みcandidate profileへ選択を戻す操作です。
@@ -164,6 +205,9 @@ Applicationに進行中operationがないことを確認し、annotationでrecon
 finalizerなしApplicationを削除します（cascading削除禁止）。これで古いRollout desiredの再投入を止めます。
 
 ```bash
+# operationが空・phase終端であることを確認。進行中なら上記の停止/終了確認を先に行う。
+c get application learning-account \
+  -o jsonpath='operation={.operation}{"\n"}phase={.status.operationState.phase}{"\n"}'
 c annotate application learning-account argocd.argoproj.io/skip-reconcile=true --overwrite
 c delete application learning-account --cascade=orphan
 # 一時的に両Workloadが存在する意図した復帰区間。先に元APIをReadyにする。
