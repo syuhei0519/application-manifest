@@ -28,6 +28,9 @@ learning.local/image-config-id: {{ .Values.imageConfigID | quote }}
 - name: PGPASSWORD
   valueFrom:
     secretKeyRef: {name: {{ include "learning.name" . }}-db, key: app-password}
+{{- end -}}
+{{- define "learning.apiEnv" -}}
+{{- include "learning.env" . }}
 {{- if .Values.telemetry.enabled }}
 {{- if ne .Values.service "account" }}{{ fail "telemetry is Account-only" }}{{ end }}
 - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability.svc.cluster.local:4318"}
