@@ -1,0 +1,4 @@
+apiVersion: v2
+name: istio-rollout-learning
+version: 0.1.0
+description: Dedicated subset routing fixture; no Account or database resources

@@ -21,7 +21,7 @@ def now():
 
 # Disjoint acceptance bands; failures never disappear from the denominator.
 WINDOWS = {"warmup": (20, 0, 20), "plain": (200, 0, 0),
-           "stable": (200, 0, 0), "split90": (1000, 60, 140),
+           "stable": (200, 0, 0), "candidate": (200, 200, 200), "split90": (1000, 60, 140),
            "split50": (1000, 440, 560)}
 
 
@@ -55,13 +55,15 @@ def measure(window, opener=None, url=URL, pause=time.sleep):
     return result
 
 
-def serve(revision):
+def serve(revision, port=8080):
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
         def do_GET(self):
             body = (revision + "\n").encode() if self.path == "/version" else b"ok\n"
-            status = 200 if self.path in ("/version", "/livez") else 404
+            status = 200 if self.path in ("/version", "/livez", "/readyz") else 404
+            if revision == "failed" and self.path == "/readyz":
+                status = 503
             if status == 404:
                 body = b"not found\n"
             self.send_response(status)
@@ -73,20 +75,22 @@ def serve(revision):
         def log_message(self, *_args):
             pass
 
-    http.server.ThreadingHTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
+    http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subs = parser.add_subparsers(dest="action", required=True)
-    subs.add_parser("serve").add_argument("revision", choices=["v1", "v2"])
+    subs.add_parser("serve").add_argument("revision", choices=["v1", "v2", "failed"])
     subs.add_parser("idle")
-    subs.add_parser("measure").add_argument("window", choices=list(WINDOWS))
+    measurement = subs.add_parser("measure")
+    measurement.add_argument("window", choices=list(WINDOWS))
+    measurement.add_argument("--rollout", action="store_true")
     args = parser.parse_args()
     if args.action == "serve":
         serve(args.revision)
     elif args.action == "measure":
-        result = measure(args.window)
+        result = measure(args.window, url=URL.replace("mesh-demo.", "mesh-rollout.") if args.rollout else URL)
         print(json.dumps(result, sort_keys=True))
         raise SystemExit(0 if result["passed"] else 1)
     else:
