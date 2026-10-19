@@ -7,7 +7,8 @@ platform-gitops `efd3a1f5a31eaf904bc787456034e4cebe932f7f` の
 platform 側の変更はない。chart はこの repo の `learning/istio/chart` を唯一の routing desired とし、
 同名の platform stable/split を並行 apply しない。Helm は render に使い、配備は保存済み raw YAML の手動 apply。
 ユーザーの引継ぎでは #8 の client/v1 通信と撤去は完了、mesh OFF、v2 未配置。この作業では実状態を参照していない。
-Argo Rollouts × Istio、全サービス mesh、全体 mTLS 強制、追加監視は扱わない。
+この手動routing手順では Argo Rollouts × Istio、全サービス mesh、全体 mTLS 強制、追加監視は扱わない。
+#14 のController/GitOps統合は [専用Rolloutシナリオ](ROLLOUTS.md) を参照する。
 
 ## Cloud の静的検証
 

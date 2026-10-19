@@ -1,0 +1,72 @@
+{{- if ne .Release.Namespace "learning-istio-demo" }}
+{{- fail "only learning-istio-demo is allowed" }}
+{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: mesh-rollout
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 120
+  progressDeadlineAbort: true
+  selector:
+    matchLabels: {app: mesh-rollout}
+  strategy:
+    canary:
+      maxSurge: 1
+      maxUnavailable: 0
+      scaleDownDelaySeconds: 30
+      abortScaleDownDelaySeconds: 30
+      trafficRouting:
+        istio:
+          virtualService:
+            name: mesh-rollout
+            routes: [demo-only]
+          destinationRule:
+            name: mesh-rollout
+            stableSubsetName: stable
+            canarySubsetName: canary
+      steps:
+        - setWeight: 10
+        - pause: {}
+        - setWeight: 50
+        - pause: {}
+        - setWeight: 100
+        - pause: {}
+  template:
+    metadata:
+      labels: {app: mesh-rollout}
+      annotations:
+        learning.local/revision: {{ .Values.revision | quote }}
+    spec:
+      serviceAccountName: mesh-demo
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: fixture
+          image: {{ .Values.image }}
+          imagePullPolicy: IfNotPresent
+          command: [python3, -B, /fixture/demo.py]
+          args: [serve, {{ .Values.revision }}]
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+          livenessProbe:
+            httpGet: {path: /livez, port: http}
+          resources:
+            requests: {cpu: 25m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: code, mountPath: /fixture, readOnly: true}]
+      volumes:
+        - name: code
+          configMap: {name: mesh-demo-code, defaultMode: 0444}

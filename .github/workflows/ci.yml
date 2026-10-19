@@ -83,17 +83,33 @@ jobs:
           ref: efd3a1f5a31eaf904bc787456034e4cebe932f7f
           path: .build/platform-istio
           persist-credentials: false
+      - name: Checkout fixed Rollouts schema source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: argoproj/argo-rollouts
+          ref: 356117c8e9a21b74b58c2c01d640aa91994522b5
+          path: .build/rollouts-istio
+          persist-credentials: false
+      - name: Checkout fixed Argo CD sync implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: argoproj/argo-cd
+          ref: e258ee23c3e52266d407572f4bcdfe7d9ed36cb5
+          path: .build/argocd-istio
+          persist-credentials: false
       - name: Istio routing static and observation contracts
         run: |
           curl --fail --location --silent --show-error https://github.com/istio/istio/releases/download/1.31.2/istio-1.31.2-linux-amd64.tar.gz -o .build/istio.tar.gz
           echo 'b3d58081fcffab9456f16b18e990d4dff8fc08b075259bbc0e82b512337a3575  .build/istio.tar.gz' | sha256sum -c -
           tar -xzf .build/istio.tar.gz -C .build istio-1.31.2/bin/istioctl
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/istio/validate.py --platform .build/platform-istio --istioctl .build/istio-1.31.2/bin/istioctl --output .rendered/istio-routing
-          python3 -m unittest discover -s learning/istio/tests -v
+          PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/istio/validate_rollout.py --platform .build/platform-istio --rollouts .build/rollouts-istio --istioctl .build/istio-1.31.2/bin/istioctl --output .rendered/istio-routing/rollout
+          .build/canary-venv/bin/python -m unittest discover -s learning/istio/tests -v
+          PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/istio/check_argocd_sync.py --argocd .build/argocd-istio
       - name: Kubernetes schema checks
         run: |
           docker run --rm -v "$PWD:/work:ro" -w /work ghcr.io/yannh/kubeconform:v0.7.0-alpine@sha256:8f0eeaaa96ba27ba1500b0e4b1c215acc358d159c62a7ecae58d7a03403287b0 -strict -summary -kubernetes-version 1.36.0 .rendered/all.yaml
-          docker run --rm -v "$PWD:/work:ro" -w /work ghcr.io/yannh/kubeconform:v0.7.0-alpine@sha256:8f0eeaaa96ba27ba1500b0e4b1c215acc358d159c62a7ecae58d7a03403287b0 -strict -summary -kubernetes-version 1.36.0 -skip VirtualService,DestinationRule .rendered/istio-routing
+          docker run --rm -v "$PWD:/work:ro" -w /work ghcr.io/yannh/kubeconform:v0.7.0-alpine@sha256:8f0eeaaa96ba27ba1500b0e4b1c215acc358d159c62a7ecae58d7a03403287b0 -strict -summary -kubernetes-version 1.36.0 -skip VirtualService,DestinationRule,Rollout,Application,AppProject .rendered/istio-routing
       - name: Source and rendered security checks
         env:
           SECURITY_RENDER_REQUIRED: 'true'
