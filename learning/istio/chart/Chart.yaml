@@ -1,0 +1,6 @@
+apiVersion: v2
+name: istio-learning-demo
+description: Dedicated DB-free client and two /version fixtures; bounded routing learning
+type: application
+version: 0.2.0
+appVersion: "1"
