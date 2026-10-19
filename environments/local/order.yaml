@@ -1,18 +1,18 @@
 # Disabled: real release selection belongs to M2; enabling belongs to the deployment gate.
 enabled: false
 image:
-  repository: ghcr.io/syuhei0519/backend-app-order
-  tag: ''
-  digest: ''
+  repository: "ghcr.io/syuhei0519/backend-app-order"
+  tag: "76273c5201725cd16cdf4500fcccb77c373ebcf7"
+  digest: "sha256:a26173f6e898b0430ed1dcc6f2e59ef250a7db73bab0c2502191f6ee4accc3f7"
   pullPolicy: IfNotPresent
 release:
-  schemaVersion: github-v2
-  service: order
-  sourceRepository: syuhei0519/backend-app
-  sourceCommit: ''
-  runId: ''
-  runAttempt: ''
-  recordUrl: ''
-  recordSha256: ''
-  sbomUrl: ''
-  sbomSha256: ''
+  schemaVersion: "github-v2"
+  sourceRepository: "syuhei0519/backend-app"
+  sourceCommit: "76273c5201725cd16cdf4500fcccb77c373ebcf7"
+  runId: "39240974812"
+  runAttempt: "1"
+  recordUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-order-76273c5201725cd16cdf4500fcccb77c373ebcf7-39240974812-1/release-record.json"
+  recordSha256: "7e2d51c06422b7c5e177a62f531ddad14ea29b24a0f9d373bb5ff5b82024479b"
+  sbomUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-order-76273c5201725cd16cdf4500fcccb77c373ebcf7-39240974812-1/sbom.cdx.json"
+  sbomSha256: "a7f486c460c65557c1aa236d6bc69667d5fc9d5e83288ca3d744bd1355e017d7"
+  service: "order"
