@@ -61,7 +61,7 @@ def main():
         dr=next(d for d in docs if d['kind']=='DestinationRule')
         assert [r['weight'] for r in vs['spec']['http'][0]['route']]==[100,0]
         assert [r['destination']['subset'] for r in vs['spec']['http'][0]['route']]==['stable','canary']
-        assert dr['spec']['subsets']==[{'name':n,'labels':{'app':'mesh-rollout'}} for n in ['stable','canary']]
+        assert dr['spec']['subsets']==[{'name':n,'labels':{'app':'mesh-rollout','rollouts-pod-template-hash':'unassigned'}} for n in ['stable','canary']]
         assert ro['spec']['template']['spec']['containers'][0]['args']==['serve',revision]
         assert ro['spec']['template']['spec']['containers'][0]['readinessProbe']['httpGet']['path']=='/readyz'
         appdocs = application('learning-core-test','a'*40,revision)

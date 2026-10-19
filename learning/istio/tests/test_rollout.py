@@ -35,23 +35,6 @@ class Ownership(unittest.TestCase):
                          ['/spec/http/0/route/0/weight','/spec/http/0/route/1/weight'])
         self.assertEqual(spec['ignoreDifferences'][1]['jsonPointers'],
                          ['/spec/subsets/0/labels/rollouts-pod-template-hash','/spec/subsets/1/labels/rollouts-pod-template-hash'])
-        # Model RespectIgnoreDifferences prepatch: runtime survives a sync, Git still corrects host drift.
-        desired={'spec':{'http':[{'route':[{'weight':100,'host':'wanted'},{'weight':0}]}]}}
-        live=copy.deepcopy(desired)
-        for weights in [[90,10],[50,50],[0,100],[100,0]]:
-            for route,w in zip(live['spec']['http'][0]['route'],weights):
-                route['weight']=w
-            live['spec']['http'][0]['route'][0]['host']='drift'
-            target=copy.deepcopy(desired)
-            for ptr in spec['ignoreDifferences'][0]['jsonPointers']:
-                keys=ptr.strip('/').split('/')
-                src,dst=live,target
-                for key in keys[:-1]:
-                    src=src[int(key)] if isinstance(src,list) else src[key]
-                    dst=dst[int(key)] if isinstance(dst,list) else dst[key]
-                dst[keys[-1]]=src[keys[-1]]
-            self.assertEqual([r['weight'] for r in target['spec']['http'][0]['route']],weights)
-            self.assertEqual(target['spec']['http'][0]['route'][0]['host'],'wanted')
 
     def test_reject_unbounded_application(self):
         for args in [('default','a'*40,'v1'),(app.NS,'a'*40,'v1'),('learning-core','main','v1'),('learning-core','a'*40,'other')]:
@@ -69,8 +52,8 @@ class Observation(unittest.TestCase):
         if index is not None:
             ro['status'].update(currentStepIndex=index,pauseConditions=[{'reason':'CanaryPauseStep'}])
         if stage=='aborted': ro['status']['abort']=True
-        dr=dict(kind='DestinationRule',metadata=meta,spec=dict(host=observe.HOST,subsets=[dict(name=s,labels={'app':'mesh-rollout','rollouts-pod-template-hash':h}) for s,h in [('stable',stable),('canary',latest)]]))
-        vs=dict(kind='VirtualService',metadata=meta,spec=dict(hosts=[observe.HOST],gateways=['mesh'],http=[dict(name='demo-only',retries={'attempts':0},match=[{'method':{'exact':'GET'},'uri':{'exact':'/version'}}],route=[dict(destination=dict(host=observe.HOST,subset=s,port=dict(number=8080)),weight=w) for s,w in [('stable',100-weight),('canary',weight)]])]))
+        dr=dict(kind='DestinationRule',metadata=meta,spec=dict(host=observe.HOST,exportTo=['.'],subsets=[dict(name=s,labels={'app':'mesh-rollout','rollouts-pod-template-hash':h}) for s,h in [('stable',stable),('canary',latest)]]))
+        vs=dict(kind='VirtualService',metadata=meta,spec=dict(hosts=[observe.HOST],exportTo=['.'],gateways=['mesh'],http=[dict(name='demo-only',retries={'attempts':0},match=[{'method':{'exact':'GET'},'uri':{'exact':'/version'}}],route=[dict(destination=dict(host=observe.HOST,subset=s,port=dict(number=8080)),weight=w) for s,w in [('stable',100-weight),('canary',weight)]])]))
         clusters=[dict(name=f'outbound|8080|{s}|{observe.HOST}',weight=w) for s,w in [('stable',100-weight),('canary',weight)] if w]
         routes=[dict(virtualHosts=[dict(domains=[observe.HOST],routes=[dict(match={'path':'/version','headers':[{'name':':method','stringMatch':{'exact':'GET'}}]},route=dict(weightedClusters=dict(clusters=clusters)))])])]
         return [ro,vs,dr,routes,stage]
@@ -80,7 +63,7 @@ class Observation(unittest.TestCase):
             self.assertTrue(observe.check(*self.fixture(stage))['passed'])
 
     def test_reject_false_evidence(self):
-        for mutation in ['stale','step','hash','weight','envoy','no-route','wrong-method','abort']:
+        for mutation in ['stale','step','hash','weight','envoy','no-route','wrong-method','abort','subset-policy','route-extra']:
             f=self.fixture('ten')
             if mutation=='stale': f[0]['status']['observedGeneration']='2'
             if mutation=='step': f[0]['status']['currentStepIndex']=3
@@ -90,9 +73,27 @@ class Observation(unittest.TestCase):
             if mutation=='envoy': route['route']['weightedClusters']['clusters'][0]['weight']=100
             if mutation=='no-route': f[3]=[]
             if mutation=='wrong-method': route['match']['headers']=[]
+            if mutation=='subset-policy': f[2]['spec']['subsets'][0]['trafficPolicy']={'loadBalancer':{'simple':'RANDOM'}}
+            if mutation=='route-extra': f[1]['spec']['http'][0]['timeout']='5s'
             if mutation=='abort': f[0]['status']['abort']=True
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 observe.check(*f)
+
+    def test_reject_shadowing_first_route(self):
+        for match in [{'prefix':'/'}, {'prefix':'/version'}, {'path':'/version'},
+                      {'safeRegex':{'regex':'.*'}}]:
+            f=self.fixture('ten')
+            first={'match':match,'route':{'cluster':f'outbound|8080|stable|{observe.HOST}'}}
+            f[3][0]['virtualHosts'][0]['routes'].insert(0,first)
+            with self.subTest(match=match), self.assertRaises(ValueError):
+                observe.check(*f)
+
+    def test_unrelated_earlier_route(self):
+        for match in [{'prefix':'/other'}, {'path':'/elsewhere'},
+                      {'path':'/version','headers':[{'name':':method','exactMatch':'POST'}]}]:
+            f=self.fixture('ten')
+            f[3][0]['virtualHosts'][0]['routes'].insert(0,{'match':match,'route':{'cluster':'other'}})
+            self.assertTrue(observe.check(*f)['passed'])
 
 
 class FailedFixture(unittest.TestCase):

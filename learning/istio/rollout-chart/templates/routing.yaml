@@ -18,9 +18,9 @@ spec:
   exportTo: ["."]
   subsets:
     - name: stable
-      labels: {app: mesh-rollout}
+      labels: {app: mesh-rollout, rollouts-pod-template-hash: unassigned}
     - name: canary
-      labels: {app: mesh-rollout}
+      labels: {app: mesh-rollout, rollouts-pod-template-hash: unassigned}
 ---
 apiVersion: networking.istio.io/v1
 kind: VirtualService

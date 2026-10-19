@@ -18,11 +18,17 @@ subset routing のため stable/canary Service や Service hash patch は不要�
 | Rollouts | VS `/spec/http/0/route/{0,1}/weight`、DR `/spec/subsets/{0,1}/labels/rollouts-pod-template-hash`、status/生成RS/Pod |
 | ローカル担当 | 既存 fixture SA/CM/client、namespace revision opt-in、既存 Istio control の復元/撤去、前後の Account CRUD |
 
-Git の VS 初期値は100:0のまま全profile共通。DR は `app=mesh-rollout` の基本labelだけ。
+Git の VS 初期値は100:0のまま全profile共通。DR は `app=mesh-rollout` と bootstrap の `rollouts-pod-template-hash: unassigned` を持つ。
+bootstrap hash はどのPodにも一致させず、初回controller収束で実hashへ置換されるまで受入を開始しない。
 Core の `ignoreDifferences` を対象kind/name/namespaceと上記4フィールドに限定し、
 `RespectIgnoreDifferences=true` を Application と直接の sync operation の両方に指定する。
 route/subset全体や Rollout spec を除外しない。固定配列の順序を変える際は pointer と検証を同時に見直す。
 初回createでは ignore は効かないので、VS/DR を100:0で作ってから controller の初期収束を待つ。
+固定Argo CDの `restoreNonIgnoredFields` は配列へ再帰しない。desired DRにhashがない旧構成では
+subsets全体が「非ignore」と判断されhashが消える。bootstrapを宣言することで正規化前後に差を作りruntime hashを保持する。
+route/subsets全体はignoreしない。**同版では配列内の構成driftはOutOfSyncとして検出されてもsyncで自動修復されない**。
+各sync前後にCoreのdiff/Syncedと下記helperの完全なVS/DR spec照合を行い、driftがあれば停止してManagerへ返す。
+自動修復したと扱わず、手動VS applyで今回のACを置き換えない。
 既存アプリに auto sync を追加しない。**有効な手動 GitOps 再同期を各pause/abortで実行して非競合を検証する**。
 
 根拠: [公式subset routing](https://argo-rollouts.readthedocs.io/en/stable/features/traffic-management/istio/)、
@@ -35,26 +41,31 @@ VS/DR をget/updateし、DRの基本labelを維持しhashを更新する。専�
 platform固定開始 `3f05f580253714d2580e11a6ee75339a469c6df3` の既存 controller は
 `learning-services-20261018` だけをwatchする。既存RoleはVS/DR権限を持たず、
 Core cacheにもVS/DRがない。既存 controller をclusterwide化しない。
-platform提案commit `08faffc86ac0b43fcd5c7bb8149709040b5613ad` の `learning/istio/rollouts_access.py` が次の**未適用提案**を描画する。
+platform提案commit `22331b062b81e181149c7d63838659ea07577565` の `learning/istio/rollouts_access.py` が次の**未適用提案**を描画する。
 
 | 対象 | 必要操作・限定範囲 | 復旧 |
 | --- | --- | --- |
 | demo専用 controller | `learning-istio-demo` 内に SA/Role/Binding/Deployment 各1、名前 `mesh-rollouts-controller`。既存digest、namespaced/watch固定、v1。requests50m/64Mi、limit500m/256Mi | 所有UID照合後、この4資源だけ解除 |
 | demo Rollouts Role | demo内RSの生成/scale/delete、Pod get/list/watch/update、Event write、Lease create/get/update。`mesh-rollout` だけRollout/status/finalizers update/patch、VS/DR update。VS/DR等のinformer readはdemo内 | 同Role/Bindingだけ解除。namespace RBACではRS/Podの所有者別制限はできないため専用namespaceが前提 |
 | controller informer read | demo内Deployment/Service/Experiment/AnalysisTemplate/Run/Job/Ingress参照。通知CM/Secret readは固定通知名称だけ。Service patch、AnalysisRun create、Account Secret/DB/PVC writeなし | 同Role。通知Secretを生成/取得する手順はない |
-| Core demo Role/Binding | demo内Rollout/Service/VS/DR read/create/update/patch/delete、RS/Pod/Event read。対象SAは指定既存control namespaceの `argocd-application-controller` | この2資源だけ解除。既存Account Roleは変更なし |
+| Core demo Role/Binding | demo内Rollout/Service/VS/DR read/create/update/patch/delete、RS/Pod/Event と既存inclusionに必要なDeployment/AnalysisTemplate/AnalysisRun のget/list/watch。後3kindのwriteなし。対象SAは指定既存control namespaceの `argocd-application-controller` | この2資源だけ解除。既存Account Roleは変更なし |
 | Core `argocd-cm` | 既存inclusionsを保持し、in-clusterのVS/DRだけ追加。resourceVersion test付きJSON patch。health/tracking設定は保持 | 最新resourceVersionを確認し、今回追加のentryだけ元に戻す。他変更を巻き戻さない |
-| Core登録 | 現登録のnamespacesにdemoがない。登録のnamespace追加または専用登録が別途必要 | **Secret変更は禁止のまま保留**。generatorはSecretを生成/変更しない。Managerが登録方式と許可範囲を決める |
+| Core登録 | Core Applicationが全体で0件の場合だけ、既存登録の非秘密 `namespaces` 値をシナリオ中 `learning-istio-demo` のみに置換。旧値を私有保存。Accountとのunion登録は禁止 | App/Project削除後、VS/DR inclusionを先に戻し、その後namespace旧値へ戻す。credential/他Secretフィールドを触らない |
 | AppProject/Application | 新規 `mesh-rollout`、固定manifest SHA、demo destination、4kindだけ許可。finalizer/prune/auto syncなし | operation終端確認後、orphan削除 |
 
 Coreのnamespace Roleはcreateを名前で制限できない。AppProjectの4kind/destination制限と合わせるが、完全な名前単位security境界とは主張しない。
-Core cache inclusion は既存in-clusterでVS/DRを観測対象に加える。既存Account Application/health/RBACは変更しない。
-既存Core登録の制約を解決しないまま、AppProjectだけで配備できるとは扱わない。
+Core cache inclusionは登録namespaceすべてへ作用するため、Account権限を広げずに共存させることはしない。
+登録namespaceをdemoだけにする間は既存CoreにApplicationを追加しない。最初に全Application0件とoperationなしを再確認する。
+生成CLIは保存したApplication Listが空でなければ拒否し、非秘密の `registration-namespaces.txt` だけを出す。
+登録変更は12:00承認の非秘密namespace範囲としてlocal担当が行う。generatorはSecret API操作をしない。
+`resource.respectRBAC` は既定disabledを保持する。normalは固定Engineでkind全体のmetadataを落とし、
+strictは追加SelfSubjectAccessReviewとnamespace横断判定が必要なため採用しない。新Coreも作らない。
+この方式は既存Applicationがある場合には利用できず、Managerへ返す。
 追加SAの認可、image到達性、controller起動は未実測。`kubectl auth can-i --as ...` は担当にimpersonate権限がある場合だけ使う。
 
 fixture通常最大2 Pod + client の3proxy、既存plain v1も残す場合、fixture requests合計100m/128Mi、
 proxy合計300m/384Mi、追加controller50m/64Mi。Istiod/既存Core/他workloadは別に容量を確認する。
-DB/PVC/Secret、共有Collector/監視、Kong、mTLS/Retry追加、SLOgateを変更しない。
+DB/PVC/credential・登録のnamespaces以外のSecretフィールド、共有Collector/監視、Kong、mTLS/Retry追加、SLOgateを変更しない。
 
 ## Cloudの再現
 
@@ -68,19 +79,28 @@ python3 learning/istio/validate_rollout.py --platform "$PLATFORM" --rollouts "$R
 python3 -m unittest discover -s learning/istio/tests -v
 # platform feature checkout内。合成fixtureだけ、実機にapplyしない。
 python3 -m unittest discover -s learning/istio -p test_rollouts_access.py -v
-python3 learning/istio/rollouts_access.py --control-namespace learning-core-test --owner cloud-fixture --cache "$CACHE" --core-config learning/istio/fixtures/core-config.yaml --output "$OUT/access"
+python3 learning/istio/rollouts_access.py --control-namespace learning-core-test --owner cloud-fixture --cache "$CACHE" --core-config learning/istio/fixtures/core-config.yaml --applications learning/istio/fixtures/no-applications.yaml --registered-namespaces learning-services-20261018 --output "$OUT/access"
 ```
 
 `validate_rollout.py` は固定公式Rollout/Istio/Application/AppProject schema、3profile、4kind境界、
 無効値拒否、Istio offline analyzeと通常/native injectionを検査する。
 injectorのためRolloutと同じPodTemplateを一時Deploymentへ投影するが、この投影を配備しない。
-unitのsyncモデルは4フィールドの保持とhost driftの修正を確認するだけで、実Coreの再同期成功ではない。
+追加の狭い回帰（`ARGOCD` は `e258ee23c3e52266d407572f4bcdfe7d9ed36cb5` 固定source）:
+
+```sh
+# application-manifest側。固定公式補正/merge関数をそのまま抽出し、同版依存とK8s threewayapplyを実行。
+python3 learning/istio/check_argocd_sync.py --argocd "$ARGOCD"
+# platform側。固定EngineのEnsureSynced/IsNamespaced/GetManagedLiveObjsをfakeclientで実行。
+python3 learning/istio/check_argocd_cache.py --argocd "$ARGOCD"
+```
+
+旧独自syncコピー模型は削除した。これらも実Core/clusterの再同期成功の証明ではない。
 既存required/security check名は維持し、renderは既存security scan経路とCI artifactに含める。
 
 ## ローカルの一つのscenario（未実施）
 
 独立Review・CI確認後、Managerが上の対象を認可し、local Testが所有UID/context/namespace/容量を確認してから実行する。
-Core登録が未解決なら実測を開始しない。全ての失敗窓は残し、成功するまでのretryをしない。
+全Application0件とdemo-only登録を確認できなければ実測を開始しない。全ての失敗窓は残し、成功するまでのretryをしない。
 生成ファイル、raw snapshots、Core patchのresourceVersionは私有一時領域へ置く。公開は集計だけ。
 
 1. mesh OFF状態で既存Account Pod/Serviceとproxy不在を確認し、従来 `account_crud.py` でbaselineを取る。
@@ -89,7 +109,9 @@ Core登録が未解決なら実測を開始しない。全ての失敗窓は残�
    このCMには新しい `/readyz` と `measure --rollout` が必要。
    既存platform手順でIstio controlとrevision opt-inを復元し、clientだけrestartしproxyと固定imageIDを確認する。
    新Rollout Podも自動注入を確認する。従来mesh-demo VS/DR/v2が残っていれば所有確認して先に従来手順でplainへ戻す。
-3. 承認済みのdemo controller/access、Core inclusions、登録前提を準備する。
+3. Coreの全Applicationが0件であることをfresh Listで確認し、登録namespace旧値を私有保存する。
+   先に承認済みdemo controller/accessを準備。次に非秘密namespacesをdemoだけへ変更し、最後にVS/DR inclusionを追加する。
+   逆順でAccountを登録したままinclusionを足さない。Engine cacheの同期成功を確認する。
    generatorへ実control namespaceと固定manifest commitを渡し、AppProject/Applicationの両方をapplyする。
    合成 `learning-core-test` fixtureを実機へapplyしない。
 
@@ -119,7 +141,8 @@ sync_demo
    `initial`観測とwarmup+stable200件（v1=200/失敗0）。
 5. `source_revision v2; sync_demo`。新hashでstep index1の10%pauseへ。
    VS/DRとclient active routeの `ten` 観測 → **同じv2 Applicationを手動sync** → Succeeded/operation空 → 再観測。
-   2出力のhash/weights一致とsource targetRevision/profileを保存。routeの伝播が終わる前に測定しない。
+   Coreの同期状態 `Synced`、2出力のhash/weights一致とsource targetRevision/profileを保存。
+   非ignoreのdriftでOutOfSyncなら停止。後続syncでの自動修復を前提にしない。routeの伝播が終わる前に測定しない。
    warmup20の後、固定split90窓1000件（v2=60〜140、失敗/未知本文0）。
 6. `r promote mesh-rollout`（固定plugin v1.10.1、通常promote、full不可）。
    step index3の `fifty`、同じ手動sync前後の観測、warmup+split50（1000件/v2=440〜560/失敗0）。
@@ -155,7 +178,8 @@ requestはclient Envoy経由・HTTP/1.1 Connection:close・逐次・2秒timeout�
 Controller稼働中の手動VS weight applyを今回の成功証拠にしない。
 安定後、Application operation終端を確認してApp/Projectをfinalizerなしでorphan削除し、
 Rollout `mesh-rollout` だけforeground削除して所有RS/Pod消失を待つ。VS/DR/Serviceも同名だけ削除。
-承認済みdemo access6資源だけを解除し、Core inclusion/登録は上表どおり今回差分だけ復旧する。
+App/Project削除後、Core inclusionのVS/DR entryを先に戻し、その後登録namespace旧値を復元する。
+全Application0件と既存cacheの復帰を確認した後、承認済みdemo access6資源だけを解除する。
 既存Account controller、Core/Redis/登録Secret、CA/CRD/namespaceを一括削除しない。
 namespace revision opt-in解除と既存plainの再apply、client restart、proxy不在、plain200件/Account CRUDを確認する。
 Istio controlの撤去は従来platform手順に従う。安定復帰不能なら独断でSecret/RBAC/DBを変更せずManagerへ返す。
