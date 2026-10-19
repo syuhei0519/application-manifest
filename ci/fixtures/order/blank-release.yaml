@@ -1,0 +1,14 @@
+# Test-only negative input. Override any selected local image/release with blanks.
+# Never deploy this enabled fixture.
+enabled: true
+image:
+  tag: ''
+  digest: ''
+release:
+  sourceCommit: ''
+  runId: ''
+  runAttempt: ''
+  recordUrl: ''
+  recordSha256: ''
+  sbomUrl: ''
+  sbomSha256: ''
