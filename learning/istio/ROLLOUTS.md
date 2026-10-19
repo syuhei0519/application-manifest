@@ -100,6 +100,7 @@ Core登録が未解決なら実測を開始しない。全ての失敗窓は残�
 : "${PRIVATE_OUT:?private existing output directory}"
 k() { kubectl --context "$ISTIO_CONTEXT" -n learning-istio-demo "$@"; }
 c() { kubectl --context "$ISTIO_CONTEXT" -n "$CONTROL_NAMESPACE" "$@"; }
+r() { kubectl argo rollouts --context "$ISTIO_CONTEXT" -n learning-istio-demo "$@"; }
 # 各source変更前にoperationが空で以前のsyncが終端であることを確認する。
 source_revision() {
   python3 learning/istio/rollout_application.py --control-namespace "$CONTROL_NAMESPACE" --manifest-commit "$MANIFEST_COMMIT" --revision "$1" --output "$PRIVATE_OUT/app-$1.yaml"
@@ -120,12 +121,12 @@ sync_demo
    VS/DRとclient active routeの `ten` 観測 → **同じv2 Applicationを手動sync** → Succeeded/operation空 → 再観測。
    2出力のhash/weights一致とsource targetRevision/profileを保存。routeの伝播が終わる前に測定しない。
    warmup20の後、固定split90窓1000件（v2=60〜140、失敗/未知本文0）。
-6. `k argo rollouts promote mesh-rollout`（固定plugin v1.10.1、通常promote、full不可）。
+6. `r promote mesh-rollout`（固定plugin v1.10.1、通常promote、full不可）。
    step index3の `fifty`、同じ手動sync前後の観測、warmup+split50（1000件/v2=440〜560/失敗0）。
 7. 同じ通常promoteでstep index5の `hundred`。同じsync前後の観測、warmup+candidate（200件すべてv2）。
    通常promoteで完了し `promoted` 観測。stableRSが旧candidateへ変わり、VSがstable100:canary0でも本文v2になることを確認する。
 8. `source_revision failed; sync_demo`。新RS readiness503、stableがReadyで保持されることを確認。
-   120秒progress deadlineの自動abortまたは通常 `k argo rollouts abort mesh-rollout` を一度実行。
+   120秒progress deadlineの自動abortまたは通常 `r abort mesh-rollout` を一度実行。
    追加promote/retryはしない。`aborted` のVS100:0・stable hash保持・Envoy stable100を確認し、
    **failed sourceのままsync**して再観測が一致することを確認する。warmup+candidate200件でstable v2へ到達する。
    同じAccount CRUDを実行し201/200/200/200/204/404を確認する。
