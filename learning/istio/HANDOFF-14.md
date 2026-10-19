@@ -89,3 +89,61 @@ local Testは [ROLLOUTS.md の承認対象表](ROLLOUTS.md#実適用前の承認
 demo access6資源、Core inclusion追加entry、App/Project、Rollout/生成RS/Pod/同名Service/VS/DRが今回の解除範囲。
 Account controller/DB/PVC/Secret・既存Core設定全体を巻き戻さない。namespace/CRD/CAを削除しない。
 独立Review実施済みとは主張せず、runtime ACが揃うまではIssueをCloseしない。
+
+### 独立Review後のblocking 3件の修正（2026-10-19追記）
+
+上記は初回提出時の履歴。独立Reviewでcache権限、DR hash削除、Envoy route遮蔽の3件がblockingと判明した。
+初回の独自syncコピー模型のPASSは固定Argo実装の証明にならず、模型を削除して下記へ置換した。
+初回の成功記録や失敗履歴は消さず、この追記で現行の結論を更新する。
+
+- manifest修正固定commit: `e7328f2a3530e948dd590b7c396027a624056a98`。
+- platform修正固定commit: `22331b062b81e181149c7d63838659ea07577565`。
+- 同じDraft PR: [manifest #40](https://github.com/syuhei0519/application-manifest/pull/40)、[platform #97](https://github.com/syuhei0519/platform-gitops/pull/97)。この記録の後続commitはMarkdownだけ。
+
+1. **cache**: inclusionは登録全namespaceへ作用するため、Account namespaceとdemoのunion登録をやめる。
+   全Core Applicationが0件であるfresh Listをgeneratorへ渡し、シナリオ中だけ非秘密`namespaces`をdemoのみに限定する。
+   demo Core Roleへ既存inclusionに必要なDeployment/AnalysisTemplate/AnalysisRunのget/list/watchだけを追加。
+   Account Roleは変更せず、新Core/credential/SSAR権限を追加しない。既定respectRBAC=disabled以外の設定はgeneratorで拒否する。
+   normalは固定Engineで共有kind metadataを失うため不採用。strictはSSARとnamespace横断判定を要するため不採用。
+2. **hash**: desired DRに `rollouts-pod-template-hash: unassigned` を宣言し、固定版補正が配列を丸ごと元に戻さないようにする。
+   ignoreは従来の4フィールドだけ。固定公式補正関数/getMergePatch/applyMergePatchをGit sourceからそのまま抽出して検証する。
+   **同版では配列内の非ignore driftは検出されても自動修復されない**。OutOfSyncとVS/DR完全spec照合で停止し、成功と数えない。
+3. **Envoy**: 最初にGET `/version`へ適用されるrouteを評価する。先頭prefix `/`等の遮蔽を拒否し、
+   判定できない先行matcher/headerもfail closed。明らかに不一致の先行path/prefix/POSTだけを読み飛ばす。
+
+狭い再現コマンド（`ARGOCD` は `argoproj/argo-cd@e258ee23c3e52266d407572f4bcdfe7d9ed36cb5` 固定checkout）:
+
+```sh
+# manifest側。現在のchartを描画し、固定版go.mod/go.sumと公式関数+K8s threewayapplyを実行。
+python3 learning/istio/check_argocd_sync.py --argocd "$ARGOCD"
+python3 -m unittest discover -s learning/istio/tests -v
+python3 learning/istio/validate_rollout.py --platform "$PLATFORM" --rollouts "$ROLLOUTS" --istioctl "$ISTIOCTL" --output "$OUT/review-rollout"
+# platform側。固定Engineを一時archiveに展開し、実際の宣言Roleをfakeclientに与える。
+python3 learning/istio/check_argocd_cache.py --argocd "$ARGOCD"
+python3 -m unittest discover -s learning/istio -p test_rollouts_access.py -v
+python3 learning/istio/rollouts_access.py --control-namespace learning-core-test --owner cloud-fixture --cache "$CACHE" --core-config learning/istio/fixtures/core-config.yaml --applications learning/istio/fixtures/no-applications.yaml --registered-namespaces learning-services-20261018 --output "$OUT/review-access"
+```
+
+結果:
+
+- 固定Engine回帰3 case PASS。旧union+disabledはcache同期失敗を再現。normalは同期してもIstio kind metadataを失うことを再現。
+  demo-only+disabledはEnsureSynced、IsNamespaced、VS/DR GetManagedLiveObjs成功。
+- 固定Argo補正/merge+K8s applyは2kind×10/50/100/abort0でweight/hash保持PASS。
+  旧desiredのhashなしでは削除を再現。配列内のapp label/port driftが正規化後も不一致として残る負例PASS。
+- Python unit12件PASS。先頭prefix `/`、`/version`、先頭exact全method、未知regex遮蔽の4例を拒否。
+  明らかに別path/prefix/POSTの先行routeの後ろにある正当routeは受入。
+- platform unit5件PASS。空Application List gate、demo read3kindとwrite拒否を含む。
+- 新3profile公式schema/4無効入力/analyze/通常native注入PASS。両固定render guard PASS。platform6資源K8s strict schema valid。
+- 新fixture初回はcache manifestを保存する設定漏れ、JSON数値型の比較差で失敗。fixtureだけを修正して上記PASS。
+  製品コードや固定版sourceを変更してテストを通したものではない。
+- 全機能回帰・実clusterテストは追加していない。最新headのCIと再ReviewはManager確認対象。
+
+**権限/登録の具体的差分**: 12:00承認済みのdemo controller/SA/Role/Core差分と非秘密namespace登録変更の中で、
+「既存Account+demo追加」から「既存Application0件を条件に一時demo限定」へ手順を変更した。
+追加readはdemo内のDeployment/AnalysisTemplate/AnalysisRunだけ。Account権限やSecret credentialへの拡張はない。
+Managerはこの限定案を確認してからlocalへ渡す。Applicationが1件でも存在したらこの案のruntimeは停止する。
+開始はdemo Role→demo-only登録→VS/DR inclusionの順。終了はApp/Project削除→VS/DR inclusionを元へ→登録namespace旧値→demo Role解除。
+範囲を戻す前にinclusionを戻さないとAccount権限不整合が再発する。
+
+Cloudでの実適用・Secret API操作・mergeは未実施。runtime ACは引き続き未検証。
+固定版配列driftの自動修復、稼働ApplicationとのCore共用は保証範囲に含めない。
