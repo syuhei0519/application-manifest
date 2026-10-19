@@ -81,7 +81,9 @@ class Observation(unittest.TestCase):
 
     def test_reject_shadowing_first_route(self):
         for match in [{'prefix':'/'}, {'prefix':'/version'}, {'path':'/version'},
-                      {'safeRegex':{'regex':'.*'}}]:
+                      {'safeRegex':{'regex':'.*'}},
+                      {'path':'/VERSION','caseSensitive':False},
+                      {'prefix':'/VER','caseSensitive':False}]:
             f=self.fixture('ten')
             first={'match':match,'route':{'cluster':f'outbound|8080|stable|{observe.HOST}'}}
             f[3][0]['virtualHosts'][0]['routes'].insert(0,first)

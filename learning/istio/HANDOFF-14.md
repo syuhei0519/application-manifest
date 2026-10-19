@@ -147,3 +147,17 @@ Managerはこの限定案を確認してからlocalへ渡す。Applicationが1�
 
 Cloudでの実適用・Secret API操作・mergeは未実施。runtime ACは引き続き未検証。
 固定版配列driftの自動修復、稼働ApplicationとのCore共用は保証範囲に含めない。
+
+
+### 再Reviewの残P2修正と承認範囲訂正（2026-10-19追記）
+
+先行routeの `path=/VERSION, caseSensitive=false` と `prefix=/VER, caseSensitive=false` を追加負例にすると、
+修正前は2例ともValueErrorが出ず失敗することを再現した。未対応matcher/caseSensitive検査をpath/prefixの不一致returnより前へ移動。
+matcher汎用化や新機能は追加していない。
+
+`python3 -m unittest discover -s learning/istio/tests -p test_rollout.py -k Observation -v`:
+修正前4 test中2 subcase失敗、修正後4 test PASS。新しい2遮蔽負例と既存の正常/不一致先行routeを含む。
+
+前追記の「12:00承認済みの範囲」という解釈は誤りだった。
+**demo-onlyへの登録置換・Account namespace一時除外、Core demoのDeployment/AnalysisTemplate/AnalysisRun read追加は追加承認待ち**。
+ROLLOUTS.mdの現行説明を訂正した。実適用は禁止のまま、Cloudから適用/Secret操作/mergeは行っていない。

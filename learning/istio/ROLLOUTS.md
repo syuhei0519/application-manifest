@@ -57,7 +57,7 @@ Coreのnamespace Roleはcreateを名前で制限できない。AppProjectの4kin
 Core cache inclusionは登録namespaceすべてへ作用するため、Account権限を広げずに共存させることはしない。
 登録namespaceをdemoだけにする間は既存CoreにApplicationを追加しない。最初に全Application0件とoperationなしを再確認する。
 生成CLIは保存したApplication Listが空でなければ拒否し、非秘密の `registration-namespaces.txt` だけを出す。
-登録変更は12:00承認の非秘密namespace範囲としてlocal担当が行う。generatorはSecret API操作をしない。
+demo-onlyへの登録置換・Account namespaceの一時除外と、Core demoのDeployment/AnalysisTemplate/AnalysisRun read追加は**追加承認待ち**。承認前は実適用禁止。generatorはSecret API操作をしない。
 `resource.respectRBAC` は既定disabledを保持する。normalは固定Engineでkind全体のmetadataを落とし、
 strictは追加SelfSubjectAccessReviewとnamespace横断判定が必要なため採用しない。新Coreも作らない。
 この方式は既存Applicationがある場合には利用できず、Managerへ返す。

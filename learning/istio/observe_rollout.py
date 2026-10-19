@@ -11,6 +11,8 @@ STAGES = {'initial': (0, None), 'ten': (10, 1), 'fifty': (50, 3),
 
 def matches_request(match):
     """Prove non-match or match for this fixed GET; fail closed on other Envoy matchers."""
+    if set(match)-{'path','prefix','headers','caseSensitive'} or match.get('caseSensitive',True) is not True:
+        raise ValueError('unsupported request matcher')
     if 'path' in match:
         if match['path'] != '/version': return False
     elif 'prefix' in match:
@@ -27,8 +29,6 @@ def matches_request(match):
         else:
             raise ValueError('unsupported method matcher')
         if method != 'GET': return False
-    if set(match)-{'path','prefix','headers','caseSensitive'} or match.get('caseSensitive',True) is not True:
-        raise ValueError('unsupported request matcher')
     return True
 
 
