@@ -70,7 +70,9 @@ func TestOrderDisabledAndSchemaBoundaries(t *testing.T) {
 			}
 		})
 	}
-	if _, err := orderRender(t, "order", "", "enabled=true"); err == nil {
+	// Local values can contain a selected real release while remaining disabled.
+	// Keep the missing-release negative case independent of that selection.
+	if _, err := orderRender(t, "order", "blank-release.yaml"); err == nil {
 		t.Fatal("blank release enabled")
 	}
 }
