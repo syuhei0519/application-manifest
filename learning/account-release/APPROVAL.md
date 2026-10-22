@@ -7,6 +7,11 @@
 この範囲で実行可能。既存環境変更・PR merge・有料資源追加は引き続き未許可。範囲が変わればその部分を止める。
 作成時は未実行の承認案だった履歴を残す。生成 YAML・CI 成功だけを独立の承認とは扱わない。
 
+同日、空の `argocd-secret` と token なし `learning-in-cluster` 登録 Secret の作成は
+自動承認レビューで当初の具体案の範囲外と判断され、一度拒否された。未実行を確認して停止した。
+その後、ユーザーがこの正確な2操作について再度「許可します」と明示。
+未作成状態を再確認した後の一回の再試行で、新規作成を確認した。既存 Secret の上書きなし。
+
 ## 対象と期限
 
 | 項目 | 限定対象 |
@@ -63,9 +68,9 @@ bootstrap 担当の cluster 作成・CRD/RBAC/webhook 適用権限も、新規 k
    `e030275abbf52ecd27b7152ce597b3d89be3f830`。対象 source と既存 build/scan 契約を照合する。
 2. PC で既存旧 image の config digest `sha256:864b695a3b0bb730e8a6fa8514fdde3b245204e8b23d5ece37fb21f8d8642684`
    は確認済みだが RepoDigest は空。これを OCI manifest digest と呼ばない。
-3. 隔離 build 出力を OCI archive/layout として保存し、manifest bytes の SHA256 と config/platform/source/build証跡を照合。
-   source provenance を検証できない既存旧 image は流用せず、固定旧 source から再 build する。
-   image scanning も既存の固定 tool/閾値に従い、その結果を catalog の出所に記録する。
+3. 当初案の新規 build は不要だった。既存の固定 source の GitHub CI artifact を取得し、OCI archive/layout、
+   manifest/config/layer bytes の SHA256 と platform/source/build証跡を照合した。PC でアプリを build していない。
+   image/source scanning は既存の固定 tool/閾値・例外なし policy で再実行し、その結果を catalog の出所に記録した。
 4. 新旧で異なる manifest digest、config digest、linux/amd64、source40桁、build/scan証跡を reviewed catalog に固定。
    `verified=true` を書くだけでは証明にならない。fixture の `example.invalid` を runtime に使わない。
 5. 承認後、専用 kind に import し、node runtime の repo digest と実 Pod imageID の対応を照合。

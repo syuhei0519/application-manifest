@@ -8,7 +8,12 @@ render や fixture の成功を 10/50/100% 実測・Abort・CRUD の合格とし
 
 ## 実装と所有
 
-`integration.py application` は固定 manifest SHA と reviewed image catalog から AppProject/Application を生成する。
+`runtime_support.py` は固定 manifest SHA と reviewed image catalog を照合して AppProject/Application を生成する。
+指定 SHA の Git commit から profile と chart の通常ファイルを読み、同じ内容から migration Job も生成する。
+存在しない SHA・image 不一致は停止し、未コミットの作業ツリー変更は実行入力に使わない。
+runtime の image は Git に保存する `runtime-profile.yaml` が正本。Application の valuesObject override は使わない。
+新旧の切替は profile の Git commit とその固定 SHA に対応し、CLI の一時値を desired version にしない。
+`integration.py application` は値と権限を組み立てる offline fixture 用の参照関数。
 Git → ArgoCD → chart の Rollout/Service/VirtualService/DestinationRule → Istio subsets が desired state の経路。
 chart の初期値には実行可能な image がなく、誤 namespace/name・mutable tag・異なる digest label を拒否する。
 ArgoCD は自動同期・prune・finalizer なし。初回 apply、同期、image 変更はその操作への承認後のみ。
@@ -43,7 +48,7 @@ CI は新旧 fixture render、固定 upstream Rollout/Istio/Application/AppProje
 `example.invalid` の fixture digest は runtime pin ではない。proposal の Istio/control/monitoring は追加承認用であり、
 DB 初期化・migration・Core 登録・実 Pod import の有効化まで完成した bootstrap とは主張しない。
 
-## image 出所（実 OCI bytes を照合済み、実行は未許可）
+## image 出所（実 OCI bytes と fresh scan を照合済み）
 
 [image-catalog.pending.json](image-catalog.pending.json) に新旧 manifest/config/source/archive hash と CI 出所を固定した。
 旧 source の成功 run は [39086590556](https://github.com/syuhei0519/backend-app/actions/runs/39086590556)。
@@ -52,8 +57,11 @@ DB 初期化・migration・Core 登録・実 Pod import の有効化まで完成
 `checked-image-1` artifact の OCI archive、manifest/config/全layer digest、source label、公開 scan/SBOM report hash を再照合した。
 ローカル旧 Docker config ID とは異なる正規 CI 成果物を採用候補とする。
 
-過去 scan の期限は旧 2026-10-19、新 2026-10-20 で切れている。`verified=false` として実行拒否を維持した。
-現行 policy による新しい scan と、専用 kind 内での digest/imageID 対応確認の後に reviewed catalog を確定する。
+過去 scan の期限は旧 2026-10-19、新 2026-10-20 で切れていた。pending catalog は `verified=false` の履歴として保持する。
+2026-10-22 の新しい DB で両 source/image を既存 Trivy 0.75.0・例外なし policy により再検証し合格。
+専用 kind の CRI に OCI digest を保持して import し、新旧 manifest/config の一致を確認した。
+現在の採用記録は `image-catalog.reviewed.json`。検証の有効期限を越えて無条件に再利用しない。
+実 Pod の imageID 対応は続く受入で確認する。
 registry に公開済みとは仮定しない。新規 build をしなくても、検証済み OCI artifact の offline import が候補になる。
 
 ## 承認後の試験手順と証跡

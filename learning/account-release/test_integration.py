@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -12,6 +13,7 @@ import jsonschema
 
 from contract import TARGET, Rejected
 from integration import application, image_revision, sdk_query_set, verify_traffic
+from runtime_support import runtime_documents
 
 ROOT = Path(__file__).resolve().parent
 IMAGES = {'stable': 'example.invalid/account@sha256:' + 'a' * 64,
@@ -48,6 +50,39 @@ def fixture(weight=10):
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_git_profile_is_authoritative(self):
+        profile = application('c'*40, CATALOG, IMAGES['stable'])[1]['spec']['source']['helm']['valuesObject']
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            release = repo/'learning/account-release'
+            shutil.copytree(ROOT/'chart', release/'chart')
+            tracked = release/'runtime-profile.yaml'
+            tracked.write_text(yaml.safe_dump(profile))
+            def git(*args):
+                return subprocess.check_output(['git', '-C', tmp, '-c', 'user.name=Fixture',
+                    '-c', 'user.email=fixture@example.invalid', *args], stderr=subprocess.PIPE).decode().strip()
+            git('init')
+            git('add', '.')
+            git('commit', '-m', 'stable profile')
+            stable = git('rev-parse', 'HEAD')
+            tracked.write_text(yaml.safe_dump(application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject']))
+            git('add', '.')
+            git('commit', '-m', 'candidate profile')
+            candidate = git('rev-parse', 'HEAD')
+            # Dirty checkout cannot alter the migration or Application source.
+            tracked.write_text('invalid: checkout')
+            (release/'chart/templates/release.yaml').write_text('invalid: checkout')
+            for sha, image in [(stable, IMAGES['stable']), (candidate, IMAGES['candidate'])]:
+                docs, job = runtime_documents(sha, CATALOG, image, repo, os.environ.get('HELM', 'helm'))
+                self.assertEqual(docs[1]['spec']['source']['targetRevision'], sha)
+                self.assertEqual(docs[1]['spec']['source']['helm'],
+                    {'releaseName': 'account-release', 'valueFiles': ['../runtime-profile.yaml']})
+                self.assertEqual(job['spec']['template']['spec']['containers'][0]['image'], image)
+            for sha, image in [(stable, IMAGES['candidate']), (candidate, IMAGES['stable']),
+                               ('f'*40, IMAGES['stable']), ('main', IMAGES['stable'])]:
+                with self.assertRaises(Rejected):
+                    runtime_documents(sha, CATALOG, image, repo, os.environ.get('HELM', 'helm'))
+
     def test_application_bounded_ownership(self):
         project, app = application('c'*40, CATALOG, IMAGES['candidate'])
         self.assertEqual(project['spec']['clusterResourceWhitelist'], [])
