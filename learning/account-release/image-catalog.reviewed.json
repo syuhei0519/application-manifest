@@ -1,0 +1,30 @@
+[
+  {
+    "image": "ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e",
+    "source_commit": "e030275abbf52ecd27b7152ce597b3d89be3f830",
+    "config_digest": "sha256:19b5ab9c876f9352e8e0a19feb140ab89a9a4c2f604ea58bcb84faa53954f145",
+    "platform": "linux/amd64",
+    "verified": true,
+    "provenance": "https://github.com/syuhei0519/backend-app/actions/runs/39086590556; checked-image-1 artifact 12121400558; OCI blobs and source labels verified locally 2026-10-22; fresh policy scan and dedicated kind CRI identity verified 2026-10-22",
+    "archive_sha256": "8d4ffdef3e8aea292da392444ddc6f2975952cf8500fe4f9868255a9b33c1ba3",
+    "artifact_id": 12121400558,
+    "historical_scan_valid_until": "2026-10-19T00:43:37.962517+00:00",
+    "runtime_eligible": true,
+    "reason": "fresh source/image policy passed; isolated containerd manifest/config identity verified",
+    "fresh_scan_db_updated_at": "2026-10-22T13:15:26.425424764Z"
+  },
+  {
+    "image": "ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df",
+    "source_commit": "f0425a9c0a70c200fbeb5a549bc8b631bf5a1906",
+    "config_digest": "sha256:c2099fd85f4963c04ffd152eb42cd252f4a9e312c047f15b13ad312b2dbc4aa1",
+    "platform": "linux/amd64",
+    "verified": true,
+    "provenance": "https://github.com/syuhei0519/backend-app/actions/runs/39253620294; checked-image-1 artifact 12186941244; OCI blobs and source labels verified locally 2026-10-22; fresh policy scan and dedicated kind CRI identity verified 2026-10-22",
+    "archive_sha256": "cf582f06c4ea4cbfc7f986a86fb041061a7bfca071d375b6eaf79ca200ed95a3",
+    "artifact_id": 12186941244,
+    "historical_scan_valid_until": "2026-10-20T07:19:54.308593+00:00",
+    "runtime_eligible": true,
+    "reason": "fresh source/image policy passed; isolated containerd manifest/config identity verified",
+    "fresh_scan_db_updated_at": "2026-10-22T13:15:26.425424764Z"
+  }
+]

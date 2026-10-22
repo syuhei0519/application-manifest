@@ -18,11 +18,13 @@ PLAT-171〜177、DB/data rollback、他service、外部公開、GitLab/K3s/共�
 | platform base | 867cb81f071d06f7521b93aa110ae001200142a4 |
 | image / previous image | 承認済みcatalogの異なるOCI manifest digestを必須入力。source commit、config digest、linux/amd64、build/scan出所を併記 |
 
-実image catalogは未確定。2026-10-22にPCで確認できた旧Accountはsource
+作成時点では実image catalogは未確定だった。2026-10-22にPCで最初に確認できた旧Accountはsource
 `e030275abbf52ecd27b7152ce597b3d89be3f830`、config digest
 `sha256:864b695a3b0bb730e8a6fa8514fdde3b245204e8b23d5ece37fb21f8d8642684`のみ。
 RepoDigestは空だった。config IDやtagをmanifest digestに見せ替えない。fixtureのexample.invalid imageは実行不可。
-catalogを検証し新旧digestを固定するまでruntime開始を拒否する。前版は開始時の実stable imageと一致させる。
+その後、PLAT-170で既存の固定CI artifactを取得し、OCI全blob/sourceとfresh scan・専用kindのCRI/Pod imageIDを照合した。
+採用した新旧manifest/config/sourceは [image-catalog.reviewed.json](image-catalog.reviewed.json)、手順と実証は [SESSION.md](SESSION.md)。
+上記ローカルconfig IDは採用しなかった。catalog未検証のruntime開始は引き続き拒否し、前版は開始時の実stable imageと一致させる。
 
 PLAT-80/82/83/93/94/95/96/99/101は既存Canary/復帰/監視の部品、
 PLAT-85/102/166は専用demoのIstio、PLAT-86/165はAccount metricsの出所。

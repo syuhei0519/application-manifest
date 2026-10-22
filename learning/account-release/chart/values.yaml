@@ -1,0 +1,5 @@
+# No runnable image or owner default. Supply reviewed catalog-derived values.
+owner: ''
+image: ''
+sourceCommit: ''
+imageRevision: ''
