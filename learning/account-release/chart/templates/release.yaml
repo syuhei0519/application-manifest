@@ -15,7 +15,6 @@ spec:
   replicas: 2
   revisionHistoryLimit: 2
   progressDeadlineSeconds: 300
-  paused: false
   selector:
     matchLabels: {app: account-release}
   strategy:
@@ -64,7 +63,7 @@ spec:
         - name: api
           image: {{ .Values.image | quote }}
           imagePullPolicy: IfNotPresent
-          ports: [{name: http, containerPort: 8080}]
+          ports: [{name: http, containerPort: 8080, protocol: TCP}]
           env:
             - {name: PGHOST, value: learning-account-db}
             - {name: PGPORT, value: "5432"}
@@ -148,3 +147,4 @@ spec:
   {{- else }}
   subsets: []
   {{- end }}
+
