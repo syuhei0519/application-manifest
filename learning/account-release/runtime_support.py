@@ -11,6 +11,7 @@ import yaml
 
 from contract import require, Rejected
 from integration import application
+from release_modes import desired_documents
 
 ROOT = Path(__file__).resolve().parent
 
@@ -49,6 +50,15 @@ def runtime_documents(commit, catalog, image, repo, helm='helm'):
     files = committed_source(repo, commit)
     profile = yaml.safe_load(files['runtime-profile.yaml'])
     docs = application(commit, catalog, image)
+    # Legacy PLAT-170 commits retain their exact four-field profile. New release
+    # profiles must make all mode decisions explicit in Git, never in overrides.
+    if isinstance(profile, dict) and set(profile) != set(docs[1]['spec']['source']['helm']['valuesObject']):
+        required = {'strategy','promotionMode','analysisPluginEnabled'}
+        require(required <= set(profile),'explicit-release-mode-required')
+        docs = desired_documents(commit,catalog,image,profile['strategy'],profile['promotionMode'],
+                                 profile.get('bootstrapHash',''),profile['analysisPluginEnabled'])
+        if 'bootstrapHash' in profile:
+            docs[1]['spec']['source']['helm']['valuesObject']['bootstrapHash'] = profile['bootstrapHash']
     expected = docs[1]['spec']['source']['helm']['valuesObject']
     require(profile == expected, 'tracked-runtime-profile-must-match-reviewed-image')
     docs[1]['spec']['source']['helm'] = dict(releaseName='account-release', valueFiles=['../runtime-profile.yaml'])

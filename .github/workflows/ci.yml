@@ -75,6 +75,8 @@ jobs:
           docker run --rm --entrypoint cat alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 /usr/bin/helm > .build/helm
           chmod +x .build/helm
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_integration.py' -v
+          PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_release_modes.py' -v
+          go -C learning/account-release/metric-plugin test -count=1 -timeout 90s -v ./...
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/validate.py
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/canary/validate.py --output .rendered/account-canary
           PATH="$PWD/.build:$PATH" go -C learning/canary/analysis-test test -timeout 90s -v ./...

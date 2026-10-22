@@ -1,0 +1,11 @@
+[
+  {"name":"passed","requests":100,"availability":1,"latency":1,"expected":"passed"},
+  {"name":"boundary","requests":20,"availability":0.99,"latency":0.95,"expected":"passed"},
+  {"name":"availability","requests":100,"availability":0.98,"latency":1,"expected":"failed"},
+  {"name":"latency","requests":100,"availability":1,"latency":0.94,"expected":"failed"},
+  {"name":"low-traffic","requests":19,"availability":0.9,"latency":0.8,"expected":"inconclusive"},
+  {"name":"missing-requests","requests":null,"availability":0.9,"latency":0.8,"expected":"inconclusive"},
+  {"name":"missing-latency","requests":100,"availability":1,"latency":null,"expected":"inconclusive"},
+  {"name":"failure-with-missing-latency","requests":100,"availability":0.9,"latency":null,"expected":"failed"},
+  {"name":"invalid-availability-with-latency-failure","requests":100,"availability":2,"latency":0.8,"expected":"failed"}
+]

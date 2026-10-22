@@ -11,7 +11,9 @@ from jsonschema import Draft7Validator
 from bootstrap_proposal import PLATFORM_SHA
 from integration import TRAFFIC_QUERY, TRAFFIC_TIMESTAMP_QUERY, application, sdk_query_set
 from test_integration import CATALOG, IMAGES
-from sdk_queries import conservation
+from sdk_queries import conservation, policy_query_templates
+from release_modes import desired_documents
+from analysis_proposal import analysis_overlay
 
 
 def main():
@@ -27,8 +29,13 @@ def main():
     schemas = {o['spec']['names']['kind']: next(v['schema']['openAPIV3Schema'] for v in o['spec']['versions'] if v['storage'])
                for o in crds if o and o['kind'] == 'CustomResourceDefinition'}
     a.output.mkdir(parents=True, exist_ok=False)
-    for role, image in IMAGES.items():
-        appdocs = application('c'*40, CATALOG, image)
+    profiles = [(role, application('c'*40, CATALOG, image)) for role,image in IMAGES.items()]
+    profiles += [(name, desired_documents('c'*40,CATALOG,IMAGES['candidate'],strategy,mode,seed,enabled))
+                 for name,strategy,mode,seed,enabled in [
+                     ('manual-analysis','Canary','manual','',True),('auto','Canary','auto','',True),
+                     ('rolling','Rolling',None,'',False),('rolling-seed','Rolling',None,'abc123',False),
+                     ('canary-seed','Canary','manual','abc123',True)]]
+    for role, appdocs in profiles:
         values = appdocs[1]['spec']['source']['helm']['valuesObject']
         values_path = a.output/(role+'-values.json')
         values_path.write_text(json.dumps(values))
@@ -49,8 +56,18 @@ def main():
                 assert rule.get('resourceNames') == ['argo-rollouts-notification-secret']
             if 'analysistemplates' in rule['resources'] or 'analysisruns' in rule['resources']:
                 assert set(rule['verbs']) <= {'get', 'list', 'watch'}
+    # Review the additive analysis permissions against the actual pinned bootstrap.
+    baseline={name:list(yaml.safe_load_all((a.proposal/name).read_text())) for name in ['control.yaml','target.yaml']}
+    overlay=analysis_overlay(baseline,'learning.local/account-rollouts@sha256:'+'a'*64,'b'*64)
+    (a.output/'analysis-bootstrap-fixture.yaml').write_text(yaml.safe_dump_all(
+        [obj for docs in overlay.values() for obj in docs],sort_keys=False))
     # Export every dynamic count case, plus raw traffic/freshness selectors, for the pinned PromQL parser.
     expressions = [TRAFFIC_QUERY, TRAFFIC_TIMESTAMP_QUERY]
+    policy={name:expression.replace('{{args.namespace}}','learning-account-release').replace('{{args.service}}','account')
+            .replace('{{args.stable-hash}}','aaaaa').replace('{{args.latest-hash}}','bbbbb')
+            .replace('{{stable-count}}','1').replace('{{latest-count}}','1')
+            for name,expression in policy_query_templates().items()}
+    expressions.extend(policy.values())
     for counts in [(2, 1), (1, 1), (0, 2)]:
         expressions.extend(sdk_query_set('aaaaa', 'bbbbb', *counts).values())
     rules = {'groups': [{'name': 'account-release-static', 'rules': [
@@ -74,8 +91,17 @@ def main():
     absent = '(vector(1) unless vector(1))'
     gate = conservation('vector(1396)', absent, 'vector(1396)', 'vector(257)', 'vector(257)')
     expressions.append({'expr': 'vector(1) and on() ('+gate+')', 'eval_time': '0s', 'exp_samples': []})
+    labels='job="account-backend",account_namespace="learning-account-release",learning_service="account",rollout_revision="bbbbb",instance="current-pod"'
+    mixed_missing=dict(interval='30s',input_series=[
+        dict(series='pe_http_server_requests_total{'+labels+',method="GET",route="/api/accounts",status_class="2xx"}',values='0+9x20'),
+        dict(series='pe_http_server_requests_total{'+labels+',method="GET",route="/api/accounts",status_class="5xx"}',values='0+1x20'),
+        dict(series='pe_go_goroutines{'+labels+'}',values='10+0x20'),
+        dict(series='up{job="otel-application",account_namespace="learning-account-release"}',values='1+0x20')],
+        promql_expr_test=[dict(expr=policy['latest-'+metric],eval_time='10m',
+            exp_samples=[] if expected is None else [dict(labels='{}',value=expected)])
+            for metric,expected in [('requests',100),('availability',.9),('latency',None)]])
     (a.output/'conservation-tests.yaml').write_text(yaml.safe_dump({
-        'rule_files': [], 'tests': [{'interval': '1m', 'input_series': [], 'promql_expr_test': expressions}]}))
+        'rule_files': [], 'tests': [{'interval': '1m', 'input_series': [], 'promql_expr_test': expressions},mixed_missing]}))
     print('PASS: fixed upstream Rollout/Istio/Application/AppProject schemas, bounded target Roles, 17 PromQL expressions exported')
 
 

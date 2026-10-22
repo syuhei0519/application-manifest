@@ -3,3 +3,8 @@ owner: ''
 image: ''
 sourceCommit: ''
 imageRevision: ''
+strategy: Canary
+promotionMode: manual
+# Only the verified terminal hash can seed a Rolling -> Canary transition.
+bootstrapHash: ''
+analysisPluginEnabled: false
