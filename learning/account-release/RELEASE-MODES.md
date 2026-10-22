@@ -62,8 +62,11 @@ go -C learning/account-release/metric-plugin test -count=1 -timeout 90s -v ./...
 python learning/account-release/validate_upstream.py --platform "$PLATFORM" --proposal "$PROPOSAL" --output "$NEW_OUTPUT"
 ```
 
-2026-10-22: Python/Helm と Go10テスト関数・分岐、固定 upstream schema の manual/auto/Rolling/seed をローカル検証する。
-最終コードの CI・独立再レビュー結果は PR と Handoff に追記する。
+2026-10-22: Python/Helm 24件、Go11テスト関数・全分岐、固定 upstream schema の manual/auto/Rolling/seed が成功。
+固定 Promtool は23 queryの構文と混合欠測fixtureが成功し、HTTP 100要求/availability 0.9/latency空を確認した。
+独立レビューは最終query差分を含め追加blockingなし。旧170 queryの代表3構成はbaseと完全一致。
+未配備linux/amd64 binary SHA256は `51c6505758ba09230478c65319b2e0696f9bad3b0e16802238823a7f361920db`。
+最終コードの CI は [draft PR #43](https://github.com/syuhei0519/application-manifest/pull/43) で照合する。
 
 | AC | 静的証拠 | 未実施 |
 | --- | --- | --- |

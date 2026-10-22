@@ -37,6 +37,6 @@
 
 branch: `feat/plat-171-176-account-release`。171/175の共有chart・controller判定を一つのdraft PRでレビューする。
 変更とACごとの未実施項目は [RELEASE-MODES.md](RELEASE-MODES.md) に記録。
-Python/Helm 24件、Go11テスト関数と分岐、固定upstream schemaを検証。最新PromQL差分の独立レビューとCIはPRで照合する。
+Python/Helm 24件、Go11テスト関数と分岐、固定upstream schema、Promtool23 queryと混合欠測fixtureが成功。最新PromQL差分も独立レビューで追加blockingなし。最終CIは [draft PR #43](https://github.com/syuhei0519/application-manifest/pull/43) で照合する。
 独立レビューで対象identity・未収束終端化・切替適用順・Pod/SDK/desired template照合を修正した。
 実環境AC・Backstage UI・操作adapter・main統合は未完了。新環境・credential/RBAC/配備・mergeの許可は含めない。

@@ -102,7 +102,7 @@ def main():
             for metric,expected in [('requests',100),('availability',.9),('latency',None)]])
     (a.output/'conservation-tests.yaml').write_text(yaml.safe_dump({
         'rule_files': [], 'tests': [{'interval': '1m', 'input_series': [], 'promql_expr_test': expressions},mixed_missing]}))
-    print('PASS: fixed upstream Rollout/Istio/Application/AppProject schemas, bounded target Roles, 17 PromQL expressions exported')
+    print(f"PASS: fixed upstream schemas, bounded Roles, {len(rules['groups'][0]['rules'])} PromQL expressions exported")
 
 
 if __name__ == '__main__':
