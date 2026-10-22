@@ -1,4 +1,15 @@
 # Derived from platform-gitops 867cb81f learning/monitoring/revision_queries.py; dynamic observed instance counts.
+def conservation(requests, count, infinite, request_increase, count_increase):
+    """Raw series must agree; only cross-instrument extrapolation gets <0.01 request tolerance."""
+    keys = 'instance,method,route,status_class'
+    exact = (f'(abs(({requests}) - on({keys}) ({count})) < 0.001)'
+             f' and on({keys}) (abs(({infinite}) - on({keys}) ({count})) < 0.001)')
+    return (f'(count by(instance)({exact}) == count by(instance)({requests}))'
+            f' and on(instance) (count by(instance)({requests}) == count by(instance)({count}))'
+            f' and on(instance) (count by(instance)({requests}) == count by(instance)({infinite}))'
+            f' and on(instance) (abs(({request_increase}) - ({count_increase})) < 0.01)')
+
+
 def queries(stable_count, latest_count):
     if (type(stable_count) is not int or not 0 <= stable_count <= 10 or
             type(latest_count) is not int or not 1 <= latest_count <= 10):
@@ -23,8 +34,11 @@ def queries(stable_count, latest_count):
         b = inc('pe_http_server_request_duration_seconds_bucket', ',le="0.25"')
         inf = inc('pe_http_server_request_duration_seconds_bucket', ',le="+Inf"')
         per_instance = f'({r} >= 0) and on(instance) ({c} >= 0) and on(instance) ({b} >= 0) and on(instance) ({inf} >= 0)'
-        for a, z in [(c, r), (inf, c)]:
+        for a, z in [(inf, c)]:
             per_instance += f' and on(instance) (abs(({a}) - ({z})) < 0.001)'
+        per_instance += ' and on(instance) (' + conservation(
+            series('pe_http_server_requests_total'), series('pe_http_server_request_duration_seconds_count'),
+            series('pe_http_server_request_duration_seconds_bucket', ',le="+Inf"'), r, c) + ')'
         per_instance += f' and on(instance) (({b}) <= ({c})) and on(instance) ({active})'
         # Each raw status/route series needs a baseline and current, fresh point.
         # Sum(increase(...)) handles an individual process counter reset before summing.

@@ -11,6 +11,7 @@ from jsonschema import Draft7Validator
 from bootstrap_proposal import PLATFORM_SHA
 from integration import TRAFFIC_QUERY, TRAFFIC_TIMESTAMP_QUERY, application, sdk_query_set
 from test_integration import CATALOG, IMAGES
+from sdk_queries import conservation
 
 
 def main():
@@ -55,6 +56,26 @@ def main():
     rules = {'groups': [{'name': 'account-release-static', 'rules': [
         {'record': 'fixture:account_release:'+str(i), 'expr': e} for i, e in enumerate(expressions)]}]}
     (a.output/'queries.yaml').write_text(yaml.safe_dump(rules))
+    # Replay the actual 1ms OTLP clock-span case through the pinned PromQL engine.
+    cases = [
+        ('observed-clock-skew', '1396', '1396', '1396', '285.57459386181296', '285.5756516199288', True),
+        ('boundary', '1396', '1396', '1396', '0', '0.01', False),
+        ('raw-one-missing', '1396', '1395', '1395', '257', '257', False),
+        ('bucket-one-missing', '1396', '1396', '1395', '257', '257', False),
+        ('window-one-missing', '1396', '1396', '1396', '257', '256', False),
+        ('nan', 'NaN', 'NaN', 'NaN', '257', '257', False),
+        ('inf', 'Inf', 'Inf', 'Inf', '257', '257', False),
+    ]
+    expressions = []
+    for name, r, c, inf, ri, ci, passed in cases:
+        gate = conservation(*(f'vector({x})' for x in (r,c,inf,ri,ci)))
+        expressions.append({'expr': 'vector(1) and on() ('+gate+')', 'eval_time': '0s',
+                            'exp_samples': [{'labels': '{}', 'value': 1}] if passed else []})
+    absent = '(vector(1) unless vector(1))'
+    gate = conservation('vector(1396)', absent, 'vector(1396)', 'vector(257)', 'vector(257)')
+    expressions.append({'expr': 'vector(1) and on() ('+gate+')', 'eval_time': '0s', 'exp_samples': []})
+    (a.output/'conservation-tests.yaml').write_text(yaml.safe_dump({
+        'rule_files': [], 'tests': [{'interval': '1m', 'input_series': [], 'promql_expr_test': expressions}]}))
     print('PASS: fixed upstream Rollout/Istio/Application/AppProject schemas, bounded target Roles, 17 PromQL expressions exported')
 
 

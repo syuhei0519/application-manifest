@@ -98,6 +98,7 @@ jobs:
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/account-release/bootstrap_proposal.py --platform .build/platform-account --cache .build/account-release-cache --output .build/account-release-proposal
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/account-release/validate_upstream.py --platform .build/platform-account --proposal .build/account-release-proposal --output .rendered/account-release
           docker run --rm -v "$PWD:/work:ro" -w /work --entrypoint /bin/promtool quay.io/prometheus/prometheus:v3.15.0@sha256:86b17a25c2db1d16a61b16b3c8f336679eb19e26333d03e808da387206e40faa check rules .rendered/account-release/queries.yaml
+          docker run --rm -v "$PWD:/work:ro" -w /work --entrypoint /bin/promtool quay.io/prometheus/prometheus:v3.15.0@sha256:86b17a25c2db1d16a61b16b3c8f336679eb19e26333d03e808da387206e40faa test rules .rendered/account-release/conservation-tests.yaml
       - name: Checkout fixed Rollouts schema source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
