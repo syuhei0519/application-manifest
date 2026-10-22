@@ -1,8 +1,9 @@
 # Account GitOps / Istio 統合（PLAT-170）
 
-本ディレクトリの静的実装は [PLAT-169 契約](CONTRACT.md)を Account 専用経路につなぐ。
-実環境試験は未実施。[新規 kind・credential・RBAC・security・cleanup の承認記録](APPROVAL.md)の範囲で準備中であり、
-render や fixture の成功を 10/50/100% 実測・Abort・CRUD の合格として扱わない。
+本ディレクトリの実装は [PLAT-169 契約](CONTRACT.md)を Account 専用経路につなぐ。
+[明示承認](APPROVAL.md)の範囲で専用kindから10/50/100%・Abort・CRUDを実測した。
+再現手順は [SESSION.md](SESSION.md)、実測値と残る統合条件は [PLAT-170-handoff.md](PLAT-170-handoff.md) に記録する。
+render/fixtureと実環境証跡を区別し、draft PRのmergeをこの承認に含めない。
 固定入力は manifest base `226c9bf68833d3153a78c33f051175918ad7918d`、platform
 `867cb81f071d06f7521b93aa110ae001200142a4`、backend `f0425a9c0a70c200fbeb5a549bc8b631bf5a1906`。
 
@@ -45,8 +46,8 @@ python learning/account-release/validate_upstream.py --platform "$PLATFORM" --pr
 
 CI は新旧 fixture render、固定 upstream Rollout/Istio/Application/AppProject schema、Kubernetes Service schema、
 対象 namespace の権限境界、PromQL構文、既存 security gate を検証する。
-`example.invalid` の fixture digest は runtime pin ではない。proposal の Istio/control/monitoring は追加承認用であり、
-DB 初期化・migration・Core 登録・実 Pod import の有効化まで完成した bootstrap とは主張しない。
+`example.invalid` の fixture digest は runtime pin ではない。proposal 自体は offline 生成物であり、
+承認済みセッションでの DB 初期化・migration・Core 登録・実 Pod import は SESSION.md と証跡に分けて記録する。
 
 ## image 出所（実 OCI bytes と fresh scan を照合済み）
 
@@ -55,19 +56,20 @@ DB 初期化・migration・Core 登録・実 Pod import の有効化まで完成
 新 source は [39253620294](https://github.com/syuhei0519/backend-app/actions/runs/39253620294) の
 `validate`・`image (backend)`・`ci-result` が成功、publish/propose は cancelled。
 `checked-image-1` artifact の OCI archive、manifest/config/全layer digest、source label、公開 scan/SBOM report hash を再照合した。
-ローカル旧 Docker config ID とは異なる正規 CI 成果物を採用候補とする。
+ローカル旧 Docker config ID とは異なる正規 CI 成果物を採用した。
 
 過去 scan の期限は旧 2026-10-19、新 2026-10-20 で切れていた。pending catalog は `verified=false` の履歴として保持する。
 2026-10-22 の新しい DB で両 source/image を既存 Trivy 0.75.0・例外なし policy により再検証し合格。
 専用 kind の CRI に OCI digest を保持して import し、新旧 manifest/config の一致を確認した。
 現在の採用記録は `image-catalog.reviewed.json`。検証の有効期限を越えて無条件に再利用しない。
-実 Pod の imageID 対応は続く受入で確認する。
-registry に公開済みとは仮定しない。新規 build をしなくても、検証済み OCI artifact の offline import が候補になる。
+実 Pod の imageID も各測定の前後で manifest digest と一致した。
+検証済み OCI artifact を専用 node へ offline import した。registry への公開は行っていない。
 
 ## 承認後の試験手順と証跡
 
-次は未実施の受入手順。上記承認に加え、対象 PR の統合/採用 revision と image catalog の確認が必要。
-merge は今回の実装依頼に含まれない。手順中の全 kubectl は専用 kubeconfig と `--context kind-plat170-account` を指定する。
+次は受入の検証契約。実施した正確な順序と採用 revision は SESSION.md、結果は session/evidence.json を参照する。
+別セッションには対象操作の承認と image catalog の再検証が必要。merge は今回の承認に含まれない。
+全 kubectl は専用 kubeconfig と `--context kind-plat170-account` を指定する。
 
 1. 同名 kind/context/container が存在しないことと PC の空き資源を確認。`kind.yaml`、固定 node digest、専用 kubeconfig で新規作成。
    container/API CA/namespace UID を保存。生成 proposal の namespaces、CRD、Core、namespaced Rollouts、Istio を承認範囲内で適用。
@@ -88,7 +90,7 @@ merge は今回の実装依頼に含まれない。手順中の全 kubectl は�
    warmup は別 receipt とし、必要な counter series が全 Pod に存在し安定するまで待つ。
    その後負荷停止状態で counter と `timestamp(counter)` を同じ明示 `time=T0` で取得する。
    `--phase measure --weight 10` で1000件を送信し、終了後に負荷を止め、全 Pod の新しい scrape を待つ。
-   両 query を同じ `time=T1` で取得。SDK用の他 client 負荷はこの専用 source_workload から送らない。
+   両 query を同じ `time=T1` で取得。SDK用の追加負荷は測定窓の外に分離し、その receipt も保存する。
 7. raw `before/after` と `before_timestamps/after_timestamps`、T0/T1、client receipt の start/end を
    `client_window` に、固定 TARGET、実測 `observed_weights`、新旧実 image を evidence JSON にまとめる。
    `integration.py traffic --evidence ...` は同一系列の counter 差分から新旧分配を判定する。
@@ -98,7 +100,7 @@ merge は今回の実装依頼に含まれない。手順中の全 kubectl は�
    新旧の5分要求数・error率（1-availability）・250ms以下割合を記録。全 role の5分窓・最低20要求・鮮度を
    [契約](CONTRACT.md)で判定する。100%は candidate のみ、旧版は時刻付き参考値。Pod数を traffic割合に使用しない。
 9. 手動の通常 promote で50→100へ進め、同じ手順を繰り返す。`--full` や status 手書きで pauseを飛ばさない。
-   別の candidate 試験で Abort を実行し、stable100%・candidate0%を200件とproxy状態で確認。
+   100% pause の測定後、同じ candidate に Abort を実行し、stable100%・candidate0%を200件とproxy状態で確認。
    list/create/get/update/delete、削除後404、重複/不正入力の Account API 回帰を固定 backend 契約で実施する。
    Abort は Git 前版復元と区別し、承認されていない Git変更や後続課題の自動開始は行わない。
 10. 証跡を保存し、APPROVAL.md の所有照合・cleanup を行う。失敗時も秘密値をログに載せず、残存 resource を記録。
@@ -109,13 +111,13 @@ Prometheus instant API の `value[0]` は評価時刻であり、sample鮮度の
 
 ## AC 状態
 
-| AC | 静的に実装した内容 | 未充足の実証 |
+| AC | 実装と専用環境の実証 | 統合前の扱い |
 | --- | --- | --- |
-| 1 Git→ArgoCD→Account→Istio | 固定対象chart/App生成・新旧OCI出所・bootstrap未適用案 | fresh scan、専用環境での有効化・実同期 |
-| 2 実新旧metrics対応 | PodUID/hash SDK query・Envoy destination_version/counter verifier | 実Pod/imageID/hash/series 対応 |
-| 3 10→50→100実要求 | 契約sample/許容帯・専用client・実counter検証 | 各段階の実測結果 |
-| 4 Abort/API回帰 | stable200/200判定・回帰手順 | Abort経路復帰・CRUD |
-| 5 clean kind再現 | kind設定、固定Core/Istio/監視/権限proposal、手順・cleanup案 | DB/migration/Core登録の最終有効化とclean環境通し実行 |
-| 6 所有field/reconcile | 4 pointer・RespectIgnoreDifferences・固定schema | Accountで2回syncして重み/hash保持 |
+| 1 Git→ArgoCD→Account→Istio | 固定Gitと新旧OCI、fresh scan、実同期・Ready | draft PRの統合待ち |
+| 2 実新旧metrics対応 | 実Pod imageID、target_infoのPodUID/source/hash、SDK/Envoy系列 | raw証跡とqueryを保存 |
+| 3 10→50→100実要求 | 899/101、485/515、0/200、全エラー0。各5分SDK合格 | Pod比率は使わない |
+| 4 Abort/API回帰 | 旧stable200/200、CRUD/409/400/404を含む12要求成功 | Git永続復元・最終昇格とは区別 |
+| 5 clean kind再現 | kind/DB/migration/Core/Istio/監視/権限設定と手順、専用kind/kubeconfig削除を実証 | 既存kind ID・default context不変 |
+| 6 所有field/reconcile | 各pauseで通常sync2回、4 pointer/実ルート/Pod identity保持 | ignore範囲を拡大しない |
 
 PLAT-170 は進行中。静的実装・draft PR・CI の成功のみでは Done にしない。
