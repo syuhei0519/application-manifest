@@ -74,6 +74,7 @@ jobs:
           .build/canary-venv/bin/python -m pip install PyYAML==6.0.3 jsonschema==4.26.0
           docker run --rm --entrypoint cat alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 /usr/bin/helm > .build/helm
           chmod +x .build/helm
+          PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_integration.py' -v
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/validate.py
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/canary/validate.py --output .rendered/account-canary
           PATH="$PWD/.build:$PATH" go -C learning/canary/analysis-test test -timeout 90s -v ./...
@@ -85,6 +86,18 @@ jobs:
           ref: efd3a1f5a31eaf904bc787456034e4cebe932f7f
           path: .build/platform-istio
           persist-credentials: false
+      - name: Checkout Account integration platform source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: syuhei0519/platform-gitops
+          ref: 867cb81f071d06f7521b93aa110ae001200142a4
+          path: .build/platform-account
+          persist-credentials: false
+      - name: Account integration proposal and upstream schemas
+        run: |
+          PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/account-release/bootstrap_proposal.py --platform .build/platform-account --cache .build/account-release-cache --output .build/account-release-proposal
+          PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/account-release/validate_upstream.py --platform .build/platform-account --proposal .build/account-release-proposal --output .rendered/account-release
+          docker run --rm -v "$PWD:/work:ro" -w /work --entrypoint /bin/promtool quay.io/prometheus/prometheus:v3.15.0@sha256:86b17a25c2db1d16a61b16b3c8f336679eb19e26333d03e808da387206e40faa check rules .rendered/account-release/queries.yaml
       - name: Checkout fixed Rollouts schema source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -112,6 +125,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/work:ro" -w /work ghcr.io/yannh/kubeconform:v0.7.0-alpine@sha256:8f0eeaaa96ba27ba1500b0e4b1c215acc358d159c62a7ecae58d7a03403287b0 -strict -summary -kubernetes-version 1.36.0 .rendered/all.yaml
           docker run --rm -v "$PWD:/work:ro" -w /work ghcr.io/yannh/kubeconform:v0.7.0-alpine@sha256:8f0eeaaa96ba27ba1500b0e4b1c215acc358d159c62a7ecae58d7a03403287b0 -strict -summary -kubernetes-version 1.36.0 -skip VirtualService,DestinationRule,Rollout,Application,AppProject .rendered/istio-routing
+          docker run --rm -v "$PWD:/work:ro" -w /work ghcr.io/yannh/kubeconform:v0.7.0-alpine@sha256:8f0eeaaa96ba27ba1500b0e4b1c215acc358d159c62a7ecae58d7a03403287b0 -strict -summary -kubernetes-version 1.36.0 -skip VirtualService,DestinationRule,Rollout .rendered/account-release/stable.yaml .rendered/account-release/candidate.yaml
       - name: Source and rendered security checks
         env:
           SECURITY_RENDER_REQUIRED: 'true'
@@ -128,6 +142,14 @@ jobs:
         with:
           name: account-analysis-render-${{ github.run_attempt }}
           path: .rendered/account-canary/
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: account-release-static-${{ github.run_attempt }}
+          path: |
+            .rendered/account-release/
+            .build/account-release-proposal/
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

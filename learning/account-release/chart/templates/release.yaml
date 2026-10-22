@@ -1,0 +1,131 @@
+{{- if or (ne .Release.Namespace "learning-account-release") (ne .Release.Name "account-release") -}}
+{{- fail "dedicated Account release target required" -}}
+{{- end -}}
+{{- $digest := index (splitList "@sha256:" .Values.image) 1 -}}
+{{- if ne .Values.imageRevision (printf "sha256-%s" (substr 0 56 $digest)) -}}
+{{- fail "imageRevision must match immutable image digest" -}}
+{{- end -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: account-release
+  namespace: {{ .Release.Namespace }}
+  labels: {learning.local/owner: {{ .Values.owner | quote }}}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 300
+  paused: false
+  selector:
+    matchLabels: {app: account-release}
+  strategy:
+    canary:
+      maxSurge: 1
+      maxUnavailable: 0
+      trafficRouting:
+        istio:
+          virtualService: {name: account-release, routes: [primary]}
+          destinationRule: {name: account-release, stableSubsetName: stable, canarySubsetName: canary}
+      steps:
+        - setWeight: 10
+        - pause: {}
+        - setWeight: 50
+        - pause: {}
+        - setWeight: 100
+        - pause: {}
+  template:
+    metadata:
+      labels:
+        app: account-release
+        version: {{ .Values.imageRevision | quote }}
+        learning.local/service: account
+        learning.local/owner: {{ .Values.owner | quote }}
+        istio.io/rev: learning-1-31-2
+      annotations:
+        sidecar.istio.io/inject: "true"
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts":true}'
+        learning.local/source-commit: {{ .Values.sourceCommit | quote }}
+        learning.local/image: {{ .Values.image | quote }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 8080}]
+          env:
+            - {name: PGHOST, value: learning-account-db}
+            - {name: PGPORT, value: "5432"}
+            - {name: PGDATABASE, value: account}
+            - {name: PGUSER, value: account_app}
+            - {name: PGSSLMODE, value: disable}
+            - name: PGPASSWORD
+              valueFrom: {secretKeyRef: {name: learning-account-db, key: app-password}}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability.svc.cluster.local:4318"}
+            - {name: DEPLOYMENT_ENVIRONMENT, value: local}
+            - {name: POD_NAMESPACE, value: account}
+            - name: POD_UID
+              valueFrom: {fieldRef: {fieldPath: metadata.uid}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+          startupProbe: {httpGet: {path: /livez, port: http}, periodSeconds: 5, timeoutSeconds: 2, failureThreshold: 30}
+          livenessProbe: {httpGet: {path: /livez, port: http}, periodSeconds: 10, timeoutSeconds: 2}
+          readinessProbe: {httpGet: {path: /readyz, port: http}, periodSeconds: 5, timeoutSeconds: 2}
+      volumes: [{name: tmp, emptyDir: {}}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: account-release
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector: {app: account-release}
+  ports: [{name: http, port: 8080, targetPort: http, appProtocol: http}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: account-release-metrics
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  selector: {app: account-release}
+  ports: [{name: metrics, port: 15090, targetPort: 15090}]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: account-release
+  namespace: {{ .Release.Namespace }}
+spec:
+  hosts: [account-release.learning-account-release.svc.cluster.local]
+  exportTo: ["."]
+  gateways: [mesh]
+  http:
+    - name: primary
+      match:
+        - uri: {exact: /api/accounts}
+        - uri: {prefix: /api/accounts/}
+      retries: {attempts: 0}
+      route:
+        - destination: {host: account-release.learning-account-release.svc.cluster.local, subset: stable, port: {number: 8080}}
+          weight: 100
+        - destination: {host: account-release.learning-account-release.svc.cluster.local, subset: canary, port: {number: 8080}}
+          weight: 0
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: account-release
+  namespace: {{ .Release.Namespace }}
+spec:
+  host: account-release.learning-account-release.svc.cluster.local
+  exportTo: ["."]
+  subsets:
+    - name: stable
+      labels: {app: account-release, rollouts-pod-template-hash: unassigned}
+    - name: canary
+      labels: {app: account-release, rollouts-pod-template-hash: unassigned}

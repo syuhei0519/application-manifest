@@ -1,0 +1,10 @@
+# Append to the dedicated Prometheus config scrape_configs after offline review.
+# Headless Service discovers every destination sidecar; no Kubernetes API RBAC.
+job_name: account-release-envoy
+scrape_interval: 5s
+scrape_timeout: 2s
+metrics_path: /stats/prometheus
+dns_sd_configs:
+  - names: [account-release-metrics.learning-account-release.svc.cluster.local]
+    type: A
+    port: 15090
