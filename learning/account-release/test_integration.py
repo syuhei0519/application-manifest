@@ -185,6 +185,34 @@ class IntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(Rejected, 'duplicate'):
             verify_traffic(e)
 
+    def test_recovery_uses_window_deltas_without_hiding_error_series(self):
+        for code in ('0', '201', '400', '500'):
+            e = fixture(0)
+            for name in ('before', 'after', 'before_timestamps', 'after_timestamps'):
+                item = copy.deepcopy(e[name]['data']['result'][0])
+                item['metric']['response_code'] = code
+                if 'timestamps' not in name:
+                    item['value'][1] = '17'
+                e[name]['data']['result'].append(item)
+            with self.subTest(code=code):
+                self.assertEqual(verify_traffic(e)['stable'], 200)
+                bad = copy.deepcopy(e)
+                bad['after']['data']['result'][-1]['value'][1] = '18'
+                with self.assertRaisesRegex(Rejected, 'non-200-response-in-window'):
+                    verify_traffic(bad)
+                bad = copy.deepcopy(e)
+                bad['after']['data']['result'][-1]['value'][1] = '0'
+                with self.assertRaisesRegex(Rejected, 'counter-reset'):
+                    verify_traffic(bad)
+                bad = copy.deepcopy(e)
+                bad['after']['data']['result'].pop()
+                with self.assertRaises(Rejected):
+                    verify_traffic(bad)
+                bad = copy.deepcopy(e)
+                bad['after_timestamps']['data']['result'][-1]['value'][1] = '860'
+                with self.assertRaisesRegex(Rejected, 'stale-traffic-sample'):
+                    verify_traffic(bad)
+
     def test_real_prometheus_lookback_timestamp_is_not_freshness(self):
         # Counter query gets current evaluation time even if the raw sample is 4 minutes old.
         e = fixture()

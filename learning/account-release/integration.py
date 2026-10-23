@@ -107,14 +107,16 @@ def _snapshot(payload, timestamps, versions, boundary, client_boundary, after=Fa
             'source_workload': 'account-release-client', 'source_workload_namespace': NS,
             'destination_service_name': NAME, 'destination_workload_namespace': NS}.items()), 'wrong-traffic-scope')
         require(labels.get('destination_version') in versions, 'unknown-image-version')
-        require(labels.get('response_code') == '200', 'http-error-observed')
+        code = labels.get('response_code')
+        require(isinstance(code, str) and re.fullmatch(r'(?:[1-5][0-9]{2}|0)', code),
+                'invalid-response-code')
         require(bool(labels.get('instance')), 'missing-instance')
         evaluation, counter = series['value']
         require(abs(_number(evaluation) - boundary) < 0.001, 'counter-evaluation-mismatch')
         key = tuple(sorted((k, v) for k, v in labels.items() if k != '__name__'))
         require(key in times, 'missing-sample-timestamp')
         require(key not in result, 'duplicate-traffic-series')
-        result[key] = (labels['destination_version'], _number(counter))
+        result[key] = (labels['destination_version'], _number(counter), code)
     require(result, 'empty-traffic-result')
     require(result.keys() == times.keys(), 'timestamp-coverage-mismatch')
     return result
@@ -148,10 +150,15 @@ def verify_traffic(evidence, *, expected_target=TARGET):
     after = _snapshot(evidence['after'], evidence['after_timestamps'], set(versions.values()), end, client_end, after=True)
     require(before.keys() == after.keys(), 'series-changed-or-missing')
     deltas = {v: 0 for v in versions.values()}
-    for key, (version, count) in after.items():
+    for key, (version, count, code) in after.items():
         delta = count - before[key][1]
         require(delta >= 0 and delta.is_integer(), 'counter-reset-or-noninteger')
-        deltas[version] += int(delta)
+        # Envoy counters retain earlier API validation/fault-test responses.
+        # Keep every series in the timestamp/identity/reset checks, but only
+        # reject non-200 traffic when it increased inside this exclusive window.
+        require(code == '200' or delta == 0, 'non-200-response-in-window')
+        if code == '200':
+            deltas[version] += int(delta)
     stable, candidate = deltas[versions['stable']], deltas[versions['candidate']]
     require(stable + candidate == spec['samples'], 'traffic-coverage-mismatch')
     require(spec['candidate_min'] <= candidate <= spec['candidate_max'], 'traffic-outside-contract')
