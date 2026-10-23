@@ -2,7 +2,6 @@ owner: plat170-account
 image: ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df
 sourceCommit: f0425a9c0a70c200fbeb5a549bc8b631bf5a1906
 imageRevision: sha256-f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf0683
-strategy: Canary
-promotionMode: manual
+strategy: Rolling
+promotionMode: null
 analysisPluginEnabled: true
-bootstrapHash: 75f84fbff9
