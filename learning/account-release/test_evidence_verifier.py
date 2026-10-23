@@ -49,10 +49,33 @@ class EvidenceTests(unittest.TestCase):
             snapshot['destinationrule']['spec']['subsets']=[{'name':name,'labels':{'app':'account-release','rollouts-pod-template-hash':current['revision']}} for name in ('stable','canary')]
         phase=dict(name='seed-subsets',image=current['requested_image'],strategy='Rolling',promotion_mode=None,bootstrap_hash=current['revision'])
         self.assertTrue(verify(data,current,CATALOG,1111,phase=phase)['traffic_health_verified'])
+        for side in ('before','after'):
+            bad=copy.deepcopy(data)
+            bad[side]['destinationrule']['metadata']['annotations']={'rollout.argoproj.io/managed-by-rollouts':'account-release'}
+            with self.assertRaisesRegex(Rejected,'istio-detach-not-observed'):
+                verify(bad,current,CATALOG,1111,phase=phase)
         for subsets in ([],[{'name':'stable','labels':{'app':'account-release','rollouts-pod-template-hash':current['revision']}}],
                         [{'name':name,'labels':{'app':'account-release','rollouts-pod-template-hash':'old-hash'}} for name in ('stable','canary')]):
             bad=copy.deepcopy(data);bad['after']['destinationrule']['spec']['subsets']=subsets
             with self.assertRaisesRegex(Rejected,'bootstrap-subsets'):verify(bad,current,CATALOG,1111,phase=phase)
+
+    def test_rolling_detach_requires_empty_subsets_and_released_ownership(self):
+        data,current=receipt();current.update(strategy='Rolling',promotion_mode=None)
+        for snapshot in (data['before'],data['after']):
+            snapshot['rollout']['spec']['strategy']['canary']={'maxSurge':1,'maxUnavailable':0}
+            snapshot['virtualservice']['spec']['http'][0]['route']=[{'destination':{'host':HOST,'port':{'number':8080}},'weight':100}]
+            snapshot['destinationrule']['spec']['subsets']=[]
+        phase=dict(name='activate-mode',image=current['requested_image'],strategy='Rolling',promotion_mode=None,bootstrap_hash='')
+        self.assertTrue(verify(data,current,CATALOG,1111,phase=phase)['traffic_health_verified'])
+        for side in ('before','after'):
+            bad=copy.deepcopy(data)
+            bad[side]['destinationrule']['metadata']['annotations']={'rollout.argoproj.io/managed-by-rollouts':'account-release'}
+            with self.assertRaisesRegex(Rejected,'istio-detach-not-observed'):
+                verify(bad,current,CATALOG,1111,phase=phase)
+        bad=copy.deepcopy(data)
+        bad['after']['destinationrule']['spec']['subsets']=[{'name':'stable','labels':{'app':'account-release'}}]
+        with self.assertRaisesRegex(Rejected,'rolling-subsets-mismatch'):
+            verify(bad,current,CATALOG,1111,phase=phase)
 
     def test_measured_ready_git_runtime_traffic_receipt(self):
         data,current=receipt();result=verify(data,current,CATALOG,1111)

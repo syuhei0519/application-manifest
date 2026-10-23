@@ -11,6 +11,7 @@ metadata:
   name: account-release
   namespace: {{ .Release.Namespace }}
   labels: {learning.local/owner: {{ .Values.owner | quote }}}
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
 spec:
   replicas: 2
   revisionHistoryLimit: 2
@@ -109,6 +110,8 @@ kind: VirtualService
 metadata:
   name: account-release
   namespace: {{ .Release.Namespace }}
+  # Remove subset routing before detaching the old Istio controller integration.
+  annotations: {argocd.argoproj.io/sync-wave: {{ ternary "0" "-1" (eq .Values.strategy "Canary") | quote }}}
 spec:
   hosts: [account-release.learning-account-release.svc.cluster.local]
   exportTo: ["."]
@@ -135,6 +138,11 @@ kind: DestinationRule
 metadata:
   name: account-release
   namespace: {{ .Release.Namespace }}
+  # Rolling's full route is installed before subsets are removed. A later
+  # controller cleanup cannot reintroduce subsets. Only a separately verified
+  # Rolling seed phase creates them again after Istio ownership is released.
+  # Canary needs its subsets before the Rollout can start, including initial sync.
+  annotations: {argocd.argoproj.io/sync-wave: {{ ternary "-1" "1" (eq .Values.strategy "Canary") | quote }}}
 spec:
   host: account-release.learning-account-release.svc.cluster.local
   exportTo: ["."]

@@ -80,7 +80,7 @@ def switch_plan(request, catalog, current):
             phases.append(dict(name='seed-subsets', image=old, strategy='Rolling', promotion_mode=None,
                                bootstrap_hash=pod_hash, verify='old-image-ready-subset-free-route-both-subsets-current-hash'))
         phases.append(dict(name='activate-mode', image=old, strategy=strategy, promotion_mode=mode,
-                           bootstrap_hash=pod_hash,
+                           bootstrap_hash=pod_hash if strategy=='Canary' else '',
                            verify='old-image-ready-controller-observed-mode-and-actual-traffic'))
     phases.append(dict(name='start-image', image=request['image'], strategy=strategy,
                        promotion_mode=mode, bootstrap_hash='', verify='new-generation-started'))

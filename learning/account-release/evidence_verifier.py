@@ -104,6 +104,8 @@ def verify(receipt,current,catalog,now,*,phase=None):
         elif phase is not None and current['strategy']=='Rolling':
             require(not dr['spec'].get('subsets'),'receipt-rolling-subsets-mismatch')
         if current['strategy']=='Rolling':
+            require('rollout.argoproj.io/managed-by-rollouts' not in dr['metadata'].get('annotations',{}),
+                    'receipt-istio-detach-not-observed')
             require(routes==[{'destination':{'host':HOST,'port':{'number':8080}},'weight':100}],'receipt-rolling-route-mismatch')
         else:
             require(routes==[{'destination':{'host':HOST,'port':{'number':8080},'subset':name},'weight':weight}
