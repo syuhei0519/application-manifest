@@ -80,7 +80,7 @@ def switch_plan(request, catalog, current):
             phases.append(dict(name='seed-subsets', image=old, strategy='Rolling', promotion_mode=None,
                                bootstrap_hash=pod_hash, verify='old-image-ready-subset-free-route-both-subsets-current-hash'))
         phases.append(dict(name='activate-mode', image=old, strategy=strategy, promotion_mode=mode,
-                           bootstrap_hash=pod_hash,
+                           bootstrap_hash=pod_hash if strategy=='Canary' else '',
                            verify='old-image-ready-controller-observed-mode-and-actual-traffic'))
     phases.append(dict(name='start-image', image=request['image'], strategy=strategy,
                        promotion_mode=mode, bootstrap_hash='', verify='new-generation-started'))
@@ -113,10 +113,13 @@ def runtime_status(rollout, strategy, mode, *, expected_uid):
     if strategy == 'Rolling' and any(canary.get(k) for k in ('steps', 'trafficRouting', 'analysis')):
         return dict(result, state='unavailable', reason='rolling-has-canary-controls')
     conditions = {c.get('type'): c for c in status.get('conditions', [])}
-    if status.get('abort') or conditions.get('Progressing', {}).get('reason') == 'ProgressDeadlineExceeded':
+    if status.get('abort'):
         # Abort/timeout does not prove stable traffic, Git restoration or health.
         # Only a separately verified durable restore can release the operation lock.
-        return dict(result, state='recovering', reason='runtime-aborted-or-progress-deadline')
+        return dict(result, state='recovering', reason='runtime-aborted')
+    if conditions.get('Progressing', {}).get('reason') == 'ProgressDeadlineExceeded':
+        # Keep exclusion held while exposing the actual failure to the operator.
+        return dict(result, state='recovering', reason='runtime-progress-deadline-exceeded')
     desired = spec.get('replicas')
     ready = (type(desired) is int and desired > 0 and status.get('replicas') == desired and
              status.get('updatedReplicas') == desired and status.get('readyReplicas') == desired and

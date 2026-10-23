@@ -71,8 +71,9 @@ class ModesTests(unittest.TestCase):
         plan = switch_plan(request('Rolling',None), CATALOG,c)
         self.assertEqual([p['name'] for p in plan], ['activate-mode','start-image'])
         self.assertEqual(plan[0]['image'],c['current_image'])
-        self.assertEqual(plan[0]['bootstrap_hash'],'abc123')
-        # Even if DR is applied before VS, both old route subsets still exist.
+        self.assertEqual(plan[0]['bootstrap_hash'],'')
+        # The full Rolling route is installed before DR subsets are removed.
+        # A delayed detach cleanup therefore converges to the same empty set.
         self.assertEqual(plan[1]['bootstrap_hash'],'')
         self.assertEqual(c,current())
         c.update(strategy='Rolling',promotion_mode=None)
@@ -93,6 +94,10 @@ class ModesTests(unittest.TestCase):
                     str(ROOT/'chart'),'-n','learning-account-release','-f',str(p)],text=True)
                 docs={d['kind']:d for d in yaml.safe_load_all(render)}
                 canary=docs['Rollout']['spec']['strategy']['canary']
+                # v1.10.1 removes false paused; Kubernetes defaults port TCP.
+                # Spell the stable serialized form to avoid permanent OutOfSync.
+                self.assertNotIn('paused',docs['Rollout']['spec'])
+                self.assertEqual(docs['Rollout']['spec']['template']['spec']['containers'][0]['ports'][0]['protocol'],'TCP')
                 route=docs['VirtualService']['spec']['http'][0]['route']
                 if strategy=='Rolling':
                     self.assertEqual(set(canary),{'maxSurge','maxUnavailable'})
@@ -122,7 +127,35 @@ class ModesTests(unittest.TestCase):
             self.assertNotEqual(observe(bad)['state'],'succeeded')
         r['status']['conditions']=[dict(type='Progressing',status='False',reason='ProgressDeadlineExceeded')]
         self.assertEqual(observe(r)['state'],'recovering')
+        self.assertEqual(observe(r)['reason'],'runtime-progress-deadline-exceeded')
         self.assertEqual(observe(r)['actions'],[])
+        r['status']['abort']=True
+        self.assertEqual(observe(r)['state'],'recovering')
+        self.assertEqual(observe(r)['reason'],'runtime-aborted')
+        self.assertEqual(observe(r)['actions'],[])
+
+    def test_mode_sync_orders_detach_and_retains_unreferenced_policy(self):
+        # The live controller removes DR hash selectors while detaching Istio.
+        # An unpruned, no-longer-desired Template also keeps ArgoCD OutOfSync.
+        with tempfile.TemporaryDirectory() as tmp:
+            for strategy,mode,seed in [('Rolling',None,'abc123'),('Rolling',None,''),
+                                       ('Canary','manual',''),('Canary','auto','abc123')]:
+                _,app=desired_documents('c'*40,CATALOG,IMAGES['candidate'],strategy,mode,seed,True)
+                values=Path(tmp)/'values.json'
+                values.write_text(json.dumps(app['spec']['source']['helm']['valuesObject']))
+                rendered=subprocess.check_output([os.environ.get('HELM','helm'),'template','account-release',
+                    str(ROOT/'chart'),'-n','learning-account-release','-f',str(values)],text=True)
+                docs={d['kind']:d for d in yaml.safe_load_all(rendered)}
+                self.assertIn('AnalysisTemplate',docs)
+                wave=lambda kind:int(docs[kind]['metadata'].get('annotations',{}).get('argocd.argoproj.io/sync-wave','0'))
+                rollout=docs['Rollout']['spec']['strategy']['canary']
+                if strategy=='Rolling':
+                    self.assertLess(wave('VirtualService'),wave('Rollout'))
+                    self.assertLess(wave('Rollout'),wave('DestinationRule'))
+                    self.assertFalse(any(rollout.get(k) for k in ('steps','analysis','trafficRouting')))
+                else:
+                    self.assertLess(wave('DestinationRule'),wave('Rollout'))
+                    self.assertTrue(any('analysis' in step for step in rollout['steps']))
 
     def test_auto_requires_controller_analysis_and_no_manual_pause(self):
         with self.assertRaises(Rejected): desired_documents('c'*40,CATALOG,IMAGES['candidate'],'Canary','auto')
