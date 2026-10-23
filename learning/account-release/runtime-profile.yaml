@@ -1,7 +1,7 @@
 owner: plat170-account
-image: ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df
-sourceCommit: f0425a9c0a70c200fbeb5a549bc8b631bf5a1906
-imageRevision: sha256-f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf0683
+image: ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e
+sourceCommit: e030275abbf52ecd27b7152ce597b3d89be3f830
+imageRevision: sha256-d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f113531
 strategy: Rolling
 promotionMode: null
 analysisPluginEnabled: true
