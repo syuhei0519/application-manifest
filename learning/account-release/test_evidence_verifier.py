@@ -51,7 +51,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(verify(data,current,CATALOG,1111,phase=phase)['traffic_health_verified'])
         for side in ('before','after'):
             bad=copy.deepcopy(data)
-            bad[side]['destinationrule']['metadata']['annotations']={'rollout.argoproj.io/managed-by-rollouts':'account-release'}
+            bad[side]['destinationrule']['metadata']['annotations']={'argo-rollouts.argoproj.io/managed-by-rollouts':'account-release'}
             with self.assertRaisesRegex(Rejected,'istio-detach-not-observed'):
                 verify(bad,current,CATALOG,1111,phase=phase)
         for subsets in ([],[{'name':'stable','labels':{'app':'account-release','rollouts-pod-template-hash':current['revision']}}],
@@ -69,7 +69,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(verify(data,current,CATALOG,1111,phase=phase)['traffic_health_verified'])
         for side in ('before','after'):
             bad=copy.deepcopy(data)
-            bad[side]['destinationrule']['metadata']['annotations']={'rollout.argoproj.io/managed-by-rollouts':'account-release'}
+            bad[side]['destinationrule']['metadata']['annotations']={'argo-rollouts.argoproj.io/managed-by-rollouts':'account-release'}
             with self.assertRaisesRegex(Rejected,'istio-detach-not-observed'):
                 verify(bad,current,CATALOG,1111,phase=phase)
         bad=copy.deepcopy(data)
