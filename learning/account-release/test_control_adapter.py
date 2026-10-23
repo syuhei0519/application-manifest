@@ -183,6 +183,36 @@ class AdapterTests(unittest.TestCase):
                 self.adapter.proposal_outcome('proposal-001',expected,{})
         self.assertEqual(self.calls,[])
 
+    def test_canary_activation_installs_routes_only_after_verified_old_image_seed(self):
+        current=dict(self.adapter.observe(),strategy='Rolling',promotion_mode=None,state='succeeded',
+                     git_runtime_drift=False,stable_traffic_verified=True)
+        phase=dict(image=current['current_image'],name='activate-mode',strategy='Canary',
+                   promotion_mode='auto',bootstrap_hash=current['revision'])
+        self.adapter.observe=lambda:copy.deepcopy(current)
+        self.adapter.reviewed=lambda *args:{'html_url':'https://github.com/syuhei0519/application-manifest/pull/99'}
+        self.adapter.verified_merge=lambda *args:('b'*40,phase)
+        self.data['application']['status']['operationState']['phase']='Succeeded'
+        self.data['application'].pop('operation',None)
+        expected={'identity':Coordinator.identity(current),'phase':0,'phases':[phase]}
+        prepared=self.adapter.prepare_reviewed('activate-001-phase-0',expected)
+        sync=prepared['patch'][-1]['value']['sync']
+        self.assertEqual(sync['syncOptions'],['RespectIgnoreDifferences=false'])
+        self.assertFalse(sync['prune']);self.assertEqual(self.calls,[])
+        self.assertEqual(self.data['application']['spec']['syncPolicy']['syncOptions'],['RespectIgnoreDifferences=true'])
+        for key,value in [('stable_traffic_verified',False),('git_runtime_drift',True),('state','rolling')]:
+            original=current[key];current[key]=value
+            with self.subTest(key=key),self.assertRaisesRegex(Rejected,'canary-activation-receipt-required'):
+                self.adapter.prepare_reviewed('activate-001-phase-0',expected)
+            current[key]=original
+        for key,value in [('name','start-image'),('image','foreign'),('bootstrap_hash','foreign')]:
+            original=phase[key];phase[key]=value
+            with self.subTest(key=key),self.assertRaisesRegex(Rejected,'canary-activation-receipt-required'):
+                self.adapter.prepare_reviewed('activate-001-phase-0',expected)
+            phase[key]=original
+        current['strategy']='Canary'
+        prepared=self.adapter.prepare_reviewed('activate-001-phase-0',expected)
+        self.assertEqual(prepared['patch'][-1]['value']['sync']['syncOptions'],['RespectIgnoreDifferences=true'])
+
     def test_apply_persists_managed_identity_and_previous_before_dispatch(self):
         current=self.adapter.observe();new='b'*40
         phase=dict(image=next(e['image'] for e in CATALOG if e['image']!=current['current_image']),name='start-image',strategy='Canary',promotion_mode='auto')
@@ -203,5 +233,7 @@ class AdapterTests(unittest.TestCase):
         self.adapter.runner=dispatch
         self.adapter.apply_reviewed('request-001-phase-0',expected)
         self.assertEqual(len(self.calls),1)
+        patch=json.loads(self.calls[0][0][self.calls[0][0].index('-p')+1])
+        self.assertEqual(patch[-1]['value']['sync']['syncOptions'],['RespectIgnoreDifferences=true'])
 
 if __name__=='__main__':unittest.main()

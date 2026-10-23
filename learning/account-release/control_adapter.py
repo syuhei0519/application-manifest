@@ -429,6 +429,18 @@ class LiveAdapter:
             revisions=history.setdefault('managed_revisions',{})
             require(revision not in revisions or revisions[revision]==match[1],'managed-revision-conflict')
             revisions[revision]=match[1]
+        sync_options=['RespectIgnoreDifferences=true']
+        if current['strategy']=='Rolling' and phase['strategy']=='Canary':
+            # For custom resources Argo's ignored-field merge patch replaces
+            # arrays wholesale. Preserving the old single full route would
+            # erase Canary's two destinations. Only the verified old-image
+            # activation installs the reviewed 100/0 route as-is; subsequent
+            # image updates/resyncs retain controller-owned weights/selectors.
+            require(phase['name']=='activate-mode' and phase['image']==current['current_image'] and
+                    phase.get('bootstrap_hash')==current['revision'] and current['state']=='succeeded' and
+                    current['git_runtime_drift'] is False and current['stable_traffic_verified'] is True,
+                    'canary-activation-receipt-required')
+            sync_options=['RespectIgnoreDifferences=false']
         # Persist the verified target before dispatch so a lost patch response
         # still leaves its managed identity available for read-only recovery.
         update(self.config['state_file'],remember)
@@ -438,7 +450,7 @@ class LiveAdapter:
                {'op':'replace','path':'/spec/source/targetRevision','value':revision},
                {'op':'replace','path':'/spec/ignoreDifferences','value':self.ignored(phase['strategy'])},
                {'op':'add','path':'/operation','value':{'initiatedBy':{'username':'account-release'},
-                  'sync':{'revision':revision,'prune':False,'syncOptions':['RespectIgnoreDifferences=true']}}}]
+                  'sync':{'revision':revision,'prune':False,'syncOptions':sync_options}}}]
         return {'patch':patch,'commit':revision,'pr_url':pr['html_url']}
 
     def dispatch_reviewed(self,prepared):
