@@ -1,6 +1,45 @@
 # Account release MVP: PLAT-171〜176 再開 handoff
 
-## 目的と境界
+## 2026-10-23 14:12 UTC 最終実機受入・清掃
+
+最新コードは `abed735b467c727a3d6941c6c1495d0f34e1bcc1`。Python/Helm66件、Portal12件、
+typecheck/production build、PR CI39964325410 / push CI39964317963成功、独立レビューblockingなし。
+171〜176の実機AC、最終欠測→Abort→前版Git復元→再起動/再sync維持→API12/200通信→排他解除まで完了。
+PR61のtrial mergeは `7d604a1ae3949515c572cd8d2fe855d8c0d42c2d`、最終要求は14:11:48.132 UTCにrestored。
+runtime試験PRは承認された16/16件、前提修正44/49は別枠。mainはこの記録時点では未統合。
+専用kind・所有Backstage・全専用秘密/DBを14:12:24.996 UTCに削除し、既存環境・元バックアップを保持した。
+詳細、証跡の制約、同一窓照合の区別は [ACCEPTANCE-PLAT171-176.md](ACCEPTANCE-PLAT171-176.md) を参照。
+残りは文書保存後の最終head CI/レビュー確認、承認済みmain統合・統合後CI、Jira証跡照合と完了更新。
+下記は過去の作成時・途中時点の履歴であり、未承認・未実証表記を現状へ適用しない。
+
+## 2026-10-23 11:42 UTC の追記（下記の過去記録を更新）
+
+ユーザーは今回の専用環境・限定認証と権限・試験後削除、同一 trial base の runtime profile
+変更 PR 最大 16 件、全 AC 達成後の PR #43 main 統合を明示承認した。最新指示はチケットの
+クローズ判定より検証を優先すること。下記の古い「環境・main 未承認」は作成時の履歴として残す。
+
+- feature head: `026b6957cfeaa2bf5e32a1aa2c81f227873e665c`。Python/Helm 63 件、独立レビュー、
+  PR CI 39941129112 / push CI 39941122454 が成功。Portal 4 件・typecheck・production build は
+  Portal 最終変更 `5729263d4ce1a08c91a70261cbc16b990213152f` で成功しており、その後 Portal 変更なし。
+- 前提修正 PR #44 / #49 は trial に統合済み。runtime #48 の失敗記録は保持し、#50 の
+  operator 開始点整備を UI 合格に数えない。失敗 DB/state は別バックアップとして保存した。
+- 手動 Canary 10/50/100%、重複・競合・stale・キャンセル・再開、Abort、API 12 件、
+  Git 前版復元と controller / Account Pod 再起動後維持を実測・独立レビュー済み。
+- #51: Canary→Rolling、旧版 B のまま全量経路・空 subset・Istio 管理解除を実測済み。
+  #52: Rolling A 更新で readiness 待ち、300 秒後の ProgressDeadlineExceeded、生状態の失敗、
+  DB 接続回復後の API と同一 SHA 再同期・要求完了を確認。故障中の可用性は主張しない。
+  期限超過瞬間の画面ラベルはブラウザー接続中断で未撮影。生状態・投影検証とは区別する。
+- #53（runtime 8/16）: Rolling→Canary の旧版 A subset seed 段階。
+  head `a31611e7f152863eb1bd29d7d884bd06059b3a1d`、独立レビューと両 CI 成功、
+  trial merge `16e40c9756351b9b7ee77d6b9e0ccf18c6548152`。実測段階確認中。
+- 追加 token は 10:26:31 UTC 発行、13:26:31 UTC 失効。同じ SA/Role、追加発行・自動更新なし。
+  session 3 の専用 kind と Backstage は試験継続中。終了時に所有照合後、専用環境・秘密・試験 DB を
+  削除し、既存 kind・ソース・証跡・元バックアップの保持を検証する。
+
+残りは Rolling→Canary、auto 正常・異常・低 traffic・欠測、各復元、最終 AC 照合・レビュー・CI、
+main 統合と統合後確認・清掃。Jira Done には進めていない。PLAT-177 以降は対象外。
+
+## 目的と境界（再開時の記録）
 
 対象は Jira-native PLAT-171〜176（ID 10181〜10186）、site https://syuhei0519.atlassian.net、
 cloud ID `0e029d88-1812-4bd9-b5de-bdecfff6740b`。2026-10-23に6件の現行本文・AC・依存を再読し、
