@@ -14,6 +14,11 @@ def queries(stable_count, latest_count):
     if (type(stable_count) is not int or not 0 <= stable_count <= 10 or
             type(latest_count) is not int or not 1 <= latest_count <= 10):
         raise ValueError('observed Ready counts: stable 0..10, candidate 1..10 required')
+    return query_templates(stable_count, latest_count)
+
+
+def query_templates(stable_count='{{stable-count}}', latest_count='{{latest-count}}'):
+    """Build-time templates for the fixed controller metric plugin, not user PromQL."""
     result = {}
     for role, count in [('latest', latest_count), ('stable', stable_count)]:
         if count == 0:
@@ -66,6 +71,42 @@ def queries(stable_count, latest_count):
         for name, expr in [('requests', total), ('availability', availability),
                            ('latency', f'sum({b}) / sum({c})')]:
             result[role + '-' + name] = f'({expr}) and on() ({gate})'
+    return result
+
+
+def policy_query_templates():
+    """Independent availability validity: missing latency cannot hide HTTP errors.
+
+    Keep the PLAT-170 whole-role queries unchanged for replay. Latency retains
+    their cross-instrument conservation checks. Request/error validity depends
+    on fresh complete HTTP counters and current SDK identity, not a latency bucket.
+    """
+    result = query_templates()
+    for role, count in [('stable','{{stable-count}}'),('latest','{{latest-count}}')]:
+        selector = ('job="account-backend",account_namespace="{{args.namespace}}",'
+                    'learning_service="{{args.service}}",rollout_revision="{{args.'+role+'-hash}}"')
+        raw='pe_http_server_requests_total{'+selector+'}'
+        heart='pe_go_goroutines{'+selector+'}'
+        up='up{job="otel-application",account_namespace="{{args.namespace}}"}'
+        per='sum by(instance)(increase('+raw+'[5m]))'
+        fresh=(f'({per} >= 0) and on(instance) (min by(instance)(count_over_time({raw}[5m])) >= 2)'
+               f' and on(instance) (min by(instance)(time() - timestamp({raw})) >= 0)'
+               f' and on(instance) (max by(instance)(time() - timestamp({raw})) < 90)'
+               f' and on(instance) ({heart} >= 0)'
+               f' and on(instance) (time() - timestamp({heart}) >= 0)'
+               f' and on(instance) (time() - timestamp({heart}) < 90)')
+        gate=(f'(count({up}) == 1) and on() (min({up}) == 1)'
+              f' and on() (max(time() - timestamp({up})) < 60)'
+              f' and on() (min(time() - timestamp({up})) >= 0)'
+              f' and on() (count({heart}) == {count})'
+              f' and on() (count({fresh}) == {count})'
+              f' and on() (count({per}) == {count})'
+              f' and on() (sum({per}) >= 20)')
+        total='sum('+per+')'
+        success='sum(sum by(instance)(increase(pe_http_server_requests_total{'+selector+',status_class=~"2xx|3xx"}[5m])))'
+        availability=f'(({success}) or on() (({total}) * 0)) / ({total})'
+        result[role+'-requests']=f'({total}) and on() ({gate})'
+        result[role+'-availability']=f'({availability}) and on() ({gate})'
     return result
 
 

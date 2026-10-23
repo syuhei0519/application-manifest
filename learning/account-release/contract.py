@@ -88,21 +88,20 @@ def evaluate_metrics(observation, expected, now):
                 not 0 <= now - sample < 90 or sample > end):
             unknown.append(role + '-stale-sample')
             continue
-        values = [data.get(k) for k in ('requests', 'availability', 'latency_fraction')]
-        if any(isinstance(v, bool) or not isinstance(v, (float, int)) or not math.isfinite(v) for v in values):
-            unknown.append(role + '-nonfinite-or-missing')
-            continue
-        requests, availability, latency = values
-        if requests < 0 or not 0 <= availability <= 1 or not 0 <= latency <= 1:
-            unknown.append(role + '-invalid-range')
-            continue
-        if requests < POLICY['minimum_requests']:
+        def finite(value):
+            return not isinstance(value, bool) and isinstance(value, (float, int)) and math.isfinite(value)
+        requests = data.get('requests')
+        if not finite(requests) or requests < POLICY['minimum_requests']:
             unknown.append(role + '-insufficient-traffic')
             continue
-        if availability < POLICY['availability_min']:
-            failures.append(role + '-availability-below-99pct')
-        if latency < POLICY['latency_fraction_min']:
-            failures.append(role + '-latency-250ms-below-95pct')
+        # A missing companion metric must not hide a valid observed violation.
+        for key, threshold, reason in [('availability', POLICY['availability_min'], 'availability-below-99pct'),
+                                       ('latency_fraction', POLICY['latency_fraction_min'], 'latency-250ms-below-95pct')]:
+            value = data.get(key)
+            if not finite(value) or not 0 <= value <= 1:
+                unknown.append(role + '-' + key + '-nonfinite-or-invalid')
+            elif value < threshold:
+                failures.append(role + '-' + reason)
     if failures:
         return 'failed', ','.join(failures + unknown)
     return ('inconclusive', ','.join(unknown)) if unknown else ('passed', 'all-observed-roles-within-policy')

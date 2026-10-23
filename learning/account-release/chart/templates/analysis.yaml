@@ -1,0 +1,27 @@
+{{- if .Values.analysisPluginEnabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: account-release-policy
+  namespace: {{ .Release.Namespace }}
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+  labels: {learning.local/owner: {{ .Values.owner | quote }}}
+spec:
+  args:
+    - {name: stable-hash}
+    - {name: candidate-hash}
+    - {name: stage}
+  metrics:
+    - name: account-policy
+      initialDelay: 300s
+      count: 1
+      failureLimit: 0
+      inconclusiveLimit: 0
+      consecutiveErrorLimit: 0
+      provider:
+        plugin:
+          learning-local/account-policy:
+            stableHash: {{ "{{args.stable-hash}}" | quote }}
+            candidateHash: {{ "{{args.candidate-hash}}" | quote }}
+            stage: {{ "{{args.stage}}" | quote }}
+{{- end }}

@@ -1,0 +1,65 @@
+[
+  {
+    "source": "rolling-readiness-early/snapshot.json",
+    "source_sha256": "892f5d6f644446724f83e026b9b1012ca950fe8f95b0e43fe72dce6c2aa4f26d",
+    "captured_at": 1792753606.7673454,
+    "rollout_uid": "d2b83793-443a-4092-9401-b7fc7207e102",
+    "generation": 8,
+    "runtime": {
+      "strategy": "Rolling",
+      "promotion_mode": null,
+      "generation": 8,
+      "observed_generation": "8",
+      "revision": "f9c59c964",
+      "stable_revision": "75f84fbff9",
+      "current_step": null,
+      "resource_version": "32259",
+      "state": "rolling",
+      "reason": "runtime-progressing",
+      "actions": [],
+      "requested_image": "ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e"
+    }
+  },
+  {
+    "source": "rolling-readiness-deadline/snapshot.json",
+    "source_sha256": "857658e5970b6ef93531ed07bcd30bf3750e45bb1ea30e96a3db2da6dd8180d3",
+    "captured_at": 1792753897.6103666,
+    "rollout_uid": "d2b83793-443a-4092-9401-b7fc7207e102",
+    "generation": 8,
+    "runtime": {
+      "strategy": "Rolling",
+      "promotion_mode": null,
+      "generation": 8,
+      "observed_generation": "8",
+      "revision": "f9c59c964",
+      "stable_revision": "75f84fbff9",
+      "current_step": null,
+      "resource_version": "33106",
+      "state": "recovering",
+      "reason": "runtime-progress-deadline-exceeded",
+      "actions": [],
+      "requested_image": "ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e"
+    }
+  },
+  {
+    "source": "rolling-readiness-restored/snapshot.json",
+    "source_sha256": "86f03c6ec7d32918b7f79ae604a2d3d5889d5f0c783d5d2921f8b050e8773c5b",
+    "captured_at": 1792753996.0200493,
+    "rollout_uid": "d2b83793-443a-4092-9401-b7fc7207e102",
+    "generation": 8,
+    "runtime": {
+      "strategy": "Rolling",
+      "promotion_mode": null,
+      "generation": 8,
+      "observed_generation": "8",
+      "revision": "f9c59c964",
+      "stable_revision": "f9c59c964",
+      "current_step": null,
+      "resource_version": "33318",
+      "state": "succeeded",
+      "reason": "runtime-all-replicas-ready",
+      "actions": [],
+      "requested_image": "ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e"
+    }
+  }
+]

@@ -6,6 +6,17 @@
     "owner": {"const": "plat170-account"},
     "image": {"type": "string", "pattern": "^[a-z0-9./_-]+@sha256:[a-f0-9]{64}$"},
     "sourceCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
-    "imageRevision": {"type": "string", "pattern": "^sha256-[a-f0-9]{56}$"}
-  }
+    "imageRevision": {"type": "string", "pattern": "^sha256-[a-f0-9]{56}$"},
+    "strategy": {"enum": ["Canary", "Rolling"]},
+    "promotionMode": {"enum": ["manual", "auto", null]},
+    "bootstrapHash": {"type": "string", "pattern": "^([a-z0-9]{5,16})?$"},
+    "analysisPluginEnabled": {"type": "boolean"}
+  },
+  "allOf": [
+    {"if": {"properties": {"strategy": {"const": "Rolling"}}, "required": ["strategy"]},
+     "then": {"properties": {"promotionMode": {"type": "null"}}},
+     "else": {"properties": {"promotionMode": {"enum": ["manual", "auto"]}}}},
+    {"if": {"properties": {"promotionMode": {"const": "auto"}}, "required": ["promotionMode"]},
+     "then": {"properties": {"analysisPluginEnabled": {"const": true}}, "required": ["analysisPluginEnabled"]}}
+  ]
 }

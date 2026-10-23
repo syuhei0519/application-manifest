@@ -75,6 +75,12 @@ jobs:
           docker run --rm --entrypoint cat alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 /usr/bin/helm > .build/helm
           chmod +x .build/helm
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_integration.py' -v
+          PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_release_modes.py' -v
+          .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_operations.py' -v
+          .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_control_adapter.py' -v
+          .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_evidence_verifier.py' -v
+          .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_verified_state.py' -v
+          go -C learning/account-release/metric-plugin test -count=1 -timeout 90s -v ./...
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/validate.py
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python learning/canary/validate.py --output .rendered/account-canary
           PATH="$PWD/.build:$PATH" go -C learning/canary/analysis-test test -timeout 90s -v ./...
@@ -159,9 +165,36 @@ jobs:
           name: istio-routing-render-${{ github.run_attempt }}
           path: .rendered/istio-routing/
           retention-days: 30
+  account-portal:
+    needs: classify
+    if: needs.classify.outputs.docs != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Verify official Node and Yarn inputs
+        run: |
+          mkdir -p .build/portal-tools
+          curl --fail --location --silent --show-error https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz -o .build/portal-tools/node.tar.xz
+          echo '6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6  .build/portal-tools/node.tar.xz' | sha256sum -c -
+          tar -xJf .build/portal-tools/node.tar.xz -C .build/portal-tools
+          curl --fail --location --silent --show-error https://registry.npmjs.org/@yarnpkg/cli-dist/-/cli-dist-4.13.0.tgz -o .build/portal-tools/yarn.tgz
+          python3 -c "import base64,hashlib,pathlib; assert base64.b64encode(hashlib.sha512(pathlib.Path('.build/portal-tools/yarn.tgz').read_bytes()).digest()).decode() == 'c0YdSja652OezJqFnz9+pZwKfKAiBu2aRPJiHPU73sirTGgvQRTyaS5Y6PQHAmmaoa3RjCY6f3L2q9g8S/urqw=='"
+          tar -xzf .build/portal-tools/yarn.tgz -C .build/portal-tools package/bin/yarn.js
+      - name: Locked install, recovery tests, typecheck and production build
+        run: |
+          export PATH="$PWD/.build/portal-tools/node-v24.22.1-linux-x64/bin:$PATH"
+          YARN="$PWD/.build/portal-tools/package/bin/yarn.js"
+          cd learning/account-release/backstage
+          node "$YARN" install --immutable
+          node --test tests/*.test.mjs
+          node "$YARN" typecheck
+          node "$YARN" build
   ci-result:
     if: always()
-    needs: [classify, docs, validate]
+    needs: [classify, docs, validate, account-portal]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -171,8 +204,10 @@ jobs:
           CLASSIFY: ${{ needs.classify.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           VALIDATE: ${{ needs.validate.result }}
+          PORTAL: ${{ needs.account-portal.result }}
         run: |
           test "$CLASSIFY" = success
           if test "$DOCS" = true; then test "$DOCS_RESULT" = success; else
             test "$VALIDATE" = success
+            test "$PORTAL" = success
           fi

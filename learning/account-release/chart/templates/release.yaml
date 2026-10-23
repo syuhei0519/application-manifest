@@ -11,28 +11,38 @@ metadata:
   name: account-release
   namespace: {{ .Release.Namespace }}
   labels: {learning.local/owner: {{ .Values.owner | quote }}}
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
 spec:
   replicas: 2
   revisionHistoryLimit: 2
   progressDeadlineSeconds: 300
-  paused: false
   selector:
     matchLabels: {app: account-release}
   strategy:
     canary:
       maxSurge: 1
       maxUnavailable: 0
+      {{- if eq .Values.strategy "Canary" }}
       trafficRouting:
         istio:
           virtualService: {name: account-release, routes: [primary]}
           destinationRule: {name: account-release, stableSubsetName: stable, canarySubsetName: canary}
       steps:
-        - setWeight: 10
+        {{- range $weight := list 10 50 100 }}
+        - setWeight: {{ $weight }}
+        {{- if $.Values.analysisPluginEnabled }}
+        - analysis:
+            templates: [{templateName: account-release-policy}]
+            args:
+              - {name: stable-hash, valueFrom: {podTemplateHashValue: Stable}}
+              - {name: candidate-hash, valueFrom: {podTemplateHashValue: Latest}}
+              - {name: stage, value: {{ $weight | quote }}}
+        {{- end }}
+        {{- if eq $.Values.promotionMode "manual" }}
         - pause: {}
-        - setWeight: 50
-        - pause: {}
-        - setWeight: 100
-        - pause: {}
+        {{- end }}
+        {{- end }}
+      {{- end }}
   template:
     metadata:
       labels:
@@ -54,7 +64,7 @@ spec:
         - name: api
           image: {{ .Values.image | quote }}
           imagePullPolicy: IfNotPresent
-          ports: [{name: http, containerPort: 8080}]
+          ports: [{name: http, containerPort: 8080, protocol: TCP}]
           env:
             - {name: PGHOST, value: learning-account-db}
             - {name: PGPORT, value: "5432"}
@@ -100,6 +110,8 @@ kind: VirtualService
 metadata:
   name: account-release
   namespace: {{ .Release.Namespace }}
+  # Remove subset routing before detaching the old Istio controller integration.
+  annotations: {argocd.argoproj.io/sync-wave: {{ ternary "0" "-1" (eq .Values.strategy "Canary") | quote }}}
 spec:
   hosts: [account-release.learning-account-release.svc.cluster.local]
   exportTo: ["."]
@@ -111,21 +123,35 @@ spec:
         - uri: {prefix: /api/accounts/}
       retries: {attempts: 0}
       route:
+        {{- if eq .Values.strategy "Canary" }}
         - destination: {host: account-release.learning-account-release.svc.cluster.local, subset: stable, port: {number: 8080}}
           weight: 100
         - destination: {host: account-release.learning-account-release.svc.cluster.local, subset: canary, port: {number: 8080}}
           weight: 0
+        {{- else }}
+        - destination: {host: account-release.learning-account-release.svc.cluster.local, port: {number: 8080}}
+          weight: 100
+        {{- end }}
 ---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
   name: account-release
   namespace: {{ .Release.Namespace }}
+  # Rolling's full route is installed before subsets are removed. A later
+  # controller cleanup cannot reintroduce subsets. Only a separately verified
+  # Rolling seed phase creates them again after Istio ownership is released.
+  # Canary needs its subsets before the Rollout can start, including initial sync.
+  annotations: {argocd.argoproj.io/sync-wave: {{ ternary "-1" "1" (eq .Values.strategy "Canary") | quote }}}
 spec:
   host: account-release.learning-account-release.svc.cluster.local
   exportTo: ["."]
+  {{- if or (eq .Values.strategy "Canary") .Values.bootstrapHash }}
   subsets:
     - name: stable
-      labels: {app: account-release, rollouts-pod-template-hash: unassigned}
+      labels: {app: account-release, rollouts-pod-template-hash: {{ default "unassigned" .Values.bootstrapHash | quote }}}
     - name: canary
-      labels: {app: account-release, rollouts-pod-template-hash: unassigned}
+      labels: {app: account-release, rollouts-pod-template-hash: {{ default "unassigned" .Values.bootstrapHash | quote }}}
+  {{- else }}
+  subsets: []
+  {{- end }}

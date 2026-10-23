@@ -1,0 +1,26 @@
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata: {name: account-owners, title: Account 担当}
+spec: {type: team, children: []}
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata: {name: account-system, title: Account}
+spec: {owner: group:default/account-owners}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: account
+  title: Account API
+  annotations:
+    github.com/project-slug: syuhei0519/backend-app
+    backstage.io/source-location: url:https://github.com/syuhei0519/backend-app/tree/f0425a9c0a70c200fbeb5a549bc8b631bf5a1906
+    account.local/manifest-repository: syuhei0519/application-manifest
+    account.local/environment: local
+    account.local/runtime-namespace: learning-account-release
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/account-owners
+  system: account-system
