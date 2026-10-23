@@ -147,4 +147,3 @@ spec:
   {{- else }}
   subsets: []
   {{- end }}
-

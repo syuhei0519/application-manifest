@@ -3,5 +3,5 @@ image: ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba4
 sourceCommit: e030275abbf52ecd27b7152ce597b3d89be3f830
 imageRevision: sha256-d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f113531
 strategy: Canary
-promotionMode: auto
+promotionMode: manual
 analysisPluginEnabled: true
