@@ -53,8 +53,16 @@ class IntegrationTests(unittest.TestCase):
     def test_repository_profile_matches_reviewed_catalog(self):
         profile = yaml.safe_load((ROOT/'runtime-profile.yaml').read_text())
         catalog = json.loads((ROOT/'image-catalog.reviewed.json').read_text())
-        expected = application('c'*40, catalog, profile['image'])[1]['spec']['source']['helm']['valuesObject']
-        self.assertEqual(profile, expected)
+        repo = ROOT.parents[1]
+        commit = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
+        tracked = subprocess.check_output(['git', '-C', str(repo), 'show',
+            commit+':learning/account-release/runtime-profile.yaml'], text=True)
+        self.assertEqual(profile, yaml.safe_load(tracked))
+        # The runtime validator checks the catalog binding and both legacy and
+        # explicit mode profiles, then renders the exact committed chart.
+        docs, job = runtime_documents(commit, catalog, profile['image'], repo, os.environ.get('HELM', 'helm'))
+        self.assertEqual(docs[1]['spec']['source']['targetRevision'], commit)
+        self.assertEqual(job['spec']['template']['spec']['containers'][0]['image'], profile['image'])
         jsonschema.validate(profile, json.loads((ROOT/'chart/values.schema.json').read_text()))
 
     def test_git_profile_is_authoritative(self):
