@@ -26,7 +26,9 @@ export function CurrentRuntime({current:c,fetchedAt,busy,unresolved,onAction}:{c
         <Typography>前版: {c.verified_previous?.image ?? '検証済み前版なし'}</Typography>
         <Typography>要求版: {c.requested_image}</Typography>
         <Typography>Git desired: {c.git_revision}</Typography>
-        <Typography>Rollout revision / generation: {c.revision} / {c.generation}</Typography>
+        <Typography>Rollout revision / generation: {c.rollout_revision ?? '不明'} / {c.generation}</Typography>
+        <Typography>Pod hash: {c.revision}</Typography>
+        <Typography>release ID: {c.release_id ?? '不明'} / 元release要求 ID: {c.release_request_id ?? '未記録'}</Typography>
         <Typography>画面取得時刻: {fetchedAt}</Typography>
         {c.strategy==='Canary' && c.actions?.includes('promote') && <Button disabled={busy || unresolved} onClick={()=>onAction('promote')}>次段階へ Promote</Button>}
         {c.strategy==='Canary' && c.actions?.includes('abort') && <Button disabled={busy || unresolved} onClick={()=>onAction('abort')}>Abort・stable へ戻す</Button>}

@@ -50,3 +50,20 @@ test('measured recovery shows Ready while request sync failure stays a separate 
   assert.equal(stateNames['sync-failed'], '同期失敗');
   assert.doesNotMatch(html, /<button/);
 });
+
+test('a missing actual revision is not replaced with the measured Pod hash', () => {
+  const html = render(2);
+  assert.match(html, /Rollout revision \/ generation: 不明 \/ 8/);
+  assert.match(html, /Pod hash: f9c59c964/);
+});
+
+test('actual Rollout revision, Pod hash and release correlation render separately', () => {
+  const html = renderToStaticMarkup(React.createElement(CurrentRuntime, {
+    current: { ...measured[2].runtime, rollout_revision: '17', release_id: 'release-017', release_request_id: 'request-017' },
+    busy: false, unresolved: false, onAction: () => {},
+  }));
+  assert.match(html, /Rollout revision \/ generation: 17 \/ 8/);
+  assert.match(html, /Pod hash: f9c59c964/);
+  assert.match(html, /release ID: release-017/);
+  assert.match(html, /元release要求 ID: request-017/);
+});

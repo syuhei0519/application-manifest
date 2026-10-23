@@ -98,6 +98,35 @@ class OperationsTests(unittest.TestCase):
         self.adapter.proposal_outcome=lambda *args: {'state':'review-pending','commit':'token=synthetic-private'}
         with self.assertRaisesRegex(Rejected,'unsafe-observation-identity'):
             self.core.reconcile(ACTOR,'request-001')
+    def test_history_links_actions_using_saved_git_identity_not_current_runtime(self):
+        self.core.request(ACTOR,request())
+        self.core.event('request-001',ACTOR,'running',{'commit':self.adapter.current['git_revision']},'git-runtime')
+        self.core.action(ACTOR,self.action())
+        self.adapter.current.update(release_id='different-release',generation=99)
+        history=self.core.history(ACTOR)
+        actions=[e['detail'] for e in history if e['request_id']=='action-001']
+        self.assertTrue(actions)
+        for detail in actions:
+            self.assertEqual(detail['release_id'],'release-001')
+            self.assertEqual(detail['generation'],3)
+            self.assertEqual(detail['release_request_id'],'request-001')
+
+    def test_history_never_guesses_ambiguous_or_missing_release_request(self):
+        self.core.request(ACTOR,request())
+        self.core.db.execute("INSERT INTO requests SELECT 'request-002',payload,fingerprint,actor,kind,state,expected,result,created FROM requests WHERE id='request-001'")
+        for owner in ('request-001','request-002'):
+            self.core.event(owner,ACTOR,'running',{'commit':self.adapter.current['git_revision']},'git-runtime')
+        self.core.action(ACTOR,self.action())
+        for event in self.core.history(ACTOR):
+            if event['request_id']=='action-001':self.assertNotIn('release_request_id',event['detail'])
+
+    def test_public_observed_generation_rejects_non_integer_or_invalid_values(self):
+        self.core.request(ACTOR,request())
+        for value in (True,-1,'1'):
+            self.adapter.proposal_outcome=lambda *args:dict(state='review-pending',generation=value)
+            with self.assertRaisesRegex(Rejected,'unsafe-observation-generation'):
+                self.core.reconcile(ACTOR,'request-001')
+
     def test_second_connection_cannot_take_active_target(self):
         self.core.request(ACTOR,request())
         other=Coordinator(self.path,CATALOG,self.adapter,[ACTOR])

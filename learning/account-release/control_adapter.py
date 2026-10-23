@@ -480,11 +480,12 @@ class LiveAdapter:
                 current['git_revision']==desired and current['requested_image']==phase['image'] and
                 current['strategy']==phase['strategy'] and current['promotion_mode']==phase['promotion_mode'],
                 'reviewed-runtime-mismatch')
+        binding={'release_id':current['release_id'],'generation':current['generation']}
         operation=app.get('status',{}).get('operationState',{})
         if operation.get('operation',{}).get('sync',{}).get('revision')==desired and operation.get('phase') in ('Failed','Error'):
-            return {'state':'sync-failed','reason':'sync-failed','commit':desired,'pr_url':full['html_url']}
+            return {'state':'sync-failed','reason':'sync-failed','commit':desired,'pr_url':full['html_url'],**binding}
         if current['git_runtime_drift']:
-            return {'state':'apply-pending','reason':'desired-not-synced'}
+            return {'state':'apply-pending','reason':'desired-not-synced',**binding}
         # Full completion requires measured traffic/health and (restore) restart
         # evidence. These are deliberately not inferred from a Healthy badge.
         state_path=Path(self.config['state_file'])
@@ -493,11 +494,11 @@ class LiveAdapter:
         if current['state']=='succeeded' and self.proof_matches(proof,current,phase=phase) and proof.get('traffic_health_verified') is True:
             require(current['current_image']==phase['image'],'reviewed-stable-image-mismatch')
             if expected['phase']<len(expected['phases'])-1 and proof.get('phase')==phase['name']:
-                return {'state':'phase-review-required','phase_verified':True,'phase_git_revision':desired,'reason':'phase-verified'}
+                return {'state':'phase-review-required','phase_verified':True,'phase_git_revision':desired,'reason':'phase-verified',**binding}
             restore=phase['name']=='restore-image'
             if not restore or proof.get('resync_restart_verified') is True:
                 return {'state':'restored' if restore else 'succeeded','git_runtime_verified':True,
                         'traffic_health_verified':True,'resync_restart_verified':restore,
-                        'commit':desired,'pr_url':full['html_url'],'reason':'durable-restore-verified' if restore else 'runtime-verified'}
+                        'commit':desired,'pr_url':full['html_url'],'reason':'durable-restore-verified' if restore else 'runtime-verified',**binding}
         return {'state':'recovering' if current['state']=='recovering' else 'running',
-                'commit':desired,'pr_url':full['html_url'],'reason':'runtime-progressing'}
+                'commit':desired,'pr_url':full['html_url'],'reason':'runtime-progressing',**binding}

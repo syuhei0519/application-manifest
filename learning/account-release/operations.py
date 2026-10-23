@@ -364,6 +364,11 @@ class Coordinator:
                 if key in evidence:
                     require(isinstance(evidence[key],str) and pattern.fullmatch(evidence[key]),'unsafe-observation-identity')
                     public[key]=evidence[key]
+            if 'generation' in evidence:
+                require(type(evidence['generation']) is int and evidence['generation']>0,'unsafe-observation-generation')
+                public['generation']=evidence['generation']
+            if row['kind'] in ('release','restore') and 'release_id' in public:
+                public['release_request_id']=request_id
             if 'source_time' in evidence:
                 at=evidence['source_time']
                 require(type(at) in (int,float) and math.isfinite(at) and 0<=at<=self.clock()+60,'invalid-source-time')
@@ -375,5 +380,26 @@ class Coordinator:
 
     def history(self, actor):
         self.authorize(actor)
-        return [dict(dict(r), detail=json.loads(r['detail'])) for r in
-                self.db.execute('SELECT * FROM events ORDER BY seq')]
+        events=[dict(dict(r),detail=json.loads(r['detail'])) for r in self.db.execute('SELECT * FROM events ORDER BY seq')]
+        requests={r['id']:{'kind':r['kind'],'expected':json.loads(r['expected'])} for r in
+                  self.db.execute('SELECT id,kind,expected FROM requests')}
+        revisions={};actions={}
+        for event in events:
+            row=requests.get(event['request_id'],{});detail=event['detail']
+            if row.get('kind') in ('release','restore'):
+                detail['release_request_id']=event['request_id']
+                commit=detail.get('commit')
+                if event['source']=='git-runtime' and isinstance(commit,str) and SHA.fullmatch(commit):
+                    revisions.setdefault(commit,set()).add(event['request_id'])
+            elif row.get('kind')=='action':
+                # Immutable stored action identity, never the current runtime.
+                identity=row['expected']
+                for key in ('release_id','generation'):
+                    value=identity.get(key)
+                    if (key=='release_id' and isinstance(value,str) and ID.fullmatch(value)) or (key=='generation' and type(value) is int and value>0):
+                        detail[key]=value
+                if event['request_id'] not in actions:
+                    owners=revisions.get(identity.get('git_revision'),set())
+                    actions[event['request_id']]=next(iter(owners)) if len(owners)==1 else None
+                if actions[event['request_id']]:detail['release_request_id']=actions[event['request_id']]
+        return events
