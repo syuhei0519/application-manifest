@@ -1,8 +1,7 @@
 import { createBackendPlugin, coreServices } from '@backstage/backend-plugin-api';
 import { NotAllowedError } from '@backstage/errors';
 import express from 'express';
-import { execFile } from 'node:child_process';
-import path from 'node:path';
+import { invokeCore } from './invokeCore';
 
 export default createBackendPlugin({
   pluginId: 'account-release',
@@ -16,26 +15,16 @@ export default createBackendPlugin({
         const actors = config.getStringArray('accountRelease.allowedActors');
         const writable = config.getBoolean('accountRelease.writesEnabled');
         const mode = config.getString('accountRelease.mode');
-        const invoke = (operation: string, actor: string, payload: unknown) => new Promise<any>((resolve, reject) => {
+        const invoke = (operation: string, actor: string, payload: unknown) => {
           if (mode === 'disconnected') {
-            resolve({ ok: false, code: 'connection-not-configured' });
-            return;
+            return Promise.resolve({ ok: false, code: 'connection-not-configured' });
           }
           const directory = config.getString('accountRelease.coreDirectory');
           const settings = config.getString('accountRelease.adapterConfig');
           const python = config.getString('accountRelease.python');
-          if (![directory, settings, python].every(path.isAbsolute)) {
-            reject(new Error('invalid-server-configuration'));
-            return;
-          }
           // No command, path, repo, ref or identity comes from the browser.
-          const child = execFile(python, [path.join(directory, 'control_bridge.py'), '--config', settings],
-            { timeout: 20000, maxBuffer: 2 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
-              if (error) { reject(new Error('operation-outcome-unknown')); return; }
-              try { resolve(JSON.parse(stdout)); } catch { reject(new Error('invalid-adapter-response')); }
-            });
-          child.stdin?.end(JSON.stringify({ operation, actor, payload }));
-        });
+          return invokeCore(python, directory, settings, { operation, actor, payload });
+        };
         const route = (operation: string, write: boolean) => async (req: express.Request, res: express.Response) => {
           try {
             const credentials = await httpAuth.credentials(req, { allow: ['user'] });
