@@ -5,6 +5,7 @@ import { Content, InfoCard } from '@backstage/core-components';
 import { Button, FormControl, InputLabel, Select, MenuItem, Typography, TextField } from '@material-ui/core';
 import { beginPending,readPending,settlePending,uncertain, type Pending } from './pending';
 import { observationTime as at } from './observation';
+import { CurrentRuntime, stateNames } from './CurrentRuntime';
 
 type Snapshot = { current: any; catalog: { image: string; source_commit: string }[]; history: any[]; fetched_at: string; verdict?: any; analysis_history?: any[] };
 const target = 'component:default/account';
@@ -19,21 +20,6 @@ function EvidenceLinks({detail}:{detail:any}) {
     {detail?.strategy && <Typography>方式: {detail.strategy} / {detail.promotion_mode??'自動更新'}</Typography>}
   </>;
 }
-const stateNames: Record<string,string> = {
-  rolling:'Rolling 更新中（readiness 待ち）', syncing:'同期中', unavailable:'状態取得不可',
-  accepted:'要求受付', 'review-pending':'レビュー待ち', 'apply-pending':'反映待ち', running:'実行中',
-  paused:'停止中', recovering:'復旧中', 'outcome-unknown':'結果不明・再照合が必要',
-  succeeded:'完了', restored:'永続復元完了', 'sync-failed':'同期失敗', 'phase-review-required':'次の切替段階のレビューが必要',
-};
-
-const runtimeReasons: Record<string,string> = {
-  'runtime-progress-deadline-exceeded':'進行失敗：更新期限を超過しました。原因を確認し、復旧を検証してください。',
-  'runtime-aborted':'Abort 済み：stable への復帰を検証してください。Git の復元は別要求です。',
-  'runtime-progressing':'更新中です。',
-  'runtime-all-replicas-ready':'すべての更新先 replica が Ready です。',
-  'generation-not-observed':'controller の更新確認を待っています。',
-};
-
 export function ReleasePage() {
   const { entity } = useEntity();
   const discovery = useApi(discoveryApiRef); const api = useApi(fetchApiRef);
@@ -91,21 +77,7 @@ export function ReleasePage() {
     <Button disabled={busy} onClick={()=>void perform(refresh)}>最新状態を取得</Button>
     {error && <div role="alert"><Typography color="error">接続・操作を確認できません: {error}</Typography><Typography>結果不明の場合は再送せず、要求の状態を照合してください。</Typography></div>}
     <InfoCard title="現在の状態">
-      {!c ? <Typography>状態を取得できないため操作を停止しています。</Typography> : <>
-        <Typography>実行系の状態: {stateNames[c.state] ?? c.state}</Typography>
-        <Typography>状態の理由: {runtimeReasons[c.reason] ?? c.reason}</Typography>
-        <Typography color={c.git_runtime_drift?'error':'textPrimary'}>Git との照合: {c.git_runtime_drift?'差分あり。新しい要求と手動操作を停止します。':'固定 revision と一致'}</Typography>
-        <Typography>方式: {c.strategy} {c.promotion_mode ?? ''}</Typography>
-        <Typography>現在版: {c.current_image ?? '不明'}</Typography>
-        <Typography>前版: {c.verified_previous?.image ?? '検証済み前版なし'}</Typography>
-        <Typography>要求版: {c.requested_image}</Typography>
-        <Typography>Git desired: {c.git_revision}</Typography>
-        <Typography>Rollout revision / generation: {c.revision} / {c.generation}</Typography>
-        <Typography>画面取得時刻: {snapshot?.fetched_at}</Typography>
-        {c.strategy==='Canary' && c.actions?.includes('promote') && <Button disabled={busy || unresolved} onClick={()=>void runtimeAction('promote')}>次段階へ Promote</Button>}
-        {c.strategy==='Canary' && c.actions?.includes('abort') && <Button disabled={busy || unresolved} onClick={()=>void runtimeAction('abort')}>Abort・stable へ戻す</Button>}
-        <Typography>Abort は一時的な traffic 復帰です。Git の前版復元は下の別要求でレビューします。</Typography>
-      </>}
+      <CurrentRuntime current={c} fetchedAt={snapshot?.fetched_at} busy={busy} unresolved={unresolved} onAction={operation=>void runtimeAction(operation)} />
     </InfoCard>
     <InfoCard title="Git 変更をレビューへ送る">
       <Button disabled={!c || busy} onClick={()=>{setRestore(false);invalidate();}}>新しいリリース</Button>
