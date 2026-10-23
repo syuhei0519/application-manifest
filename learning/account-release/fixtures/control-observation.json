@@ -1,0 +1,1561 @@
+{
+  "at": 1792710473.2602715,
+  "rollout": {
+    "apiVersion": "argoproj.io/v1alpha1",
+    "kind": "Rollout",
+    "metadata": {
+      "creationTimestamp": "2026-10-22T22:58:17Z",
+      "generation": 4,
+      "labels": {
+        "learning.local/owner": "plat170-account"
+      },
+      "name": "account-release",
+      "namespace": "learning-account-release",
+      "resourceVersion": "3538",
+      "uid": "b4367176-789d-4143-97fb-31630a9dc7db",
+      "annotations": {
+        "rollout.argoproj.io/revision": "2"
+      }
+    },
+    "spec": {
+      "progressDeadlineSeconds": 300,
+      "replicas": 2,
+      "revisionHistoryLimit": 2,
+      "selector": {
+        "matchLabels": {
+          "app": "account-release"
+        }
+      },
+      "strategy": {
+        "canary": {
+          "maxSurge": 1,
+          "maxUnavailable": 0,
+          "steps": [
+            {
+              "setWeight": 10
+            },
+            {
+              "analysis": {
+                "args": [
+                  {
+                    "name": "stable-hash",
+                    "valueFrom": {
+                      "podTemplateHashValue": "Stable"
+                    }
+                  },
+                  {
+                    "name": "candidate-hash",
+                    "valueFrom": {
+                      "podTemplateHashValue": "Latest"
+                    }
+                  },
+                  {
+                    "name": "stage",
+                    "value": "10"
+                  }
+                ],
+                "templates": [
+                  {
+                    "templateName": "account-release-policy"
+                  }
+                ]
+              }
+            },
+            {
+              "setWeight": 50
+            },
+            {
+              "analysis": {
+                "args": [
+                  {
+                    "name": "stable-hash",
+                    "valueFrom": {
+                      "podTemplateHashValue": "Stable"
+                    }
+                  },
+                  {
+                    "name": "candidate-hash",
+                    "valueFrom": {
+                      "podTemplateHashValue": "Latest"
+                    }
+                  },
+                  {
+                    "name": "stage",
+                    "value": "50"
+                  }
+                ],
+                "templates": [
+                  {
+                    "templateName": "account-release-policy"
+                  }
+                ]
+              }
+            },
+            {
+              "setWeight": 100
+            },
+            {
+              "analysis": {
+                "args": [
+                  {
+                    "name": "stable-hash",
+                    "valueFrom": {
+                      "podTemplateHashValue": "Stable"
+                    }
+                  },
+                  {
+                    "name": "candidate-hash",
+                    "valueFrom": {
+                      "podTemplateHashValue": "Latest"
+                    }
+                  },
+                  {
+                    "name": "stage",
+                    "value": "100"
+                  }
+                ],
+                "templates": [
+                  {
+                    "templateName": "account-release-policy"
+                  }
+                ]
+              }
+            }
+          ],
+          "trafficRouting": {
+            "istio": {
+              "destinationRule": {
+                "canarySubsetName": "canary",
+                "name": "account-release",
+                "stableSubsetName": "stable"
+              },
+              "virtualService": {
+                "name": "account-release",
+                "routes": [
+                  "primary"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "template": {
+        "metadata": {
+          "annotations": {
+            "learning.local/image": "ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df",
+            "learning.local/source-commit": "f0425a9c0a70c200fbeb5a549bc8b631bf5a1906",
+            "proxy.istio.io/config": "{\"holdApplicationUntilProxyStarts\":true}",
+            "sidecar.istio.io/inject": "true"
+          },
+          "labels": {
+            "app": "account-release",
+            "istio.io/rev": "learning-1-31-2",
+            "learning.local/owner": "plat170-account",
+            "learning.local/service": "account",
+            "version": "sha256-f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf0683"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": false,
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "PGHOST",
+                  "value": "learning-account-db"
+                },
+                {
+                  "name": "PGPORT",
+                  "value": "5432"
+                },
+                {
+                  "name": "PGDATABASE",
+                  "value": "account"
+                },
+                {
+                  "name": "PGUSER",
+                  "value": "account_app"
+                },
+                {
+                  "name": "PGSSLMODE",
+                  "value": "disable"
+                },
+                {
+                  "name": "PGPASSWORD",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "app-password",
+                      "name": "learning-account-db"
+                    }
+                  }
+                },
+                {
+                  "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                  "value": "http://otel-collector.observability.svc.cluster.local:4318"
+                },
+                {
+                  "name": "DEPLOYMENT_ENVIRONMENT",
+                  "value": "local"
+                },
+                {
+                  "name": "POD_NAMESPACE",
+                  "value": "account"
+                },
+                {
+                  "name": "POD_UID",
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.uid"
+                    }
+                  }
+                }
+              ],
+              "image": "ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df",
+              "imagePullPolicy": "IfNotPresent",
+              "livenessProbe": {
+                "httpGet": {
+                  "path": "/livez",
+                  "port": "http"
+                },
+                "periodSeconds": 10,
+                "timeoutSeconds": 2
+              },
+              "name": "api",
+              "ports": [
+                {
+                  "containerPort": 8080,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "readinessProbe": {
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": "http"
+                },
+                "periodSeconds": 5,
+                "timeoutSeconds": 2
+              },
+              "resources": {
+                "limits": {
+                  "cpu": "500m",
+                  "memory": "256Mi"
+                },
+                "requests": {
+                  "cpu": "50m",
+                  "memory": "64Mi"
+                }
+              },
+              "securityContext": {
+                "allowPrivilegeEscalation": false,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                },
+                "readOnlyRootFilesystem": true
+              },
+              "startupProbe": {
+                "failureThreshold": 30,
+                "httpGet": {
+                  "path": "/livez",
+                  "port": "http"
+                },
+                "periodSeconds": 5,
+                "timeoutSeconds": 2
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/tmp",
+                  "name": "tmp"
+                }
+              ]
+            }
+          ],
+          "securityContext": {
+            "fsGroup": 10001,
+            "runAsGroup": 10001,
+            "runAsNonRoot": true,
+            "runAsUser": 10001,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "terminationGracePeriodSeconds": 30,
+          "volumes": [
+            {
+              "emptyDir": {},
+              "name": "tmp"
+            }
+          ]
+        }
+      }
+    },
+    "status": {
+      "HPAReplicas": 3,
+      "availableReplicas": 3,
+      "blueGreen": {},
+      "canary": {
+        "currentStepAnalysisRunStatus": {
+          "name": "account-release-75f84fbff9-2-3",
+          "status": "Running"
+        },
+        "weights": {
+          "canary": {
+            "podTemplateHash": "75f84fbff9",
+            "weight": 50
+          },
+          "stable": {
+            "podTemplateHash": "f9c59c964",
+            "weight": 50
+          }
+        }
+      },
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-22T22:58:23Z",
+          "lastUpdateTime": "2026-10-22T22:58:23Z",
+          "message": "Rollout has minimum availability",
+          "reason": "AvailableReason",
+          "status": "True",
+          "type": "Available"
+        },
+        {
+          "lastTransitionTime": "2026-10-22T23:02:00Z",
+          "lastUpdateTime": "2026-10-22T23:02:00Z",
+          "message": "Rollout is not healthy",
+          "reason": "RolloutHealthy",
+          "status": "False",
+          "type": "Healthy"
+        },
+        {
+          "lastTransitionTime": "2026-10-22T23:02:00Z",
+          "lastUpdateTime": "2026-10-22T23:02:00Z",
+          "message": "RolloutCompleted",
+          "reason": "RolloutCompleted",
+          "status": "False",
+          "type": "Completed"
+        },
+        {
+          "lastTransitionTime": "2026-10-22T22:58:17Z",
+          "lastUpdateTime": "2026-10-22T23:07:08Z",
+          "message": "ReplicaSet \"account-release-75f84fbff9\" is progressing.",
+          "reason": "ReplicaSetUpdated",
+          "status": "True",
+          "type": "Progressing"
+        }
+      ],
+      "currentPodHash": "75f84fbff9",
+      "currentStepHash": "6fcf5749fb",
+      "currentStepIndex": 3,
+      "message": "more replicas need to be updated",
+      "observedGeneration": "4",
+      "phase": "Progressing",
+      "readyReplicas": 3,
+      "replicas": 3,
+      "selector": "app=account-release",
+      "stableRS": "f9c59c964",
+      "updatedReplicas": 1
+    }
+  },
+  "application": {
+    "apiVersion": "argoproj.io/v1alpha1",
+    "kind": "Application",
+    "metadata": {
+      "creationTimestamp": "2026-10-22T22:58:13Z",
+      "generation": 23,
+      "name": "account-release",
+      "namespace": "learning-account-control",
+      "resourceVersion": "3539",
+      "uid": "86f9c142-0f16-4b19-bfdd-a46b35149de3"
+    },
+    "spec": {
+      "destination": {
+        "namespace": "learning-account-release",
+        "server": "https://kubernetes.default.svc"
+      },
+      "ignoreDifferences": [
+        {
+          "group": "networking.istio.io",
+          "jsonPointers": [
+            "/spec/http/0/route/0/weight",
+            "/spec/http/0/route/1/weight"
+          ],
+          "kind": "VirtualService",
+          "name": "account-release",
+          "namespace": "learning-account-release"
+        },
+        {
+          "group": "networking.istio.io",
+          "jsonPointers": [
+            "/spec/subsets/0/labels/rollouts-pod-template-hash",
+            "/spec/subsets/1/labels/rollouts-pod-template-hash"
+          ],
+          "kind": "DestinationRule",
+          "name": "account-release",
+          "namespace": "learning-account-release"
+        }
+      ],
+      "project": "account-release",
+      "source": {
+        "helm": {
+          "releaseName": "account-release",
+          "valueFiles": [
+            "../runtime-profile.yaml"
+          ]
+        },
+        "path": "learning/account-release/chart",
+        "repoURL": "https://github.com/syuhei0519/application-manifest.git",
+        "targetRevision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a"
+      },
+      "syncPolicy": {
+        "syncOptions": [
+          "RespectIgnoreDifferences=true"
+        ]
+      }
+    },
+    "status": {
+      "controllerNamespace": "learning-account-control",
+      "health": {
+        "lastTransitionTime": "2026-10-22T23:02:00Z",
+        "status": "Progressing"
+      },
+      "history": [
+        {
+          "deployStartedAt": "2026-10-22T22:58:14Z",
+          "deployedAt": "2026-10-22T22:58:17Z",
+          "id": 0,
+          "initiatedBy": {
+            "username": "PLAT-171-approved-session"
+          },
+          "revision": "6dc84e4211000a688ef7c2da8c411a68f06750cd",
+          "source": {
+            "helm": {
+              "releaseName": "account-release",
+              "valueFiles": [
+                "../runtime-profile.yaml"
+              ]
+            },
+            "path": "learning/account-release/chart",
+            "repoURL": "https://github.com/syuhei0519/application-manifest.git",
+            "targetRevision": "6dc84e4211000a688ef7c2da8c411a68f06750cd"
+          }
+        },
+        {
+          "deployStartedAt": "2026-10-22T23:01:57Z",
+          "deployedAt": "2026-10-22T23:02:00Z",
+          "id": 1,
+          "initiatedBy": {
+            "username": "PLAT-171-approved-session"
+          },
+          "revision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a",
+          "source": {
+            "helm": {
+              "releaseName": "account-release",
+              "valueFiles": [
+                "../runtime-profile.yaml"
+              ]
+            },
+            "path": "learning/account-release/chart",
+            "repoURL": "https://github.com/syuhei0519/application-manifest.git",
+            "targetRevision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a"
+          }
+        }
+      ],
+      "operationState": {
+        "finishedAt": "2026-10-22T23:02:00Z",
+        "message": "successfully synced (all tasks run)",
+        "operation": {
+          "initiatedBy": {
+            "username": "PLAT-171-approved-session"
+          },
+          "retry": {},
+          "sync": {
+            "revision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a",
+            "syncOptions": [
+              "RespectIgnoreDifferences=true"
+            ]
+          }
+        },
+        "phase": "Succeeded",
+        "startedAt": "2026-10-22T23:01:57Z",
+        "syncResult": {
+          "resources": [
+            {
+              "group": "argoproj.io",
+              "hookPhase": "Succeeded",
+              "kind": "AnalysisTemplate",
+              "message": "analysistemplate.argoproj.io/account-release-policy unchanged",
+              "name": "account-release-policy",
+              "namespace": "learning-account-release",
+              "status": "Synced",
+              "syncPhase": "Sync",
+              "version": "v1alpha1"
+            },
+            {
+              "group": "",
+              "hookPhase": "Running",
+              "kind": "Service",
+              "message": "service/account-release-metrics unchanged",
+              "name": "account-release-metrics",
+              "namespace": "learning-account-release",
+              "status": "Synced",
+              "syncPhase": "Sync",
+              "version": "v1"
+            },
+            {
+              "group": "",
+              "hookPhase": "Running",
+              "kind": "Service",
+              "message": "service/account-release unchanged",
+              "name": "account-release",
+              "namespace": "learning-account-release",
+              "status": "Synced",
+              "syncPhase": "Sync",
+              "version": "v1"
+            },
+            {
+              "group": "networking.istio.io",
+              "hookPhase": "Running",
+              "kind": "VirtualService",
+              "message": "virtualservice.networking.istio.io/account-release unchanged",
+              "name": "account-release",
+              "namespace": "learning-account-release",
+              "status": "Synced",
+              "syncPhase": "Sync",
+              "version": "v1"
+            },
+            {
+              "group": "networking.istio.io",
+              "hookPhase": "Running",
+              "kind": "DestinationRule",
+              "message": "destinationrule.networking.istio.io/account-release configured",
+              "name": "account-release",
+              "namespace": "learning-account-release",
+              "status": "Synced",
+              "syncPhase": "Sync",
+              "version": "v1"
+            },
+            {
+              "group": "argoproj.io",
+              "hookPhase": "Running",
+              "images": [
+                "ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df"
+              ],
+              "kind": "Rollout",
+              "message": "rollout.argoproj.io/account-release configured",
+              "name": "account-release",
+              "namespace": "learning-account-release",
+              "status": "Synced",
+              "syncPhase": "Sync",
+              "version": "v1alpha1"
+            }
+          ],
+          "revision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a",
+          "source": {
+            "helm": {
+              "releaseName": "account-release",
+              "valueFiles": [
+                "../runtime-profile.yaml"
+              ]
+            },
+            "path": "learning/account-release/chart",
+            "repoURL": "https://github.com/syuhei0519/application-manifest.git",
+            "targetRevision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a"
+          }
+        }
+      },
+      "reconciledAt": "2026-10-22T23:07:08Z",
+      "resourceHealthSource": "appTree",
+      "resources": [
+        {
+          "kind": "Service",
+          "name": "account-release",
+          "namespace": "learning-account-release",
+          "status": "Synced",
+          "version": "v1"
+        },
+        {
+          "kind": "Service",
+          "name": "account-release-metrics",
+          "namespace": "learning-account-release",
+          "status": "Synced",
+          "version": "v1"
+        },
+        {
+          "group": "argoproj.io",
+          "kind": "AnalysisTemplate",
+          "name": "account-release-policy",
+          "namespace": "learning-account-release",
+          "status": "Synced",
+          "syncWave": -1,
+          "version": "v1alpha1"
+        },
+        {
+          "group": "argoproj.io",
+          "kind": "Rollout",
+          "name": "account-release",
+          "namespace": "learning-account-release",
+          "status": "OutOfSync",
+          "version": "v1alpha1"
+        },
+        {
+          "group": "networking.istio.io",
+          "kind": "DestinationRule",
+          "name": "account-release",
+          "namespace": "learning-account-release",
+          "status": "Synced",
+          "version": "v1"
+        },
+        {
+          "group": "networking.istio.io",
+          "kind": "VirtualService",
+          "name": "account-release",
+          "namespace": "learning-account-release",
+          "status": "Synced",
+          "version": "v1"
+        }
+      ],
+      "sourceType": "Helm",
+      "sync": {
+        "comparedTo": {
+          "destination": {
+            "namespace": "learning-account-release",
+            "server": "https://kubernetes.default.svc"
+          },
+          "ignoreDifferences": [
+            {
+              "group": "networking.istio.io",
+              "jsonPointers": [
+                "/spec/http/0/route/0/weight",
+                "/spec/http/0/route/1/weight"
+              ],
+              "kind": "VirtualService",
+              "name": "account-release",
+              "namespace": "learning-account-release"
+            },
+            {
+              "group": "networking.istio.io",
+              "jsonPointers": [
+                "/spec/subsets/0/labels/rollouts-pod-template-hash",
+                "/spec/subsets/1/labels/rollouts-pod-template-hash"
+              ],
+              "kind": "DestinationRule",
+              "name": "account-release",
+              "namespace": "learning-account-release"
+            }
+          ],
+          "source": {
+            "helm": {
+              "releaseName": "account-release",
+              "valueFiles": [
+                "../runtime-profile.yaml"
+              ]
+            },
+            "path": "learning/account-release/chart",
+            "repoURL": "https://github.com/syuhei0519/application-manifest.git",
+            "targetRevision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a"
+          }
+        },
+        "revision": "a22e80e3d6d76d83ec29877c45a3e3c2ec53f27a",
+        "status": "OutOfSync"
+      }
+    }
+  },
+  "replicasets": {
+    "apiVersion": "v1",
+    "items": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "creationTimestamp": "2026-10-22T23:02:00Z",
+          "generation": 2,
+          "labels": {
+            "app": "account-release",
+            "istio.io/rev": "learning-1-31-2",
+            "learning.local/owner": "plat170-account",
+            "learning.local/service": "account",
+            "rollouts-pod-template-hash": "75f84fbff9",
+            "version": "sha256-f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf0683"
+          },
+          "name": "account-release-75f84fbff9",
+          "namespace": "learning-account-release",
+          "ownerReferences": [
+            {
+              "apiVersion": "argoproj.io/v1alpha1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Rollout",
+              "name": "account-release",
+              "uid": "b4367176-789d-4143-97fb-31630a9dc7db"
+            }
+          ],
+          "resourceVersion": "2779",
+          "uid": "01229626-8f58-4c0c-8a33-1a1f3eb98577"
+        },
+        "spec": {
+          "replicas": 1,
+          "selector": {
+            "matchLabels": {
+              "app": "account-release",
+              "rollouts-pod-template-hash": "75f84fbff9"
+            }
+          },
+          "template": {
+            "metadata": {
+              "annotations": {
+                "learning.local/image": "ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df",
+                "learning.local/source-commit": "f0425a9c0a70c200fbeb5a549bc8b631bf5a1906",
+                "proxy.istio.io/config": "{\"holdApplicationUntilProxyStarts\":true}",
+                "sidecar.istio.io/inject": "true"
+              },
+              "labels": {
+                "app": "account-release",
+                "istio.io/rev": "learning-1-31-2",
+                "learning.local/owner": "plat170-account",
+                "learning.local/service": "account",
+                "rollouts-pod-template-hash": "75f84fbff9",
+                "version": "sha256-f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf0683"
+              }
+            },
+            "spec": {
+              "automountServiceAccountToken": false,
+              "containers": [
+                {
+                  "env": [
+                    {
+                      "name": "PGHOST",
+                      "value": "learning-account-db"
+                    },
+                    {
+                      "name": "PGPORT",
+                      "value": "5432"
+                    },
+                    {
+                      "name": "PGDATABASE",
+                      "value": "account"
+                    },
+                    {
+                      "name": "PGUSER",
+                      "value": "account_app"
+                    },
+                    {
+                      "name": "PGSSLMODE",
+                      "value": "disable"
+                    },
+                    {
+                      "name": "PGPASSWORD",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "app-password",
+                          "name": "learning-account-db"
+                        }
+                      }
+                    },
+                    {
+                      "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                      "value": "http://otel-collector.observability.svc.cluster.local:4318"
+                    },
+                    {
+                      "name": "DEPLOYMENT_ENVIRONMENT",
+                      "value": "local"
+                    },
+                    {
+                      "name": "POD_NAMESPACE",
+                      "value": "account"
+                    },
+                    {
+                      "name": "POD_UID",
+                      "valueFrom": {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.uid"
+                        }
+                      }
+                    }
+                  ],
+                  "image": "ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df",
+                  "imagePullPolicy": "IfNotPresent",
+                  "livenessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                      "path": "/livez",
+                      "port": "http",
+                      "scheme": "HTTP"
+                    },
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 2
+                  },
+                  "name": "api",
+                  "ports": [
+                    {
+                      "containerPort": 8080,
+                      "name": "http",
+                      "protocol": "TCP"
+                    }
+                  ],
+                  "readinessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                      "path": "/readyz",
+                      "port": "http",
+                      "scheme": "HTTP"
+                    },
+                    "periodSeconds": 5,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 2
+                  },
+                  "resources": {
+                    "limits": {
+                      "cpu": "500m",
+                      "memory": "256Mi"
+                    },
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "64Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": [
+                        "ALL"
+                      ]
+                    },
+                    "readOnlyRootFilesystem": true
+                  },
+                  "startupProbe": {
+                    "failureThreshold": 30,
+                    "httpGet": {
+                      "path": "/livez",
+                      "port": "http",
+                      "scheme": "HTTP"
+                    },
+                    "periodSeconds": 5,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 2
+                  },
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File",
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/tmp",
+                      "name": "tmp"
+                    }
+                  ]
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {
+                "fsGroup": 10001,
+                "runAsGroup": 10001,
+                "runAsNonRoot": true,
+                "runAsUser": 10001,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "terminationGracePeriodSeconds": 30,
+              "volumes": [
+                {
+                  "emptyDir": {},
+                  "name": "tmp"
+                }
+              ]
+            }
+          }
+        },
+        "status": {
+          "availableReplicas": 1,
+          "fullyLabeledReplicas": 1,
+          "observedGeneration": 2,
+          "readyReplicas": 1,
+          "replicas": 1,
+          "terminatingReplicas": 0
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "creationTimestamp": "2026-10-22T22:53:44Z",
+          "generation": 1,
+          "labels": {
+            "app": "account-release-client",
+            "learning.local/owner": "plat171-account",
+            "pod-template-hash": "6596d66649",
+            "version": "client"
+          },
+          "name": "account-release-client-6596d66649",
+          "namespace": "learning-account-release",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Deployment",
+              "name": "account-release-client",
+              "uid": "870c04ac-13ef-413e-b952-5672a018294d"
+            }
+          ],
+          "resourceVersion": "1475",
+          "uid": "fbf2defd-61b6-427a-99ed-0a4238080638"
+        },
+        "spec": {
+          "replicas": 1,
+          "selector": {
+            "matchLabels": {
+              "app": "account-release-client",
+              "pod-template-hash": "6596d66649"
+            }
+          },
+          "template": {
+            "metadata": {
+              "annotations": {
+                "proxy.istio.io/config": "{\"holdApplicationUntilProxyStarts\":true}",
+                "sidecar.istio.io/inject": "true"
+              },
+              "labels": {
+                "app": "account-release-client",
+                "learning.local/owner": "plat171-account",
+                "pod-template-hash": "6596d66649",
+                "version": "client"
+              }
+            },
+            "spec": {
+              "automountServiceAccountToken": false,
+              "containers": [
+                {
+                  "command": [
+                    "python3",
+                    "-c",
+                    "import time; time.sleep(86400)"
+                  ],
+                  "image": "docker.io/library/python@sha256:9bbb8720ae0a24a6ca8dd678bfdf57818fe70caf54c52a53ec01d8db43405056",
+                  "imagePullPolicy": "IfNotPresent",
+                  "name": "client",
+                  "resources": {
+                    "limits": {
+                      "cpu": "200m",
+                      "memory": "128Mi"
+                    },
+                    "requests": {
+                      "cpu": "10m",
+                      "memory": "32Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": [
+                        "ALL"
+                      ]
+                    },
+                    "readOnlyRootFilesystem": true
+                  },
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File",
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/work",
+                      "name": "code",
+                      "readOnly": true
+                    }
+                  ]
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {
+                "runAsGroup": 10001,
+                "runAsNonRoot": true,
+                "runAsUser": 10001,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "terminationGracePeriodSeconds": 30,
+              "volumes": [
+                {
+                  "configMap": {
+                    "defaultMode": 420,
+                    "name": "account-release-client"
+                  },
+                  "name": "code"
+                }
+              ]
+            }
+          }
+        },
+        "status": {
+          "availableReplicas": 1,
+          "fullyLabeledReplicas": 1,
+          "observedGeneration": 1,
+          "readyReplicas": 1,
+          "replicas": 1,
+          "terminatingReplicas": 0
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "creationTimestamp": "2026-10-22T22:58:17Z",
+          "generation": 2,
+          "labels": {
+            "app": "account-release",
+            "istio.io/rev": "learning-1-31-2",
+            "learning.local/owner": "plat170-account",
+            "learning.local/service": "account",
+            "rollouts-pod-template-hash": "f9c59c964",
+            "version": "sha256-d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f113531"
+          },
+          "name": "account-release-f9c59c964",
+          "namespace": "learning-account-release",
+          "ownerReferences": [
+            {
+              "apiVersion": "argoproj.io/v1alpha1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Rollout",
+              "name": "account-release",
+              "uid": "b4367176-789d-4143-97fb-31630a9dc7db"
+            }
+          ],
+          "resourceVersion": "2173",
+          "uid": "a60a658e-6a79-49a5-9d13-154a790c0f60"
+        },
+        "spec": {
+          "replicas": 2,
+          "selector": {
+            "matchLabels": {
+              "app": "account-release",
+              "rollouts-pod-template-hash": "f9c59c964"
+            }
+          },
+          "template": {
+            "metadata": {
+              "annotations": {
+                "learning.local/image": "ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e",
+                "learning.local/source-commit": "e030275abbf52ecd27b7152ce597b3d89be3f830",
+                "proxy.istio.io/config": "{\"holdApplicationUntilProxyStarts\":true}",
+                "sidecar.istio.io/inject": "true"
+              },
+              "labels": {
+                "app": "account-release",
+                "istio.io/rev": "learning-1-31-2",
+                "learning.local/owner": "plat170-account",
+                "learning.local/service": "account",
+                "rollouts-pod-template-hash": "f9c59c964",
+                "version": "sha256-d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f113531"
+              }
+            },
+            "spec": {
+              "automountServiceAccountToken": false,
+              "containers": [
+                {
+                  "env": [
+                    {
+                      "name": "PGHOST",
+                      "value": "learning-account-db"
+                    },
+                    {
+                      "name": "PGPORT",
+                      "value": "5432"
+                    },
+                    {
+                      "name": "PGDATABASE",
+                      "value": "account"
+                    },
+                    {
+                      "name": "PGUSER",
+                      "value": "account_app"
+                    },
+                    {
+                      "name": "PGSSLMODE",
+                      "value": "disable"
+                    },
+                    {
+                      "name": "PGPASSWORD",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "app-password",
+                          "name": "learning-account-db"
+                        }
+                      }
+                    },
+                    {
+                      "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                      "value": "http://otel-collector.observability.svc.cluster.local:4318"
+                    },
+                    {
+                      "name": "DEPLOYMENT_ENVIRONMENT",
+                      "value": "local"
+                    },
+                    {
+                      "name": "POD_NAMESPACE",
+                      "value": "account"
+                    },
+                    {
+                      "name": "POD_UID",
+                      "valueFrom": {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.uid"
+                        }
+                      }
+                    }
+                  ],
+                  "image": "ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e",
+                  "imagePullPolicy": "IfNotPresent",
+                  "livenessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                      "path": "/livez",
+                      "port": "http",
+                      "scheme": "HTTP"
+                    },
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 2
+                  },
+                  "name": "api",
+                  "ports": [
+                    {
+                      "containerPort": 8080,
+                      "name": "http",
+                      "protocol": "TCP"
+                    }
+                  ],
+                  "readinessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                      "path": "/readyz",
+                      "port": "http",
+                      "scheme": "HTTP"
+                    },
+                    "periodSeconds": 5,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 2
+                  },
+                  "resources": {
+                    "limits": {
+                      "cpu": "500m",
+                      "memory": "256Mi"
+                    },
+                    "requests": {
+                      "cpu": "50m",
+                      "memory": "64Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": [
+                        "ALL"
+                      ]
+                    },
+                    "readOnlyRootFilesystem": true
+                  },
+                  "startupProbe": {
+                    "failureThreshold": 30,
+                    "httpGet": {
+                      "path": "/livez",
+                      "port": "http",
+                      "scheme": "HTTP"
+                    },
+                    "periodSeconds": 5,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 2
+                  },
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File",
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/tmp",
+                      "name": "tmp"
+                    }
+                  ]
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {
+                "fsGroup": 10001,
+                "runAsGroup": 10001,
+                "runAsNonRoot": true,
+                "runAsUser": 10001,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "terminationGracePeriodSeconds": 30,
+              "volumes": [
+                {
+                  "emptyDir": {},
+                  "name": "tmp"
+                }
+              ]
+            }
+          }
+        },
+        "status": {
+          "availableReplicas": 2,
+          "fullyLabeledReplicas": 2,
+          "observedGeneration": 2,
+          "readyReplicas": 2,
+          "replicas": 2,
+          "terminatingReplicas": 0
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "creationTimestamp": "2026-10-22T22:52:08Z",
+          "generation": 1,
+          "labels": {
+            "app.kubernetes.io/name": "argo-rollouts",
+            "pod-template-hash": "5d99c9d974"
+          },
+          "name": "learning-rollouts-5d99c9d974",
+          "namespace": "learning-account-release",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Deployment",
+              "name": "learning-rollouts",
+              "uid": "f3996bc1-e3ac-4fe1-8b4e-01649c687c26"
+            }
+          ],
+          "resourceVersion": "1128",
+          "uid": "8fac5d13-473b-4542-a58e-3859951626d0"
+        },
+        "spec": {
+          "replicas": 1,
+          "selector": {
+            "matchLabels": {
+              "app.kubernetes.io/name": "argo-rollouts",
+              "pod-template-hash": "5d99c9d974"
+            }
+          },
+          "template": {
+            "metadata": {
+              "annotations": {
+                "sidecar.istio.io/inject": "false"
+              },
+              "labels": {
+                "app.kubernetes.io/name": "argo-rollouts",
+                "pod-template-hash": "5d99c9d974"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "args": [
+                    "--namespaced",
+                    "--namespace",
+                    "learning-account-release",
+                    "--leader-elect=true",
+                    "--istio-api-version=v1"
+                  ],
+                  "env": [
+                    {
+                      "name": "ACCOUNT_POLICY_SHA256",
+                      "value": "51c6505758ba09230478c65319b2e0696f9bad3b0e16802238823a7f361920db"
+                    }
+                  ],
+                  "image": "learning.local/account-rollouts@sha256:966adba896524519bd1653b31ade97b624dd5cbf83623f7cdeb5c5708aaa69e0",
+                  "imagePullPolicy": "IfNotPresent",
+                  "livenessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                      "path": "/healthz",
+                      "port": "healthz",
+                      "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 30,
+                    "periodSeconds": 20,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 10
+                  },
+                  "name": "argo-rollouts",
+                  "ports": [
+                    {
+                      "containerPort": 8090,
+                      "name": "metrics",
+                      "protocol": "TCP"
+                    },
+                    {
+                      "containerPort": 8080,
+                      "name": "healthz",
+                      "protocol": "TCP"
+                    }
+                  ],
+                  "resources": {
+                    "limits": {
+                      "cpu": "500m",
+                      "ephemeral-storage": "256Mi",
+                      "memory": "256Mi"
+                    },
+                    "requests": {
+                      "cpu": "50m",
+                      "ephemeral-storage": "32Mi",
+                      "memory": "64Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": [
+                        "ALL"
+                      ]
+                    },
+                    "readOnlyRootFilesystem": true,
+                    "seccompProfile": {
+                      "type": "RuntimeDefault"
+                    }
+                  },
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File",
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/home/argo-rollouts/plugin-bin",
+                      "name": "plugin-bin"
+                    },
+                    {
+                      "mountPath": "/tmp",
+                      "name": "tmp"
+                    }
+                  ]
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {
+                "runAsNonRoot": true
+              },
+              "serviceAccount": "learning-rollouts",
+              "serviceAccountName": "learning-rollouts",
+              "terminationGracePeriodSeconds": 30,
+              "volumes": [
+                {
+                  "emptyDir": {},
+                  "name": "plugin-bin"
+                },
+                {
+                  "emptyDir": {},
+                  "name": "tmp"
+                }
+              ]
+            }
+          }
+        },
+        "status": {
+          "availableReplicas": 1,
+          "fullyLabeledReplicas": 1,
+          "observedGeneration": 1,
+          "readyReplicas": 1,
+          "replicas": 1,
+          "terminatingReplicas": 0
+        }
+      }
+    ],
+    "kind": "List",
+    "metadata": {
+      "resourceVersion": ""
+    }
+  },
+  "analysis": {
+    "apiVersion": "v1",
+    "items": [
+      {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AnalysisRun",
+        "metadata": {
+          "creationTimestamp": "2026-10-22T23:02:08Z",
+          "generation": 3,
+          "labels": {
+            "app": "account-release",
+            "rollout-type": "Step",
+            "rollouts-pod-template-hash": "75f84fbff9",
+            "step-index": "1"
+          },
+          "name": "account-release-75f84fbff9-2-1",
+          "namespace": "learning-account-release",
+          "ownerReferences": [
+            {
+              "apiVersion": "argoproj.io/v1alpha1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Rollout",
+              "name": "account-release",
+              "uid": "b4367176-789d-4143-97fb-31630a9dc7db"
+            }
+          ],
+          "resourceVersion": "3523",
+          "uid": "e31a2100-ce41-4e2f-acfc-f699c7e4a399",
+          "annotations": {
+            "rollout.argoproj.io/revision": "2"
+          }
+        },
+        "spec": {
+          "args": [
+            {
+              "name": "stable-hash",
+              "value": "f9c59c964"
+            },
+            {
+              "name": "candidate-hash",
+              "value": "75f84fbff9"
+            },
+            {
+              "name": "stage",
+              "value": "10"
+            }
+          ],
+          "metrics": [
+            {
+              "consecutiveErrorLimit": 0,
+              "count": 1,
+              "failureLimit": 0,
+              "inconclusiveLimit": 0,
+              "initialDelay": "300s",
+              "name": "account-policy",
+              "provider": {
+                "plugin": {
+                  "learning-local/account-policy": {
+                    "candidateHash": "{{args.candidate-hash}}",
+                    "stableHash": "{{args.stable-hash}}",
+                    "stage": "{{args.stage}}"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "status": {
+          "completedAt": "2026-10-22T23:07:08Z",
+          "dryRunSummary": {},
+          "metricResults": [
+            {
+              "consecutiveSuccess": 1,
+              "count": 1,
+              "measurements": [
+                {
+                  "finishedAt": "2026-10-22T23:07:08Z",
+                  "message": "all-observed-roles-within-policy",
+                  "phase": "Successful",
+                  "startedAt": "2026-10-22T23:07:08Z",
+                  "value": "{\"schema\":\"account-verdict-v1\",\"verdict\":\"passed\",\"reasons\":[\"all-observed-roles-within-policy\"],\"window_start\":1792710128,\"window_end\":1792710428,\"window_seconds\":300,\"analysis_run\":\"account-release-75f84fbff9-2-1\",\"analysis_run_uid\":\"e31a2100-ce41-4e2f-acfc-f699c7e4a399\",\"roles\":{\"candidate\":{\"revision_hash\":\"75f84fbff9\",\"image\":\"ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df\",\"pod_count\":1,\"pods\":[{\"uid\":\"1ec1ec1b-50b2-4b5a-9862-2e2b2ed7e2ed\",\"replica_set_uid\":\"01229626-8f58-4c0c-8a33-1a1f3eb98577\",\"image_id\":\"ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df\",\"source_commit\":\"f0425a9c0a70c200fbeb5a549bc8b631bf5a1906\",\"restarts\":0,\"started_at\":\"2026-10-22T23:02:02Z\"}],\"requests\":190.25,\"availability\":1,\"latency_fraction\":1},\"stable\":{\"revision_hash\":\"f9c59c964\",\"image\":\"ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e\",\"pod_count\":2,\"pods\":[{\"uid\":\"4fa8d9e1-c3c7-4f18-9f6b-8fb582fc4487\",\"replica_set_uid\":\"a60a658e-6a79-49a5-9d13-154a790c0f60\",\"image_id\":\"ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e\",\"source_commit\":\"e030275abbf52ecd27b7152ce597b3d89be3f830\",\"restarts\":0,\"started_at\":\"2026-10-22T22:58:20Z\"},{\"uid\":\"9ef0e50f-0c30-4884-ae4d-ca15772c32cf\",\"replica_set_uid\":\"a60a658e-6a79-49a5-9d13-154a790c0f60\",\"image_id\":\"ghcr.io/syuhei0519/backend-app@sha256:d48a702e247e884d0da54cd8d9a09b58ba45aa7fe76627014f1135313bc1a86e\",\"source_commit\":\"e030275abbf52ecd27b7152ce597b3d89be3f830\",\"restarts\":0,\"started_at\":\"2026-10-22T22:58:20Z\"}],\"requests\":1722.3051480256458,\"availability\":1,\"latency_fraction\":1}},\"policy\":{\"availability_min\":0.99,\"latency_bucket_seconds\":0.25,\"latency_fraction_min\":0.95,\"minimum_requests\":20,\"query_timeout_seconds\":5}}"
+                }
+              ],
+              "message": "all-observed-roles-within-policy",
+              "metadata": {
+                "policy": "account-v1",
+                "source": "controller-metric-plugin",
+                "windowSeconds": "300"
+              },
+              "name": "account-policy",
+              "phase": "Successful",
+              "successful": 1
+            }
+          ],
+          "phase": "Successful",
+          "runSummary": {
+            "count": 1,
+            "successful": 1
+          },
+          "startedAt": "2026-10-22T23:02:08Z"
+        }
+      },
+      {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AnalysisRun",
+        "metadata": {
+          "creationTimestamp": "2026-10-22T23:07:08Z",
+          "generation": 2,
+          "labels": {
+            "app": "account-release",
+            "rollout-type": "Step",
+            "rollouts-pod-template-hash": "75f84fbff9",
+            "step-index": "3"
+          },
+          "name": "account-release-75f84fbff9-2-3",
+          "namespace": "learning-account-release",
+          "ownerReferences": [
+            {
+              "apiVersion": "argoproj.io/v1alpha1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Rollout",
+              "name": "account-release",
+              "uid": "b4367176-789d-4143-97fb-31630a9dc7db"
+            }
+          ],
+          "resourceVersion": "3535",
+          "uid": "fbed5230-12f6-4067-8aa6-f31b9ce46bbe",
+          "annotations": {
+            "rollout.argoproj.io/revision": "2"
+          }
+        },
+        "spec": {
+          "args": [
+            {
+              "name": "stable-hash",
+              "value": "f9c59c964"
+            },
+            {
+              "name": "candidate-hash",
+              "value": "75f84fbff9"
+            },
+            {
+              "name": "stage",
+              "value": "50"
+            }
+          ],
+          "metrics": [
+            {
+              "consecutiveErrorLimit": 0,
+              "count": 1,
+              "failureLimit": 0,
+              "inconclusiveLimit": 0,
+              "initialDelay": "300s",
+              "name": "account-policy",
+              "provider": {
+                "plugin": {
+                  "learning-local/account-policy": {
+                    "candidateHash": "{{args.candidate-hash}}",
+                    "stableHash": "{{args.stable-hash}}",
+                    "stage": "{{args.stage}}"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "status": {
+          "dryRunSummary": {},
+          "phase": "Running",
+          "runSummary": {
+            "count": 1
+          },
+          "startedAt": "2026-10-22T23:07:08Z"
+        }
+      }
+    ],
+    "kind": "List",
+    "metadata": {
+      "resourceVersion": ""
+    }
+  }
+}

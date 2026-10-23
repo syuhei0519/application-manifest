@@ -1,0 +1,31 @@
+app:
+  title: Account リリース
+  baseUrl: http://127.0.0.1:3000
+organization:
+  name: Account release lab
+backend:
+  baseUrl: http://127.0.0.1:7007
+  listen: {host: 127.0.0.1, port: 7007}
+  cors:
+    origin: http://127.0.0.1:3000
+    methods: [GET, POST]
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+auth:
+  providers: {}
+  clientIdMetadataDocuments: {enabled: false}
+permission:
+  enabled: true
+catalog:
+  readonly: true
+  rules:
+    - allow: [Component, System, Group, User]
+  locations:
+    - type: file
+      target: ../../catalog/account.yaml
+accountRelease:
+  writesEnabled: false
+  allowedActors: []
+  mode: disconnected

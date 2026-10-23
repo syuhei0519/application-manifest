@@ -120,13 +120,13 @@ def _snapshot(payload, timestamps, versions, boundary, client_boundary, after=Fa
     return result
 
 
-def verify_traffic(evidence):
+def verify_traffic(evidence, *, expected_target=TARGET):
     """Exact counter deltas during an exclusive, quiescent request window.
 
     Caller preserves raw Prometheus replies + client results and controller snapshots.
     Series changes/resets and missing scope fail closed; no Pod-ratio inference.
     """
-    require(evidence['target'] == TARGET, 'wrong-target')
+    require(evidence['target'] == expected_target, 'wrong-target')
     stage = evidence['weight']
     require(type(stage) is int and stage in ROUTING, 'invalid-weight')
     require(evidence['observed_weights'] == {'stable': 100 - stage, 'candidate': stage}, 'routing-drift')

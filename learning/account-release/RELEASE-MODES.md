@@ -83,3 +83,11 @@ python learning/account-release/validate_upstream.py --platform "$PLATFORM" --pr
 
 172/173/174/176 は Backstage 基盤の所在/最小追加範囲の確認待ち。177以降を開始しない。
 新規 kind/credential/RBAC/security 操作と PR merge は未承認。未検証AC・未統合PRを Done としない。
+
+
+## 2026-10-23 再開結果への追記
+
+上記は作成・初期静的実装時の履歴です。最小Backstage、Git/操作adapter、実測receipt検証、
+部分的な専用kind試験と清掃、最新のAC別未実証項目を
+[PLAT-171-176-handoff.md](PLAT-171-176-handoff.md) に記録しました。
+PR #43はdraft・未統合、171〜176は未完了です。新規環境・認証・権限の設定は再開範囲外です。

@@ -93,6 +93,10 @@ class ModesTests(unittest.TestCase):
                     str(ROOT/'chart'),'-n','learning-account-release','-f',str(p)],text=True)
                 docs={d['kind']:d for d in yaml.safe_load_all(render)}
                 canary=docs['Rollout']['spec']['strategy']['canary']
+                # v1.10.1 removes false paused; Kubernetes defaults port TCP.
+                # Spell the stable serialized form to avoid permanent OutOfSync.
+                self.assertNotIn('paused',docs['Rollout']['spec'])
+                self.assertEqual(docs['Rollout']['spec']['template']['spec']['containers'][0]['ports'][0]['protocol'],'TCP')
                 route=docs['VirtualService']['spec']['http'][0]['route']
                 if strategy=='Rolling':
                     self.assertEqual(set(canary),{'maxSurge','maxUnavailable'})
