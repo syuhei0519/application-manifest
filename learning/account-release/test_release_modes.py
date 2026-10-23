@@ -126,6 +126,11 @@ class ModesTests(unittest.TestCase):
             self.assertNotEqual(observe(bad)['state'],'succeeded')
         r['status']['conditions']=[dict(type='Progressing',status='False',reason='ProgressDeadlineExceeded')]
         self.assertEqual(observe(r)['state'],'recovering')
+        self.assertEqual(observe(r)['reason'],'runtime-progress-deadline-exceeded')
+        self.assertEqual(observe(r)['actions'],[])
+        r['status']['abort']=True
+        self.assertEqual(observe(r)['state'],'recovering')
+        self.assertEqual(observe(r)['reason'],'runtime-aborted')
         self.assertEqual(observe(r)['actions'],[])
 
     def test_auto_requires_controller_analysis_and_no_manual_pause(self):
