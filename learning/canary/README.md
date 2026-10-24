@@ -1,5 +1,11 @@
 # Account 手動Canaryと復帰
 
+> Historical learning record. Its manual deployment route is retired for the existing kind.
+> Use the [Git/PR → Argo deployment contract](https://github.com/syuhei0519/platform-gitops/blob/main/learning/existing-kind/DEPLOYMENT.md).
+> The [original commands at fixed SHA](https://github.com/syuhei0519/application-manifest/blob/01ab7fc8c9c39f204957c6f06d7fc79c400e8b91/learning/canary/README.md)
+> remain available as historical evidence, not as a current execution procedure.
+
+
 既存 `learning/chart` は変更していません。このAPI専用chartの明示利用時だけRolloutへ移行します。
 既定の描画対象はAccount Rolloutと3 Servicesだけ。DB/DB Service/PVC/Secret/migration Jobを含みません。
 Issue #11の明示opt-in時だけAnalysisTemplateを追加します。HTTP providerは別のlocal Test専用fixtureです。
@@ -103,7 +109,6 @@ k scale deployment/learning-account --replicas=0
 k wait --for=delete pod -l learning.local/workload=learning-account --timeout=120s
 # 元Deploymentは0のまま保持。ここから初回Rollout ReadyまでAPI停止時間がある。
 # 承認済みApplication（good）を登録し、pruneなしで初回手動sync。
-c apply -f "$GITOPS_APPLICATION"
 c patch application learning-account --type=merge \
   -p "{\"operation\":{\"sync\":{\"revision\":\"$MANIFEST_COMMIT\",\"prune\":false,\"syncOptions\":[\"RespectIgnoreDifferences=true\"]}}}"
 # 上記のoperation終了確認（空 / Succeeded）後にRolloutを確認する。
@@ -212,9 +217,7 @@ c get application learning-account \
 c annotate application learning-account argocd.argoproj.io/skip-reconcile=true --overwrite
 c delete application learning-account --cascade=orphan
 # 一時的に両Workloadが存在する意図した復帰区間。先に元APIをReadyにする。
-k apply -f "$OUT/deployment-workload.yaml"
 k rollout status deployment/learning-account --timeout=300s
-k apply -f "$OUT/deployment-service.yaml"
 # Serviceが元selectorを持ち、API/基準行GETが成功してからRolloutを解除。
 k delete rollout learning-account-canary --cascade=foreground --wait=true
 k delete service learning-account-stable learning-account-canary
@@ -324,7 +327,6 @@ Cloudで以下を描画します。Applicationのchart/path/valueFilesは変更�
 helm template learning-account-analysis-provider learning/canary/fixture \
   --namespace "$NAMESPACE" --kube-version 1.36.4 --set-string owner="$OWNER" > "$OUT/provider-fixture.yaml"
 # local Test: 同名資源の不在、context/namespace/ownerと描画3資源を照合してから実行。
-k apply -f "$OUT/provider-fixture.yaml"
 k rollout status deployment/learning-account-analysis-provider --timeout=120s
 # Ready/Service endpointを確認後にのみAccount Applicationを同期する。
 # 試験終了・Account復帰後: 所有UID/labelと他利用なしを再確認する。

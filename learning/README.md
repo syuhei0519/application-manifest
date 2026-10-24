@@ -1,5 +1,11 @@
 # 学習専用: Account / Order → Payment / Notification
 
+> Historical learning record. Its manual deployment route is retired for the existing kind.
+> Use the [Git/PR → Argo deployment contract](https://github.com/syuhei0519/platform-gitops/blob/main/learning/existing-kind/DEPLOYMENT.md).
+> The [original commands at fixed SHA](https://github.com/syuhei0519/application-manifest/blob/01ab7fc8c9c39f204957c6f06d7fc79c400e8b91/learning/README.md)
+> remain available as historical evidence, not as a current execution procedure.
+
+
 既存の `charts/`、GitOps observer、正式release validatorとは独立した手動配備経路です。
 1サービスごとにAPI Deployment/ClusterIP Service、専用PostgreSQL StatefulSet/Service、
 PVC、初期化ConfigMap、migration Jobを描画します。まずAccount/Orderを受け入れ、
@@ -150,11 +156,8 @@ Account、Orderの順で下記を実行し、受入後にPayment、Notification�
 
 ```bash
 D="$BUNDLE/$SERVICE/learning-service/templates"
-k apply -f "$D/database.yaml"
 k rollout status "statefulset/learning-$SERVICE-db" --timeout=300s
-k apply -f "$D/migration.yaml"
 k wait --for=condition=complete "job/learning-$SERVICE-migration" --timeout=200s
-k apply -f "$D/api.yaml"
 k rollout status "deployment/learning-$SERVICE" --timeout=300s
 ```
 

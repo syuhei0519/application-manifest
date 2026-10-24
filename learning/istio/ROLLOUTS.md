@@ -1,5 +1,11 @@
 # Rollouts → Istio subset routing（Refs #14）
 
+> Historical learning record. Its manual deployment route is retired for the existing kind.
+> Use the [Git/PR → Argo deployment contract](https://github.com/syuhei0519/platform-gitops/blob/main/learning/existing-kind/DEPLOYMENT.md).
+> The [original commands at fixed SHA](https://github.com/syuhei0519/application-manifest/blob/01ab7fc8c9c39f204957c6f06d7fc79c400e8b91/learning/istio/ROLLOUTS.md)
+> remain available as historical evidence, not as a current execution procedure.
+
+
 このシナリオは `learning-istio-demo` の **fixture GET `/version`** を対象にする。
 既存 Account は mesh に参加させず、同じ代表 CRUD を前後で実行して非影響を確認する。
 fixture の割合成功を Account 自体の canary / DB 保全の証拠に置き換えない。
@@ -126,7 +132,6 @@ r() { kubectl argo rollouts --context "$ISTIO_CONTEXT" -n learning-istio-demo "$
 # 各source変更前にoperationが空で以前のsyncが終端であることを確認する。
 source_revision() {
   python3 learning/istio/rollout_application.py --control-namespace "$CONTROL_NAMESPACE" --manifest-commit "$MANIFEST_COMMIT" --revision "$1" --output "$PRIVATE_OUT/app-$1.yaml"
-  c apply -f "$PRIVATE_OUT/app-$1.yaml"
 }
 sync_demo() {
   c patch application mesh-rollout --type merge -p '{"operation":{"sync":{"prune":false,"syncOptions":["RespectIgnoreDifferences=true"]}}}'
