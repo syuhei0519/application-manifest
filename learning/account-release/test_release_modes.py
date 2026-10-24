@@ -12,6 +12,7 @@ import yaml
 from contract import Rejected, evaluate_metrics
 from release_modes import desired_documents, runtime_status, switch_plan, validate_request
 from test_integration import CATALOG, IMAGES
+from deployment_target import CONTROL_NAMESPACE
 
 ROOT = Path(__file__).resolve().parent
 
@@ -194,7 +195,7 @@ class ModesTests(unittest.TestCase):
             obj('Deployment','learning-rollouts',spec=dict(template=dict(spec=dict(serviceAccountName='learning-rollouts',
                 containers=[dict(image=BASE_IMAGE,securityContext=dict(readOnlyRootFilesystem=True))],
                 volumes=[dict(name='plugin-bin',emptyDir={})]))))],
-            'control.yaml':[dict(apiVersion='v1',kind='ConfigMap',metadata=dict(name='argocd-cm',namespace='learning-account-control'),
+            'control.yaml':[dict(apiVersion='v1',kind='ConfigMap',metadata=dict(name='argocd-cm',namespace=CONTROL_NAMESPACE),
                 data={'resource.inclusions':'[]'})]}
         original=copy.deepcopy(source)
         result=analysis_overlay(source,'learning.local/account-rollouts@sha256:'+'a'*64,'b'*64)

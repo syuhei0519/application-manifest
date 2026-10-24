@@ -11,6 +11,7 @@ import json
 from contract import TARGET, Rejected, require, validate_catalog
 from integration import verify_traffic
 from release_modes import runtime_status
+from deployment_target import CONTEXT, CONTROL_NAMESPACE, ROLLOUTS_NAMESPACE, GIT_BRANCH
 
 NS='learning-account-release'
 HOST='account-release.learning-account-release.svc.cluster.local'
@@ -19,8 +20,8 @@ HOST='account-release.learning-account-release.svc.cluster.local'
 def verify_controller_restarts(receipt,earliest,latest):
     controllers=receipt.get('controllers',{})
     require(set(controllers)=={'rollouts','argocd'},'controller-restart-evidence-required')
-    for key,kind,name,namespace in [('rollouts','Deployment','learning-rollouts',NS),
-                          ('argocd','StatefulSet','argocd-application-controller','learning-account-control')]:
+    for key,kind,name,namespace in [('rollouts','Deployment','learning-rollouts',ROLLOUTS_NAMESPACE),
+                          ('argocd','StatefulSet','argocd-application-controller',CONTROL_NAMESPACE)]:
         pair=controllers[key];before,after=pair['before'],pair['after']
         require(earliest<=before['at']<after['at']<=latest,'controller-restart-window-invalid')
         ids=[];identity=None
@@ -51,7 +52,7 @@ def digest(receipt):
 
 
 def verify(receipt,current,catalog,now,*,phase=None):
-    require(receipt.get('schema')=='account-runtime-receipt-v1' and receipt.get('context')=='kind-plat171-account',
+    require(receipt.get('schema')=='account-runtime-receipt-v1' and receipt.get('context')==CONTEXT,
             'receipt-target-unverified')
     require(receipt.get('kind') in ('completion','recovery'),'invalid-receipt-kind')
     recovering=receipt['kind']=='recovery'
@@ -71,6 +72,8 @@ def verify(receipt,current,catalog,now,*,phase=None):
             require(ro['metadata'][key]==value,'receipt-runtime-identity-mismatch')
         require(ro['status']['currentPodHash']==current['revision'],'receipt-revision-mismatch')
         revision=current['git_revision']
+        require(app['metadata']['name']=='account-release' and app['metadata']['namespace']==CONTROL_NAMESPACE and
+                app['metadata']['uid']==current['application_uid'],'receipt-application-identity-mismatch')
         require(app['spec']['source']['targetRevision']==revision and app['status']['sync']['revision']==revision and
                 app['status']['sync']['status']=='Synced' and not app.get('operation') and
                 app['status']['operationState']['phase']=='Succeeded','receipt-git-not-synced')
@@ -116,7 +119,7 @@ def verify(receipt,current,catalog,now,*,phase=None):
     traffic=receipt['traffic']
     require(before['at']<=traffic['start']<traffic['end']<=after['at'],'receipt-traffic-window-mismatch')
     require(traffic['images']['stable']==expected_image and traffic['weight']==0,'receipt-traffic-image-mismatch')
-    actual=verify_traffic(traffic,expected_target=dict(TARGET,context='kind-plat171-account'))
+    actual=verify_traffic(traffic,expected_target=TARGET)
     require(actual['stable']==200 and actual['candidate']==0,'receipt-traffic-not-restored')
     restart=False
     if receipt.get('pre_restart'):
@@ -125,7 +128,7 @@ def verify(receipt,current,catalog,now,*,phase=None):
         require(pre['rollout_uid']==current['rollout_uid'] and pre['git_revision']==current['git_revision'] and
                 pre['image']==expected_image and pre['at']<=finished<=before['at'] and
                 set(pre['pod_uids']) and not (set(pre['pod_uids'])&pod_sets[1]) and
-                operation['operation']['sync']['revision']==current['git_revision'],'receipt-resync-restart-unverified')
+                operation.get('syncResult',{}).get('revision')==current['git_revision'],'receipt-resync-restart-unverified')
         verify_controller_restarts(receipt,pre['at'],before['at'])
         restart=True
     return {'traffic_health_verified':True,'resync_restart_verified':restart,'verified_at':after['at'],

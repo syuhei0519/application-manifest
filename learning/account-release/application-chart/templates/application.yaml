@@ -1,0 +1,45 @@
+{{- if or (ne .Release.Namespace "learning-progressive-control") (ne .Release.Name "account-release-definition") -}}
+{{- fail "fixed existing-kind definition target required" -}}
+{{- end -}}
+{{- if not (has .Values.strategy (list "Canary" "Rolling")) -}}
+{{- fail "reviewed release strategy required" -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" .Values.manifestRevision) -}}
+{{- fail "resolved Git commit from Argo build environment required" -}}
+{{- end -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: account-release
+  namespace: learning-progressive-control
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  project: account-release
+  source:
+    repoURL: https://github.com/syuhei0519/application-manifest.git
+    targetRevision: {{ .Values.manifestRevision | quote }}
+    path: learning/account-release/chart
+    helm:
+      releaseName: account-release
+      valueFiles: [../runtime-profile.yaml]
+  destination:
+    server: https://kubernetes.default.svc.cluster.local:443
+    namespace: learning-account-release
+  syncPolicy:
+    syncOptions: [RespectIgnoreDifferences=true]
+  {{- if eq .Values.strategy "Rolling" }}
+  ignoreDifferences: []
+  {{- else }}
+  ignoreDifferences:
+    - group: networking.istio.io
+      kind: VirtualService
+      name: account-release
+      namespace: learning-account-release
+      jsonPointers: [/spec/http/0/route/0/weight, /spec/http/0/route/1/weight]
+    - group: networking.istio.io
+      kind: DestinationRule
+      name: account-release
+      namespace: learning-account-release
+      jsonPointers: [/spec/subsets/0/labels/rollouts-pod-template-hash, /spec/subsets/1/labels/rollouts-pod-template-hash]
+  {{- end }}

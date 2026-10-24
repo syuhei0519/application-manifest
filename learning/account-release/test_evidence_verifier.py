@@ -7,6 +7,7 @@ from evidence_verifier import verify,HOST,NS
 from integration import image_revision
 from test_control_adapter import FIXTURE,CATALOG
 from test_integration import fixture
+from deployment_target import CONTEXT, CONTROL_NAMESPACE, ROLLOUTS_NAMESPACE
 
 
 def receipt():
@@ -15,7 +16,8 @@ def receipt():
     ro['status'].update(phase='Healthy',replicas=2,readyReplicas=2,updatedReplicas=2,availableReplicas=2,
                         stableRS=revision,currentStepIndex=6)
     app['status']['sync']['status']='Synced';app['status']['operationState'].update(phase='Succeeded',finishedAt='1970-01-01T00:15:50Z')
-    current=dict(rollout_uid=ro['metadata']['uid'],generation=ro['metadata']['generation'],git_revision=app['spec']['source']['targetRevision'],
+    app['status']['operationState']['syncResult']={'revision':app['status']['sync']['revision']}
+    current=dict(rollout_uid=ro['metadata']['uid'],application_uid=app['metadata']['uid'],generation=ro['metadata']['generation'],git_revision=app['status']['sync']['revision'],
                  requested_image=current_image,current_image=current_image,revision=revision,strategy='Canary',promotion_mode='auto')
     rs={'metadata':{'uid':'rs-new','labels':{'rollouts-pod-template-hash':revision},
         'ownerReferences':[{'uid':current['rollout_uid'],'controller':True}]},'spec':{'replicas':2},'status':{'readyReplicas':2}}
@@ -29,14 +31,14 @@ def receipt():
     state['destinationrule']={'metadata':{'name':'account-release','namespace':NS},'spec':{'host':HOST,
         'subsets':[{'name':'stable','labels':{'rollouts-pod-template-hash':revision}}]}}
     before=copy.deepcopy(state);after=copy.deepcopy(state);before['at']=999;after['at']=1110
-    traffic=fixture(0);traffic['target']=dict(TARGET,context='kind-plat171-account')
+    traffic=fixture(0);traffic['target']=dict(TARGET)
     other=next(e['image'] for e in CATALOG if e['image']!=current_image)
     old=traffic['images'];traffic['images']={'stable':current_image,'candidate':other}
     for key in ('before','after','before_timestamps','after_timestamps'):
         for item in traffic[key]['data']['result']:
             role=next(k for k,v in old.items() if image_revision(v)==item['metric']['destination_version'])
             item['metric']['destination_version']=image_revision(traffic['images'][role])
-    return {'schema':'account-runtime-receipt-v1','context':'kind-plat171-account','kind':'completion',
+    return {'schema':'account-runtime-receipt-v1','context':CONTEXT,'kind':'completion',
             'before':before,'after':after,'traffic':traffic},current
 
 
@@ -81,7 +83,7 @@ class EvidenceTests(unittest.TestCase):
         data,current=receipt();result=verify(data,current,CATALOG,1111)
         self.assertTrue(result['traffic_health_verified']);self.assertFalse(result['resync_restart_verified'])
     def test_missing_mixed_stale_and_error_receipts_are_not_completion(self):
-        mutations=[lambda d:d.update(context='kind-shared'),lambda d:d['after'].update(at=1),
+        mutations=[lambda d:d.update(context='kind-shared'),lambda d:d.update(context='kind-plat171-account'),lambda d:d['after'].update(at=1),
             lambda d:d['after']['rollout']['metadata'].update(uid='foreign'),
             lambda d:d['after']['application']['status']['sync'].update(status='OutOfSync'),
             lambda d:d['after']['pods']['items'][0]['status']['containerStatuses'][0].update(ready=False),
@@ -101,7 +103,7 @@ class EvidenceTests(unittest.TestCase):
             pair={}
             for index,side in enumerate(('before','after')):
                 owner=key+'-rs' if kind=='Deployment' else key
-                pair[side]={'at':910+index*10,'workload':{'kind':kind,'metadata':{'uid':key,'name':name,'namespace':NS if key=='rollouts' else 'learning-account-control','generation':1},
+                pair[side]={'at':910+index*10,'workload':{'kind':kind,'metadata':{'uid':key,'name':name,'namespace':ROLLOUTS_NAMESPACE if key=='rollouts' else CONTROL_NAMESPACE,'generation':1},
                     'spec':{'replicas':1,'template':{'spec':{'containers':[{'name':key,'image':'fixed-controller'}]}}},
                     'status':{'observedGeneration':1,'readyReplicas':1}},
                     'replicasets':{'items':[{'metadata':{'uid':owner,'ownerReferences':[{'uid':key,'controller':True}]}}]},

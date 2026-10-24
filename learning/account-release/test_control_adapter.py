@@ -8,10 +8,26 @@ from types import SimpleNamespace
 from contract import Rejected
 from control_adapter import LiveAdapter, PROFILE, REPOSITORY
 from operations import Coordinator
+from deployment_target import CONTEXT, CONTROL_NAMESPACE, SERVER, DEFINITION
 
 ROOT=Path(__file__).parent
 CATALOG=json.loads((ROOT/'image-catalog.reviewed.json').read_text())
 FIXTURE=json.loads((ROOT/'fixtures/control-observation.json').read_text())
+# Retain historical receipts on disk; bind this synthetic fixture to the active
+# fixed target in memory. No old trial success is reclassified as acceptance.
+FIXTURE['application']['metadata']['namespace']=CONTROL_NAMESPACE
+FIXTURE['application']['spec']['source']['targetRevision']=FIXTURE['application']['status']['sync']['revision']
+FIXTURE['application']['spec']['destination']['server']=SERVER
+FIXTURE['definition']=copy.deepcopy(FIXTURE['application'])
+FIXTURE['definition']['metadata'].update(name=DEFINITION,uid='definition-uid')
+FIXTURE['definition']['spec']={'project':'learning-existing','destination':{'server':SERVER,'namespace':CONTROL_NAMESPACE},
+    'source':{'repoURL':'https://github.com/syuhei0519/application-manifest.git','targetRevision':'main',
+              'path':'learning/account-release/application-chart','helm':{'releaseName':DEFINITION,'valueFiles':['../runtime-profile.yaml'],
+                    'parameters':[{'name':'manifestRevision','value':'$ARGOCD_APP_REVISION','forceString':True}]}},
+    'syncPolicy':{'syncOptions':['RespectIgnoreDifferences=true']}}
+FIXTURE['definition']['status']['operationState']['phase']='Succeeded'
+FIXTURE['definition']['status']['sync']['status']='Synced'
+FIXTURE['definition'].pop('operation',None)
 
 
 class AdapterTests(unittest.TestCase):
@@ -19,14 +35,15 @@ class AdapterTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.data=copy.deepcopy(FIXTURE);self.calls=[]
         self.now=FIXTURE['at']
-        self.config=dict(kubeconfig=str(Path(self.tmp.name)/'config'),context='kind-plat171-account',
+        self.config=dict(kubeconfig=str(Path(self.tmp.name)/'config'),context=CONTEXT,
             rollout_uid=self.data['rollout']['metadata']['uid'],application_uid=self.data['application']['metadata']['uid'],
-            token_expires_at=self.now+3600,git_base_branch='trial/plat171-account-20261022',
+            definition_application_uid='definition-uid',session_started_at=self.now,session_expires_at=self.now+86400,
+            token_expires_at=self.now+3600,git_base_branch='main',
             gh_wrapper=r'C:\Users\espoi\.codex\bin\gh.ps1',powershell='/bin/powershell',kubectl='/bin/kubectl',
             state_file=str(Path(self.tmp.name)/'state.json'),approved_bootstrap_revisions=['a'*40])
         self.adapter=LiveAdapter(self.config,CATALOG,runner=self.command,clock=lambda:self.now)
         self.adapter.get=lambda kind,name=None,namespace=None:copy.deepcopy(self.data[{
-            'rollout':'rollout','application':'application','replicasets':'replicasets','analysisruns':'analysis'}[kind]])
+            'rollout':'rollout','application':'application','definition':'definition','replicasets':'replicasets','analysisruns':'analysis'}[kind]])
         image=self.data['rollout']['spec']['template']['spec']['containers'][0]['image']
         entry=next(e for e in CATALOG if e['image']==image)
         from integration import image_revision
@@ -87,6 +104,39 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaises(Rejected):self.adapter.gh('POST','repos/another/repo/pulls',{})
         with self.assertRaises(Rejected):self.adapter._update_branch('main','a'*40,'b'*40)
         self.assertEqual(self.calls,[])
+
+    def test_deleted_context_and_unbounded_session_are_rejected(self):
+        for change in [dict(context='kind-plat171-account'),dict(git_base_branch='trial/plat171-account-20261022'),
+                       dict(session_expires_at=self.now+86401)]:
+            with self.assertRaises(Rejected):LiveAdapter(dict(self.config,**change),CATALOG,runner=self.command,clock=lambda:self.now)
+        self.assertEqual(self.calls,[])
+
+    def test_definition_then_workload_sync_never_patches_git_owned_spec(self):
+        current=self.adapter.observe();new='b'*40
+        phase=dict(image=current['current_image'],name='activate-mode',strategy='Canary',promotion_mode='auto')
+        expected={'identity':Coordinator.identity(current),'phase':0,'phases':[phase]}
+        self.adapter.reviewed=lambda *args:{'html_url':'https://github.com/syuhei0519/application-manifest/pull/99'}
+        self.adapter.verified_merge=lambda *args:(new,phase)
+        self.data['application']['status']['operationState']['phase']='Succeeded'
+        self.data['application'].pop('operation',None)
+        prepared=self.adapter.prepare_reviewed('request-001-phase-0',expected)
+        self.adapter.dispatch_reviewed(prepared)
+        self.assertFalse(self.adapter.sync_workload_after_definition(new,phase,expected))
+        self.assertEqual(len(self.calls),1)
+        self.data['definition']['status']['sync']['revision']=new
+        self.data['application']['spec']['source']['targetRevision']=new
+        self.assertFalse(self.adapter.sync_workload_after_definition(new,phase,expected))
+        self.assertEqual(len(self.calls),2)
+        for index,(args,kwargs) in enumerate(self.calls):
+            patch=json.loads(args[args.index('-p')+1])
+            self.assertTrue(all(x['op']=='test' or x['path']=='/operation' for x in patch))
+            self.assertFalse(patch[-1]['value']['sync']['prune'])
+            self.assertEqual(patch[-1]['value']['sync']['revision'],'main' if index==0 else new)
+        self.assertIn(DEFINITION,self.calls[0][0]);self.assertIn('account-release',self.calls[1][0])
+        self.data['application']['operation']=copy.deepcopy(prepared['patch'][-1]['value'])
+        self.data['application']['operation']['sync']['revision']=new
+        self.assertFalse(self.adapter.sync_workload_after_definition(new,phase,expected))
+        self.assertEqual(len(self.calls),2)
 
     def test_restore_proof_requires_full_identity_and_fresh_receipt(self):
         current=self.adapter.observe();proof={k:current[k] for k in ('rollout_uid','generation','git_revision','requested_image','revision')}
@@ -196,13 +246,17 @@ class AdapterTests(unittest.TestCase):
         expected={'identity':Coordinator.identity(current),'phase':0,'phases':[phase]}
         prepared=self.adapter.prepare_reviewed('activate-001-phase-0',expected)
         sync=prepared['patch'][-1]['value']['sync']
-        self.assertEqual(sync['syncOptions'],['RespectIgnoreDifferences=false'])
+        self.assertEqual(prepared['workload_sync_options'],['RespectIgnoreDifferences=false'])
+        self.assertTrue(all(p['op']=='test' or p['path']=='/operation' for p in prepared['patch']))
         self.assertFalse(sync['prune']);self.assertEqual(self.calls,[])
         self.assertEqual(self.data['application']['spec']['syncPolicy']['syncOptions'],['RespectIgnoreDifferences=true'])
         for key,value in [('stable_traffic_verified',False),('git_runtime_drift',True),('state','rolling')]:
             original=current[key];current[key]=value
+            status=self.data['application']['status']['sync']['status']
+            if key=='git_runtime_drift':self.data['application']['status']['sync']['status']='Unknown'
             with self.subTest(key=key),self.assertRaisesRegex(Rejected,'canary-activation-receipt-required'):
                 self.adapter.prepare_reviewed('activate-001-phase-0',expected)
+            self.data['application']['status']['sync']['status']=status
             current[key]=original
         for key,value in [('name','start-image'),('image','foreign'),('bootstrap_hash','foreign')]:
             original=phase[key];phase[key]=value
@@ -211,7 +265,7 @@ class AdapterTests(unittest.TestCase):
             phase[key]=original
         current['strategy']='Canary'
         prepared=self.adapter.prepare_reviewed('activate-001-phase-0',expected)
-        self.assertEqual(prepared['patch'][-1]['value']['sync']['syncOptions'],['RespectIgnoreDifferences=true'])
+        self.assertEqual(prepared['workload_sync_options'],['RespectIgnoreDifferences=true'])
 
     def test_apply_persists_managed_identity_and_previous_before_dispatch(self):
         current=self.adapter.observe();new='b'*40

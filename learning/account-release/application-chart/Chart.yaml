@@ -1,0 +1,4 @@
+apiVersion: v2
+name: account-release-definition
+version: 0.1.0
+type: application

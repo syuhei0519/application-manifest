@@ -1,0 +1,1538 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-account-init
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+data:
+  10-app.sh: '#!/bin/sh
+
+    set -eu
+
+    app_password="$(cat /run/db/app-password)"
+
+    psql --set=ON_ERROR_STOP=1 --set=app_password="$app_password" <<''SQL''
+
+    SELECT format(''CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+    PASSWORD %L'', ''account_app'', :''app_password'') \gexec
+
+    SELECT format(''CREATE DATABASE %I OWNER %I'', ''account'', ''account_app'') \gexec
+
+    SQL
+
+    '
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-notification-init
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: notification
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+data:
+  10-app.sh: '#!/bin/sh
+
+    set -eu
+
+    app_password="$(cat /run/db/app-password)"
+
+    psql --set=ON_ERROR_STOP=1 --set=app_password="$app_password" <<''SQL''
+
+    SELECT format(''CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+    PASSWORD %L'', ''notification_app'', :''app_password'') \gexec
+
+    SELECT format(''CREATE DATABASE %I OWNER %I'', ''notifications'', ''notification_app'')
+    \gexec
+
+    SQL
+
+    '
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-order-init
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: order
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+data:
+  10-app.sh: '#!/bin/sh
+
+    set -eu
+
+    app_password="$(cat /run/db/app-password)"
+
+    psql --set=ON_ERROR_STOP=1 --set=app_password="$app_password" <<''SQL''
+
+    SELECT format(''CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+    PASSWORD %L'', ''order_app'', :''app_password'') \gexec
+
+    SELECT format(''CREATE DATABASE %I OWNER %I'', ''orders'', ''order_app'') \gexec
+
+    SQL
+
+    '
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-payment-init
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: payment
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+data:
+  10-app.sh: '#!/bin/sh
+
+    set -eu
+
+    app_password="$(cat /run/db/app-password)"
+
+    psql --set=ON_ERROR_STOP=1 --set=app_password="$app_password" <<''SQL''
+
+    SELECT format(''CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+    PASSWORD %L'', ''payment_app'', :''app_password'') \gexec
+
+    SELECT format(''CREATE DATABASE %I OWNER %I'', ''payments'', ''payment_app'')
+    \gexec
+
+    SQL
+
+    '
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-account
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  progressDeadlineSeconds: 300
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      learning.local/workload: learning-account
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-10-18T11:15:54+09:00'
+        learning.local/image-config-id: sha256:864b695a3b0bb730e8a6fa8514fdde3b245204e8b23d5ece37fb21f8d8642684
+        learning.local/source-commit: e030275abbf52ecd27b7152ce597b3d89be3f830
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: account
+        learning.local/workload: learning-account
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: PGHOST
+          value: learning-account-db
+        - name: PGPORT
+          value: '5432'
+        - name: PGDATABASE
+          value: account
+        - name: PGUSER
+          value: account_app
+        - name: PGSSLMODE
+          value: disable
+        - name: LOG_LEVEL
+          value: info
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: app-password
+              name: learning-account-db
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://otel-collector.observability.svc.cluster.local:4318
+        - name: DEPLOYMENT_ENVIRONMENT
+          value: local
+        - name: POD_NAMESPACE
+          value: account
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.uid
+        image: local.learning/account:e030275abbf52ecd27b7152ce597b3d89be3f830-864b695a3b0bb730e8a6fa8514fdde3b245204e8b23d5ece37fb21f8d8642684
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: api
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-notification
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: notification
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  progressDeadlineSeconds: 300
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      learning.local/workload: learning-notification
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-10-18T11:49:18+09:00'
+        learning.local/image-config-id: sha256:12de342057e7333c869f05f3cc07a003e670fe56c0bbc013a647d3a022ca2482
+        learning.local/source-commit: e030275abbf52ecd27b7152ce597b3d89be3f830
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: notification
+        learning.local/workload: learning-notification
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: PGHOST
+          value: learning-notification-db
+        - name: PGPORT
+          value: '5432'
+        - name: PGDATABASE
+          value: notifications
+        - name: PGUSER
+          value: notification_app
+        - name: PGSSLMODE
+          value: disable
+        - name: LOG_LEVEL
+          value: info
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: app-password
+              name: learning-notification-db
+        image: local.learning/notification:e030275abbf52ecd27b7152ce597b3d89be3f830-12de342057e7333c869f05f3cc07a003e670fe56c0bbc013a647d3a022ca2482
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: api
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-order
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: order
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  progressDeadlineSeconds: 300
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      learning.local/workload: learning-order
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-10-18T11:49:03+09:00'
+        learning.local/image-config-id: sha256:b6b5819cb7ad0d96a8d30c8fca61db2a6b4d8a2c4c128287274ceadb931e3e8e
+        learning.local/source-commit: 209111860bfd31bdbaf1e3112efa8e5c68bf7acd
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: order
+        learning.local/workload: learning-order
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: PGHOST
+          value: learning-order-db
+        - name: PGPORT
+          value: '5432'
+        - name: PGDATABASE
+          value: orders
+        - name: PGUSER
+          value: order_app
+        - name: PGSSLMODE
+          value: disable
+        - name: LOG_LEVEL
+          value: info
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: app-password
+              name: learning-order-db
+        - name: ORDER_PAYMENT_URL
+          value: http://learning-payment:8080
+        image: local.learning/order:209111860bfd31bdbaf1e3112efa8e5c68bf7acd-b6b5819cb7ad0d96a8d30c8fca61db2a6b4d8a2c4c128287274ceadb931e3e8e
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: api
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-payment
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: payment
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  progressDeadlineSeconds: 300
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      learning.local/workload: learning-payment
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-10-18T11:49:11+09:00'
+        learning.local/image-config-id: sha256:6bf888cb6e39896104c77dce489d56cfc3a7f6befbd0c21aec665703d2883df5
+        learning.local/source-commit: e030275abbf52ecd27b7152ce597b3d89be3f830
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: payment
+        learning.local/workload: learning-payment
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: PGHOST
+          value: learning-payment-db
+        - name: PGPORT
+          value: '5432'
+        - name: PGDATABASE
+          value: payments
+        - name: PGUSER
+          value: payment_app
+        - name: PGSSLMODE
+          value: disable
+        - name: LOG_LEVEL
+          value: info
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: app-password
+              name: learning-payment-db
+        image: local.learning/payment:e030275abbf52ecd27b7152ce597b3d89be3f830-6bf888cb6e39896104c77dce489d56cfc3a7f6befbd0c21aec665703d2883df5
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: api
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /livez
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: tmp
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: learning-account-data
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: account
+  annotations:
+    pv.kubernetes.io/bind-completed: 'yes'
+    pv.kubernetes.io/bound-by-controller: 'yes'
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: learning-20261018-69c763-control-plane
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+  volumeMode: Filesystem
+  volumeName: pvc-9ea2064f-271a-4a97-af7f-110750dc3af6
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: learning-notification-data
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: notification
+  annotations:
+    pv.kubernetes.io/bind-completed: 'yes'
+    pv.kubernetes.io/bound-by-controller: 'yes'
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: learning-20261018-69c763-control-plane
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+  volumeMode: Filesystem
+  volumeName: pvc-3b432a3c-2f56-427d-bc93-ddabd02d0d73
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: learning-order-data
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: order
+  annotations:
+    pv.kubernetes.io/bind-completed: 'yes'
+    pv.kubernetes.io/bound-by-controller: 'yes'
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: learning-20261018-69c763-control-plane
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+  volumeMode: Filesystem
+  volumeName: pvc-9cc73725-b2a9-4aff-81ee-e48bb75d732c
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: learning-payment-data
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: payment
+  annotations:
+    pv.kubernetes.io/bind-completed: 'yes'
+    pv.kubernetes.io/bound-by-controller: 'yes'
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: learning-20261018-69c763-control-plane
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+  volumeMode: Filesystem
+  volumeName: pvc-247463c7-eec2-4942-b50a-25ca810f0387
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-account
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: 10.96.110.1
+  clusterIPs:
+  - 10.96.110.1
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  selector:
+    learning.local/workload: learning-account
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-account-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: None
+  clusterIPs:
+  - None
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: postgresql
+    port: 5432
+    protocol: TCP
+    targetPort: postgresql
+  selector:
+    learning.local/workload: learning-account-db
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-notification
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: notification
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: 10.96.25.96
+  clusterIPs:
+  - 10.96.25.96
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  selector:
+    learning.local/workload: learning-notification
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-notification-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: notification
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: None
+  clusterIPs:
+  - None
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: postgresql
+    port: 5432
+    protocol: TCP
+    targetPort: postgresql
+  selector:
+    learning.local/workload: learning-notification-db
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-order
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: order
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: 10.96.196.140
+  clusterIPs:
+  - 10.96.196.140
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  selector:
+    learning.local/workload: learning-order
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-order-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: order
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: None
+  clusterIPs:
+  - None
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: postgresql
+    port: 5432
+    protocol: TCP
+    targetPort: postgresql
+  selector:
+    learning.local/workload: learning-order-db
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-payment
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: payment
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: 10.96.205.213
+  clusterIPs:
+  - 10.96.205.213
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  selector:
+    learning.local/workload: learning-payment
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-payment-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: payment
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  clusterIP: None
+  clusterIPs:
+  - None
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: postgresql
+    port: 5432
+    protocol: TCP
+    targetPort: postgresql
+  selector:
+    learning.local/workload: learning-payment-db
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: learning-account-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      learning.local/workload: learning-account-db
+  serviceName: learning-account-db
+  template:
+    metadata:
+      annotations:
+        learning.local/image-config-id: sha256:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        learning.local/upstream-digest: sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: account
+        learning.local/workload: learning-account-db
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_DB
+          value: postgres
+        - name: POSTGRES_PASSWORD_FILE
+          value: /run/db/admin-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        image: local.learning/postgresql:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        imagePullPolicy: Never
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: postgresql
+        ports:
+        - containerPort: 5432
+          name: postgresql
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -ec
+            - PGPASSWORD="$(cat /run/db/app-password)" psql -h 127.0.0.1 -U account_app
+              -d account -v ON_ERROR_STOP=1 -tAc 'SELECT 1' | grep -qx 1
+          failureThreshold: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 60
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: data
+        - mountPath: /var/run/postgresql
+          name: run
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /docker-entrypoint-initdb.d
+          name: init
+          readOnly: true
+        - mountPath: /run/db
+          name: credentials
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: learning-account-data
+      - emptyDir: {}
+        name: run
+      - emptyDir: {}
+        name: tmp
+      - configMap:
+          defaultMode: 365
+          name: learning-account-init
+        name: init
+      - name: credentials
+        secret:
+          defaultMode: 288
+          secretName: learning-account-db
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: learning-notification-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: notification
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      learning.local/workload: learning-notification-db
+  serviceName: learning-notification-db
+  template:
+    metadata:
+      annotations:
+        learning.local/image-config-id: sha256:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        learning.local/upstream-digest: sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: notification
+        learning.local/workload: learning-notification-db
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_DB
+          value: postgres
+        - name: POSTGRES_PASSWORD_FILE
+          value: /run/db/admin-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        image: local.learning/postgresql:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        imagePullPolicy: Never
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: postgresql
+        ports:
+        - containerPort: 5432
+          name: postgresql
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -ec
+            - PGPASSWORD="$(cat /run/db/app-password)" psql -h 127.0.0.1 -U notification_app
+              -d notifications -v ON_ERROR_STOP=1 -tAc 'SELECT 1' | grep -qx 1
+          failureThreshold: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 60
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: data
+        - mountPath: /var/run/postgresql
+          name: run
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /docker-entrypoint-initdb.d
+          name: init
+          readOnly: true
+        - mountPath: /run/db
+          name: credentials
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: learning-notification-data
+      - emptyDir: {}
+        name: run
+      - emptyDir: {}
+        name: tmp
+      - configMap:
+          defaultMode: 365
+          name: learning-notification-init
+        name: init
+      - name: credentials
+        secret:
+          defaultMode: 288
+          secretName: learning-notification-db
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: learning-order-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: order
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      learning.local/workload: learning-order-db
+  serviceName: learning-order-db
+  template:
+    metadata:
+      annotations:
+        learning.local/image-config-id: sha256:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        learning.local/upstream-digest: sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: order
+        learning.local/workload: learning-order-db
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_DB
+          value: postgres
+        - name: POSTGRES_PASSWORD_FILE
+          value: /run/db/admin-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        image: local.learning/postgresql:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        imagePullPolicy: Never
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: postgresql
+        ports:
+        - containerPort: 5432
+          name: postgresql
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -ec
+            - PGPASSWORD="$(cat /run/db/app-password)" psql -h 127.0.0.1 -U order_app
+              -d orders -v ON_ERROR_STOP=1 -tAc 'SELECT 1' | grep -qx 1
+          failureThreshold: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 60
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: data
+        - mountPath: /var/run/postgresql
+          name: run
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /docker-entrypoint-initdb.d
+          name: init
+          readOnly: true
+        - mountPath: /run/db
+          name: credentials
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: learning-order-data
+      - emptyDir: {}
+        name: run
+      - emptyDir: {}
+        name: tmp
+      - configMap:
+          defaultMode: 365
+          name: learning-order-init
+        name: init
+      - name: credentials
+        secret:
+          defaultMode: 288
+          secretName: learning-order-db
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: learning-payment-db
+  namespace: learning-services-20261018
+  labels:
+    app.kubernetes.io/part-of: learning-only
+    learning.local/owner: codex-local-learning
+    learning.local/service: payment
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      learning.local/workload: learning-payment-db
+  serviceName: learning-payment-db
+  template:
+    metadata:
+      annotations:
+        learning.local/image-config-id: sha256:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        learning.local/upstream-digest: sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
+      labels:
+        app.kubernetes.io/part-of: learning-only
+        learning.local/owner: codex-local-learning
+        learning.local/service: payment
+        learning.local/workload: learning-payment-db
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_DB
+          value: postgres
+        - name: POSTGRES_PASSWORD_FILE
+          value: /run/db/admin-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        image: local.learning/postgresql:8164afa59e26be9f78959e538d6c9da8553d67e601d8ebd0d5e9cbf558c3986e
+        imagePullPolicy: Never
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 3
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: postgresql
+        ports:
+        - containerPort: 5432
+          name: postgresql
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -ec
+            - PGPASSWORD="$(cat /run/db/app-password)" psql -h 127.0.0.1 -U payment_app
+              -d payments -v ON_ERROR_STOP=1 -tAc 'SELECT 1' | grep -qx 1
+          failureThreshold: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          failureThreshold: 60
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: data
+        - mountPath: /var/run/postgresql
+          name: run
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /docker-entrypoint-initdb.d
+          name: init
+          readOnly: true
+        - mountPath: /run/db
+          name: credentials
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: learning-payment-data
+      - emptyDir: {}
+        name: run
+      - emptyDir: {}
+        name: tmp
+      - configMap:
+          defaultMode: 365
+          name: learning-payment-init
+        name: init
+      - name: credentials
+        secret:
+          defaultMode: 288
+          secretName: learning-payment-db
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate

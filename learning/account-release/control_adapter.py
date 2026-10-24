@@ -19,21 +19,26 @@ from contract import require, validate_catalog
 from integration import REPO, POINTERS, image_revision
 from operations import ID, SHA
 from release_modes import runtime_status
+from deployment_target import CONTEXT, CONTROL_NAMESPACE, SERVER, GIT_BRANCH, DEFINITION
 
 REPOSITORY='syuhei0519/application-manifest'
 PROFILE='learning/account-release/runtime-profile.yaml'
 NS='learning-account-release'
-CONTROL='learning-account-control'
+CONTROL=CONTROL_NAMESPACE
 NAME='account-release'
 
 
 class LiveAdapter:
     def __init__(self,config,catalog,runner=subprocess.run,clock=time.time):
-        allowed={'kubeconfig','context','rollout_uid','application_uid','token_expires_at','git_base_branch',
+        allowed={'kubeconfig','context','rollout_uid','application_uid','definition_application_uid','token_expires_at','session_started_at','session_expires_at','git_base_branch',
                  'gh_wrapper','powershell','kubectl','state_file','approved_bootstrap_revisions'}
         require(set(config)==allowed,'invalid-server-config-fields')
-        require(config['context']=='kind-plat171-account','wrong-trial-context')
-        require(config['git_base_branch']=='trial/plat171-account-20261022','wrong-git-base')
+        require(config['context']==CONTEXT,'wrong-runtime-context')
+        require(config['git_base_branch']==GIT_BRANCH,'wrong-git-base')
+        require(all(type(config[k]) in (int,float) for k in ('session_started_at','session_expires_at','token_expires_at')) and
+                0<config['session_expires_at']-config['session_started_at']<=86400 and
+                config['session_started_at']<=clock()<config['session_expires_at'] and
+                config['token_expires_at']<=config['session_expires_at'],'invalid-session-window')
         require(config['gh_wrapper']==r'C:\Users\espoi\.codex\bin\gh.ps1','unapproved-github-wrapper')
         require(all(Path(config[k]).is_absolute() for k in ('kubeconfig','state_file','kubectl','powershell')),
                 'absolute-server-path-required')
@@ -58,9 +63,10 @@ class LiveAdapter:
 
     def get(self,kind,name=None,namespace=NS):
         scopes={'rollout':(NS,NAME),'application':(CONTROL,NAME),'virtualservice':(NS,NAME),
+                'definition':(CONTROL,DEFINITION),
                 'destinationrule':(NS,NAME),'pods':(NS,None),'replicasets':(NS,None),'analysisruns':(NS,None)}
         require(kind in scopes and (namespace,name)==scopes[kind],'kubernetes-read-out-of-scope')
-        args=['-n',namespace,'get',kind,*([name] if name else []),'-o','json']
+        args=['-n',namespace,'get','application' if kind=='definition' else kind,*([name] if name else []),'-o','json']
         if kind in ('pods','replicasets'):args+=['-l','app=account-release']
         return self.kube(args)
 
@@ -93,19 +99,33 @@ class LiveAdapter:
 
     def application(self):
         app=self.get('application',NAME,CONTROL)
-        require(app['metadata']['uid']==self.config['application_uid'],'application-replaced')
+        require(app['metadata']['uid']==self.config['application_uid'] and
+                app['metadata']['namespace']==CONTROL and app['metadata']['name']==NAME,'application-replaced')
         spec=app['spec'];source=spec['source']
         require(set(spec)=={'project','source','destination','syncPolicy','ignoreDifferences'},
                 'application-spec-drift')
-        require(spec['project']==NAME and spec['destination']=={'server':'https://kubernetes.default.svc','namespace':NS},
+        require(spec['project']==NAME and spec['destination']=={'server':SERVER,'namespace':NS},
                 'application-target-drift')
         require(source['repoURL']==REPO and source['path']=='learning/account-release/chart' and
                 source['helm']=={'releaseName':NAME,'valueFiles':['../runtime-profile.yaml']} and
-                set(source)=={'repoURL','path','targetRevision','helm'},'application-source-drift')
+                set(source)=={'repoURL','path','targetRevision','helm'} and
+                isinstance(source['targetRevision'],str) and SHA.fullmatch(source['targetRevision']),'application-source-drift')
         require(not spec.get('syncPolicy',{}).get('automated') and
                 spec.get('syncPolicy',{}).get('syncOptions')==['RespectIgnoreDifferences=true'],
                 'application-sync-policy-drift')
         require(not app['metadata'].get('deletionTimestamp'),'application-deleting')
+        return app
+
+    def definition(self):
+        app=self.get('definition',DEFINITION,CONTROL);spec=app['spec']
+        require(app['metadata']['uid']==self.config['definition_application_uid'] and
+                app['metadata']['namespace']==CONTROL and app['metadata']['name']==DEFINITION and
+                not app['metadata'].get('deletionTimestamp'),'definition-identity-drift')
+        require(spec=={'project':'learning-existing','destination':{'server':SERVER,'namespace':CONTROL},
+            'source':{'repoURL':REPO,'targetRevision':GIT_BRANCH,'path':'learning/account-release/application-chart',
+                      'helm':{'releaseName':DEFINITION,'valueFiles':['../runtime-profile.yaml'],
+                              'parameters':[{'name':'manifestRevision','value':'$ARGOCD_APP_REVISION','forceString':True}]}},
+            'syncPolicy':{'syncOptions':['RespectIgnoreDifferences=true']}},'definition-source-drift')
         return app
 
     @staticmethod
@@ -114,7 +134,9 @@ class LiveAdapter:
             namespace=NS,jsonPointers=p) for k,p in POINTERS.items()]
 
     def observe(self):
-        app=self.application();revision=app['spec']['source']['targetRevision'];profile=self.profile(revision)
+        app=self.application();revision=app.get('status',{}).get('sync',{}).get('revision')
+        require(isinstance(revision,str) and SHA.fullmatch(revision),'observed-manifest-revision-required')
+        profile=self.profile(revision)
         require(app['spec'].get('ignoreDifferences')==self.ignored(profile['strategy']),'application-ignore-drift')
         ro=self.get('rollout',NAME)
         self.runtime_binding(ro,profile)
@@ -127,6 +149,7 @@ class LiveAdapter:
         image=next(c['image'] for c in stable_rs[0]['spec']['template']['spec']['containers'] if c['name']=='api')
         require(image in self.images,'stable-image-unverified')
         status.update(current_image=image,git_revision=revision,version=int(ro['metadata']['resourceVersion']),
+            application_uid=app['metadata']['uid'],
             rollout_uid=ro['metadata']['uid'],release_id=ro['metadata']['uid']+'-'+str(ro['metadata']['generation']),
             pause_reasons=sorted(p['reason'] for p in ro.get('status',{}).get('pauseConditions',[])),
             git_runtime_drift=(app.get('status',{}).get('sync',{}).get('status')!='Synced' or
@@ -409,7 +432,7 @@ class LiveAdapter:
         require(all(current[k]==expected['identity'][k] for k in
                     ('rollout_uid','generation','git_revision','requested_image')),'stale-runtime-identity')
         app=self.application()
-        require(app['spec']['source']['targetRevision']==expected['identity']['git_revision'] and not app.get('operation'),
+        require(app['status']['sync']['revision']==expected['identity']['git_revision'] and not app.get('operation'),
                 'application-operation-active')
         # An old failed sync must be examined rather than replaced implicitly.
         require(app.get('status',{}).get('operationState',{}).get('phase')=='Succeeded','prior-sync-not-successful')
@@ -438,30 +461,71 @@ class LiveAdapter:
             # image updates/resyncs retain controller-owned weights/selectors.
             require(phase['name']=='activate-mode' and phase['image']==current['current_image'] and
                     phase.get('bootstrap_hash')==current['revision'] and current['state']=='succeeded' and
-                    current['git_runtime_drift'] is False and current['stable_traffic_verified'] is True,
+                    (current['git_runtime_drift'] is False or (
+                        app['status']['sync']['status']=='OutOfSync' and
+                        current['requested_image']==self.profile(expected['identity']['git_revision'])['image'])) and
+                    current['stable_traffic_verified'] is True,
                     'canary-activation-receipt-required')
             sync_options=['RespectIgnoreDifferences=false']
         # Persist the verified target before dispatch so a lost patch response
         # still leaves its managed identity available for read-only recovery.
-        update(self.config['state_file'],remember)
-        patch=[{'op':'test','path':'/metadata/uid','value':self.config['application_uid']},
-               {'op':'test','path':'/metadata/resourceVersion','value':app['metadata']['resourceVersion']},
-               {'op':'test','path':'/spec','value':app['spec']},
-               {'op':'replace','path':'/spec/source/targetRevision','value':revision},
-               {'op':'replace','path':'/spec/ignoreDifferences','value':self.ignored(phase['strategy'])},
+        def remember_sync(history):
+            remember(history)
+            history.setdefault('reviewed_sync_options',{})[revision]=sync_options
+        update(self.config['state_file'],remember_sync)
+        definition=self.definition()
+        require(not definition.get('operation') and definition.get('status',{}).get('operationState',{}).get('phase')=='Succeeded',
+                'definition-operation-active-or-failed')
+        # Git owns the child spec, including mode-specific ignore pointers. Only
+        # sync operations are patched; no source/ignore spec is written by UI.
+        patch=[{'op':'test','path':'/metadata/uid','value':self.config['definition_application_uid']},
+               {'op':'test','path':'/metadata/resourceVersion','value':definition['metadata']['resourceVersion']},
+               {'op':'test','path':'/spec','value':definition['spec']},
                {'op':'add','path':'/operation','value':{'initiatedBy':{'username':'account-release'},
-                  'sync':{'revision':revision,'prune':False,'syncOptions':sync_options}}}]
-        return {'patch':patch,'commit':revision,'pr_url':pr['html_url']}
+                  'sync':{'revision':GIT_BRANCH,'prune':False,'syncOptions':['RespectIgnoreDifferences=true']}}}]
+        return {'patch':patch,'commit':revision,'pr_url':pr['html_url'],'workload_sync_options':sync_options}
 
     def dispatch_reviewed(self,prepared):
         # Only server-internal preparation can reach this method. The patch has
         # UID/resourceVersion/spec tests, so changed runtime rejects the dispatch.
-        require(set(prepared)=={'patch','commit','pr_url'},'invalid-prepared-operation')
-        self.kube(['-n',CONTROL,'patch','application',NAME,'--type=json','-p',json.dumps(prepared['patch']),'-o','json'])
+        require(set(prepared)=={'patch','commit','pr_url','workload_sync_options'},'invalid-prepared-operation')
+        self.kube(['-n',CONTROL,'patch','application',DEFINITION,'--type=json','-p',json.dumps(prepared['patch']),'-o','json'])
         return {k:prepared[k] for k in ('commit','pr_url')}
 
     def apply_reviewed(self,proposal_id,expected):
         return self.dispatch_reviewed(self.prepare_reviewed(proposal_id,expected))
+
+    def sync_workload_after_definition(self,revision,phase,expected):
+        definition=self.definition()
+        op=definition.get('status',{}).get('operationState',{})
+        require(not (op.get('operation',{}).get('sync',{}).get('revision')==GIT_BRANCH and op.get('phase') in ('Failed','Error')),
+                'definition-sync-failed')
+        if (definition.get('operation') or definition.get('status',{}).get('sync',{}).get('revision')!=revision or
+                definition['status']['sync'].get('status')!='Synced' or op.get('phase')!='Succeeded'):
+            return False
+        app=self.application()
+        require(app['spec']['ignoreDifferences']==self.ignored(phase['strategy']) and
+                app['spec']['source']['targetRevision']==revision,'git-definition-not-observed')
+        if app.get('status',{}).get('sync',{}).get('revision')==revision:return True
+        if app.get('operation'):
+            require(app['operation'].get('sync',{}).get('revision')==revision,'foreign-workload-operation')
+            return False
+        ro=self.get('rollout',NAME)
+        require(ro['metadata']['uid']==expected['identity']['rollout_uid'] and
+                ro['metadata']['generation']==expected['identity']['generation'],'stale-runtime-identity')
+        require(app['status']['sync']['revision']==expected['identity']['git_revision'] and
+                app['status']['operationState']['phase']=='Succeeded','prior-sync-not-successful')
+        history=json.loads(Path(self.config['state_file']).read_text())
+        options=history.get('reviewed_sync_options',{}).get(revision)
+        require(options in (['RespectIgnoreDifferences=true'],['RespectIgnoreDifferences=false']),
+                'reviewed-sync-options-required')
+        patch=[{'op':'test','path':'/metadata/uid','value':self.config['application_uid']},
+               {'op':'test','path':'/metadata/resourceVersion','value':app['metadata']['resourceVersion']},
+               {'op':'test','path':'/spec','value':app['spec']},
+               {'op':'add','path':'/operation','value':{'initiatedBy':{'username':'account-release'},
+                'sync':{'revision':revision,'prune':False,'syncOptions':options}}}]
+        self.kube(['-n',CONTROL,'patch','application',NAME,'--type=json','-p',json.dumps(patch),'-o','json'])
+        return False
 
     def proposal_outcome(self,proposal_id,expected,result):
         full=self.reviewed(proposal_id,expected)
@@ -472,8 +536,10 @@ class LiveAdapter:
             return {'state':'review-pending' if full['state']=='open' else 'outcome-unknown',
                     'pr_url':full['html_url'],'commit':full['head']['sha'],'reason':'git-not-merged'}
         desired,phase=self.verified_merge(full,expected)
+        if not self.sync_workload_after_definition(desired,phase,expected):
+            return {'state':'apply-pending','commit':desired,'pr_url':full['html_url'],'reason':'definition-or-workload-sync-pending'}
         app=self.application()
-        if app['spec']['source']['targetRevision']!=desired:
+        if app['status']['sync']['revision']!=desired or app.get('operation'):
             return {'state':'apply-pending','commit':desired,'pr_url':full['html_url'],'reason':'desired-not-synced'}
         current=self.observe()
         require(current['rollout_uid']==expected['identity']['rollout_uid'] and
