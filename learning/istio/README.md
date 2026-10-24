@@ -1,5 +1,11 @@
 # Istio の重み付き routing（#27 → #28）
 
+> Historical learning record. Its manual deployment route is retired for the existing kind.
+> Use the [Git/PR → Argo deployment contract](https://github.com/syuhei0519/platform-gitops/blob/main/learning/existing-kind/DEPLOYMENT.md).
+> The [original commands at fixed SHA](https://github.com/syuhei0519/application-manifest/blob/01ab7fc8c9c39f204957c6f06d7fc79c400e8b91/learning/istio/README.md)
+> remain available as historical evidence, not as a current execution procedure.
+
+
 専用 `learning-istio-demo` の client → mesh-demo の GET `/version` だけを対象にする。
 control は既存の `istio-learning-system` / revision `learning-1-31-2`。
 platform-gitops `efd3a1f5a31eaf904bc787456034e4cebe932f7f` の
@@ -61,9 +67,7 @@ fixture の割合測定を Account CRUD の代替にしない。
 : "${OUT:?verified render directory}"
 k() { kubectl --context "$ISTIO_CONTEXT" -n learning-istio-demo "$@"; }
 # 既存 platform 手順で必要時だけ control を復元し、namespace revision opt-in を確認した後。
-k apply -f "$OUT/default.yaml"
 # 既存 client/v1 は opt-in 後の再作成が必要。新規 v2 は自動注入を確認する。
-k rollout restart deployment/mesh-demo-client deployment/mesh-demo-v1
 k rollout status deployment/mesh-demo-client --timeout=120s
 k rollout status deployment/mesh-demo-v1 --timeout=120s
 k rollout status deployment/mesh-demo-v2 --timeout=120s
@@ -99,15 +103,12 @@ active config、Pod/endpoint の安定、窓の開始/終了を併記する。�
 measure() { k exec deployment/mesh-demo-client -c fixture -- python3 -B /fixture/demo.py measure "$1"; }
 measure warmup
 measure stable
-k apply -f "$OUT/90-10.yaml"
 # active route が90:10、endpoint安定、XDS同期を確認する。
 measure warmup
 measure split90
-k apply -f "$OUT/50-50.yaml"
 # active route が50:50、endpoint安定、XDS同期を確認する。
 measure warmup
 measure split50
-k apply -f "$OUT/default.yaml"
 # active route が100:0、XDS同期を確認する。defaultでもv2は残し、到達0を検証する。
 measure warmup
 measure stable
@@ -145,8 +146,6 @@ k delete virtualservice mesh-demo
 k delete destinationrule mesh-demo
 # 既存 platform 手順と同じ。label省略だけでは解除できない。
 kubectl --context "$ISTIO_CONTEXT" label namespace learning-istio-demo istio.io/rev-
-k apply -f "$OUT/plain.yaml"
-k rollout restart deployment/mesh-demo-client deployment/mesh-demo-v1
 k rollout status deployment/mesh-demo-client --timeout=120s
 k rollout status deployment/mesh-demo-v1 --timeout=120s
 measure warmup

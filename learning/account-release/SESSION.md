@@ -1,5 +1,11 @@
 # PLAT-170 専用 kind 試験の再現手順
 
+> Historical learning record. Its manual deployment route is retired for the existing kind.
+> Use the [Git/PR → Argo deployment contract](https://github.com/syuhei0519/platform-gitops/blob/main/learning/existing-kind/DEPLOYMENT.md).
+> The [original commands at fixed SHA](https://github.com/syuhei0519/application-manifest/blob/01ab7fc8c9c39f204957c6f06d7fc79c400e8b91/learning/account-release/SESSION.md)
+> remain available as historical evidence, not as a current execution procedure.
+
+
 この手順は一試験セッションの記録であり、別セッションの credential / RBAC / cluster 作成承認ではない。
 今回の承認と追加 Core Secret の履歴は [APPROVAL.md](APPROVAL.md) に残す。
 既存環境・共有環境・本番・PR merge は対象外。実測の最終結果は後述の証跡に記録する。
