@@ -73,7 +73,7 @@ spec:
             - {name: PGSSLMODE, value: disable}
             - name: PGPASSWORD
               valueFrom: {secretKeyRef: {name: learning-account-db, key: app-password}}
-            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability.svc.cluster.local:4318"}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://account-release-otel-collector.observability.svc.cluster.local:4318"}
             - {name: DEPLOYMENT_ENVIRONMENT, value: local}
             - {name: POD_NAMESPACE, value: account}
             - name: POD_UID

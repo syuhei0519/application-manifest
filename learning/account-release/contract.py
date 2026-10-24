@@ -4,8 +4,10 @@ from copy import deepcopy
 import math
 import re
 
-TARGET = {'context': 'kind-plat170-account', 'namespace': 'learning-account-release',
-          'control_namespace': 'learning-account-control', 'application': 'account-release',
+from deployment_target import CONTEXT, NAMESPACE, CONTROL_NAMESPACE
+
+TARGET = {'context': CONTEXT, 'namespace': NAMESPACE,
+          'control_namespace': CONTROL_NAMESPACE, 'application': 'account-release',
           'rollout': 'account-release', 'service': 'account-release',
           'virtual_service': 'account-release', 'destination_rule': 'account-release',
           'metrics_job': 'account-backend', 'metrics_service': 'account'}

@@ -10,7 +10,7 @@ No Pod, ReplicaSet, status, Secret value or completed migration Job is declared.
 Do not replay historical migrations merely to obtain Argo tracking. Initial
 adoption disables prune/delete; compare the exact rendered/live immutable fields
 and runtime baseline before each sync. These files do not create a manual apply
-entrypoint. The protected Application/project wiring is still in preparation.
+entrypoint. The protected root/child wiring is generated in platform-gitops and remains unapplied.
 
 `account-foundation/database.yaml` is a separate new Account acceptance database
 in `learning-account-release`, with a 1Gi RWO standard PVC instead of the old
@@ -24,7 +24,6 @@ fewer changes and no data deletion. No Retain patch or old-PVC deletion is neede
 Secret/CA/connection information and Sonar state remain distinct from test rows.
 
 The consolidated authority, certificate, data and session proposal is maintained
-in platform-gitops `learning/existing-kind/execution-approval.md`. It remains a
-draft until the root/Account Application source ownership and adapter targets
-agree. Do not revive the deleted dedicated kind or count historical trial results
+in platform-gitops `learning/existing-kind/execution-approval.md`. The root/definition chart and adapter now agree: Git resolves the exact workload
+commit and mode-specific ignore pointers; the portal only requests guarded sync operations. Do not revive the deleted dedicated kind or count historical trial results
 as acceptance of this target.

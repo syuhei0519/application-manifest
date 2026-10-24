@@ -11,6 +11,7 @@ from pathlib import Path
 
 from contract import TARGET, ROUTING, require, validate_catalog
 from sdk_queries import queries
+from deployment_target import SERVER
 
 NS = TARGET['namespace']
 NAME = 'account-release'
@@ -38,7 +39,7 @@ def application(commit, catalog, image):
                   imageRevision=image_revision(image))
     project = dict(apiVersion='argoproj.io/v1alpha1', kind='AppProject',
         metadata=dict(name=NAME, namespace=TARGET['control_namespace']),
-        spec=dict(sourceRepos=[REPO], destinations=[dict(server='https://kubernetes.default.svc', namespace=NS)],
+        spec=dict(sourceRepos=[REPO], destinations=[dict(server=SERVER, namespace=NS)],
                   clusterResourceWhitelist=[], namespaceResourceWhitelist=[
                       dict(group='argoproj.io', kind='Rollout'), dict(group='', kind='Service'),
                       dict(group='networking.istio.io', kind='VirtualService'),
@@ -47,7 +48,7 @@ def application(commit, catalog, image):
         metadata=dict(name=NAME, namespace=TARGET['control_namespace']),
         spec=dict(project=NAME, source=dict(repoURL=REPO, targetRevision=commit,
                   path='learning/account-release/chart', helm=dict(releaseName=NAME, valuesObject=values)),
-                  destination=dict(server='https://kubernetes.default.svc', namespace=NS),
+                  destination=dict(server=SERVER, namespace=NS),
                   syncPolicy=dict(syncOptions=['RespectIgnoreDifferences=true']),
                   ignoreDifferences=[dict(group='networking.istio.io', kind=k, name=NAME, namespace=NS,
                                           jsonPointers=p) for k, p in POINTERS.items()]))

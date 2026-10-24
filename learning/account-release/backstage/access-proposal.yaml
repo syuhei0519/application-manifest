@@ -41,16 +41,16 @@ roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: backstage-accou
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
-metadata: {name: backstage-account-application, namespace: learning-account-control}
+metadata: {name: backstage-account-application, namespace: learning-progressive-control}
 rules:
   - apiGroups: [argoproj.io]
     resources: [applications]
-    resourceNames: [account-release]
+    resourceNames: [account-release, account-release-definition]
     verbs: [get, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
-metadata: {name: backstage-account-application, namespace: learning-account-control}
+metadata: {name: backstage-account-application, namespace: learning-progressive-control}
 subjects:
   - {kind: ServiceAccount, name: backstage-account, namespace: learning-account-release}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: backstage-account-application}
