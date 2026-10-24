@@ -5,9 +5,10 @@ import re
 import yaml
 
 from contract import require
+from deployment_target import CONTROL_NAMESPACE
 
 NS = 'learning-account-release'
-CONTROL = 'learning-account-control'
+CONTROL = CONTROL_NAMESPACE
 PLUGIN = 'learning-local/account-policy'
 BASE_IMAGE = 'quay.io/argoproj/argo-rollouts:v1.10.1@sha256:fbcc4cf0a29da25d86230992b1dfdeadf30b6f1baa74ea7c9c98e3e580769396'
 
