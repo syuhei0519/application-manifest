@@ -10,7 +10,7 @@ HELM = os.environ.get("HELM_BIN", "helm")
 
 
 def render(chart, values, *extra, ok=True):
-    command = [HELM, "template", chart, str(ROOT / "charts" / chart), "--namespace", "account", "-f", str(ROOT / values), *extra]
+    command = [HELM, "template", chart, str(Path("charts") / chart), "--namespace", "account", "-f", values, *extra]
     result = subprocess.run(command, cwd=ROOT, text=True, encoding="utf-8", errors="replace", capture_output=True)
     if ok and result.returncode != 0:
         raise AssertionError(result.stderr)
