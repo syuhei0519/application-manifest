@@ -5,11 +5,14 @@ database, credential, or cluster resource. The current cluster, existing
 `account-db` Secret, PVC, and PLAT-170 session remain unchanged.
 
 `credential-contract.json` records non-secret ownership, purpose, destination,
-maximum age, recovery source, the approved manual first-input path, distinct
-admin/migration/runtime key names, and fail-closed behavior. Secret values must
+maximum age, recovery source, the approved manual first-input path, and three
+distinct Secret references (`account-db-bootstrap`, `account-db-migration`, and
+`account-db-runtime`) with finite key names and consumers. Secret values must
 never be stored in Git, CI output, or evidence. The finite choice for this
-profile is the existing manual-bootstrap process; introducing SOPS, ESO, or a
-new secret store is not implied.
+profile is a separately approved manual-bootstrap process using fresh-isolated
+credentials. Reading or transferring an existing credential or CA requires a
+different explicit approval; introducing SOPS, ESO, or a new secret store is
+not implied.
 
 `account-role-bootstrap.sql` is a review fixture for a fresh empty database. The
 PostgreSQL administrator owns the database, `account_migrator` owns only the

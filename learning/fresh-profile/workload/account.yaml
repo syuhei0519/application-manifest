@@ -1,0 +1,258 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: account-database
+  namespace: fresh-account
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: account-migration
+  namespace: fresh-account
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: account-runtime
+  namespace: fresh-account
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: account-role-bootstrap
+  namespace: fresh-account
+data:
+  bootstrap.sql: |
+    \set ON_ERROR_STOP on
+    SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT', :'migration_role', :'migration_password')
+      WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migration_role')\gexec
+    SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT', :'runtime_role', :'runtime_password')
+      WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'runtime_role')\gexec
+    REVOKE ALL ON DATABASE account FROM PUBLIC;
+    CREATE SCHEMA IF NOT EXISTS account AUTHORIZATION :"migration_role";
+    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+    GRANT CONNECT ON DATABASE account TO :"migration_role", :"runtime_role";
+    GRANT USAGE ON SCHEMA account TO :"runtime_role";
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA account TO :"runtime_role";
+    GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA account TO :"runtime_role";
+    ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA account
+      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role";
+    ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA account
+      GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO :"runtime_role";
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: account-postgresql
+  namespace: fresh-account
+spec:
+  selector:
+    app.kubernetes.io/name: account-postgresql
+  ports:
+  - name: postgresql
+    port: 5432
+    targetPort: 5432
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: account-data
+  namespace: fresh-account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: account-postgresql
+  namespace: fresh-account
+spec:
+  serviceName: account-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: account-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: account-postgresql
+    spec:
+      serviceAccountName: account-database
+      automountServiceAccountToken: false
+      containers:
+      - name: postgresql
+        image: postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+        env:
+        - name: POSTGRES_DB
+          value: account
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef: {name: account-db-bootstrap, key: admin-password}
+        ports:
+        - {name: postgresql, containerPort: 5432}
+        readinessProbe:
+          exec: {command: [pg_isready, -U, postgres, -d, account]}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests: {cpu: 100m, memory: 256Mi}
+          limits: {memory: 512Mi}
+        volumeMounts:
+        - {name: data, mountPath: /var/lib/postgresql}
+      volumes:
+      - name: data
+        persistentVolumeClaim: {claimName: account-data}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: account-db-role-bootstrap
+  namespace: fresh-account
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: account-migration
+      automountServiceAccountToken: false
+      containers:
+      - name: role-bootstrap
+        image: postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+        command: [sh, -ceu]
+        args:
+        - >-
+          psql -h account-postgresql -U postgres -d account
+          --set=migration_role="$MIGRATION_USERNAME"
+          --set=migration_password="$MIGRATION_PASSWORD"
+          --set=runtime_role="$RUNTIME_USERNAME"
+          --set=runtime_password="$RUNTIME_PASSWORD"
+          --file=/contract/bootstrap.sql
+        env:
+        - {name: PGPASSWORD, valueFrom: {secretKeyRef: {name: account-db-bootstrap, key: admin-password}}}
+        - {name: MIGRATION_USERNAME, valueFrom: {secretKeyRef: {name: account-db-migration, key: username}}}
+        - {name: MIGRATION_PASSWORD, valueFrom: {secretKeyRef: {name: account-db-migration, key: password}}}
+        - {name: RUNTIME_USERNAME, valueFrom: {secretKeyRef: {name: account-db-runtime, key: username}}}
+        - {name: RUNTIME_PASSWORD, valueFrom: {secretKeyRef: {name: account-db-runtime, key: password}}}
+        volumeMounts:
+        - {name: contract, mountPath: /contract, readOnly: true}
+      volumes:
+      - {name: contract, configMap: {name: account-role-bootstrap}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: account-migration
+  namespace: fresh-account
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: account-migration
+      automountServiceAccountToken: false
+      containers:
+      - name: migrate
+        image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
+        args: [migrate]
+        env:
+        - {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: account-db-migration, key: uri}}}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {drop: [ALL]}
+          runAsNonRoot: true
+          runAsUser: 10001
+          runAsGroup: 10001
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {memory: 128Mi}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: account-api
+  namespace: fresh-account
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: account-api
+  strategy:
+    canary:
+      steps:
+      - {setWeight: 50}
+      - {pause: {duration: 10s}}
+      - {setWeight: 100}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: account-api
+    spec:
+      serviceAccountName: account-runtime
+      automountServiceAccountToken: false
+      containers:
+      - name: api
+        image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
+        env:
+        - {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: account-db-runtime, key: uri}}}
+        ports:
+        - {name: http, containerPort: 8080}
+        readinessProbe:
+          httpGet: {path: /healthz, port: http}
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {drop: [ALL]}
+          runAsNonRoot: true
+          runAsUser: 10001
+          runAsGroup: 10001
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: account-api
+  namespace: fresh-account
+spec:
+  selector:
+    app.kubernetes.io/name: account-api
+  ports:
+  - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: account-api
+  namespace: fresh-account
+spec:
+  host: account-api.fresh-account.svc.cluster.local
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: account-api
+  namespace: fresh-account
+spec:
+  hosts: [account-api.fresh-account.svc.cluster.local]
+  http:
+  - route:
+    - destination: {host: account-api.fresh-account.svc.cluster.local, port: {number: 8080}}

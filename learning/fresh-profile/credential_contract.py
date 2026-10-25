@@ -22,23 +22,22 @@ def _exact(value, expected, label):
 
 def load_contract(path=CONTRACT):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    _exact(set(data), {"schemaVersion", "profile", "namespace", "secret", "database", "rotation"}, "root")
-    _exact(data["schemaVersion"], "platform-lab/credential-contract/v1", "schema")
+    _exact(set(data), {"schemaVersion", "profile", "namespace", "credentialSet", "secrets", "transportTrust", "database", "rotation"}, "root")
+    _exact(data["schemaVersion"], "platform-lab/credential-contract/v2", "schema")
     _exact(data["profile"], "fresh-account", "profile")
-    _exact(data["namespace"], "learning-fresh-account", "namespace")
+    _exact(data["namespace"], "fresh-account", "namespace")
 
-    secret = data["secret"]
-    _exact(set(secret), {"name", "owner", "purpose", "destination", "expiry", "storageAndRecovery", "keys", "missingDeniedOrUnavailable"}, "secret")
-    for key in ("name", "owner", "purpose", "destination"):
-        if not isinstance(secret[key], str) or not secret[key].strip():
-            raise Rejected(f"secret-{key}-missing")
-    _exact(secret["name"], "fresh-account-db", "secret-name")
-    expiry = secret["expiry"]
+    credential_set = data["credentialSet"]
+    _exact(set(credential_set), {"owner", "purpose", "expiry", "storageAndRecovery", "missingDeniedOrUnavailable"}, "credential-set")
+    for key in ("owner", "purpose"):
+        if not isinstance(credential_set[key], str) or not credential_set[key].strip():
+            raise Rejected(f"credential-set-{key}-missing")
+    expiry = credential_set["expiry"]
     if not isinstance(expiry.get("maxAgeDays"), int) or not 1 <= expiry["maxAgeDays"] <= 90:
         raise Rejected("expiry-window")
     _exact(expiry.get("expiredBehavior"), "fail-closed", "expiry-behavior")
 
-    storage = secret["storageAndRecovery"]
+    storage = credential_set["storageAndRecovery"]
     _exact(storage.get("provider"), "manual-bootstrap", "provider")
     for field in ("gitStorage", "ciLogStorage"):
         _exact(storage.get(field), "forbidden", field)
@@ -47,20 +46,36 @@ def load_contract(path=CONTRACT):
         "readBack": "metadata-and-key-names-only"}, "first-input")
     if not storage.get("recoverySource"):
         raise Rejected("recovery-source-missing")
+    _exact(storage.get("existingCredentialTransfer"), "separate-approval-required", "existing-transfer")
+    _exact(storage.get("freshIsolatedCredentialsPreferred"), True, "fresh-isolated")
 
-    keys = secret["keys"]
-    _exact(set(keys), {"admin", "migration", "runtime"}, "secret-key-groups")
+    secrets = data["secrets"]
+    expected = {
+        "bootstrap": ("account-db-bootstrap", ["admin-password"],
+                      ["StatefulSet/account-postgresql", "Job/account-db-role-bootstrap"]),
+        "migration": ("account-db-migration", ["username", "password", "uri"],
+                      ["Job/account-db-role-bootstrap", "Job/account-migration"]),
+        "runtime": ("account-db-runtime", ["username", "password", "uri"],
+                    ["Job/account-db-role-bootstrap", "Rollout/account-api"]),
+    }
+    _exact(set(secrets), set(expected), "secret-groups")
     names = []
-    consumers = {"admin": "postgresql-bootstrap-only", "migration": "account-migration-job-only", "runtime": "account-api-only"}
-    for group, consumer in consumers.items():
-        _exact(set(keys[group]), {"username", "password", "consumer"}, f"{group}-keys")
-        _exact(keys[group]["consumer"], consumer, f"{group}-consumer")
-        names.extend((keys[group]["username"], keys[group]["password"]))
+    for group, (name, keys, consumers) in expected.items():
+        _exact(set(secrets[group]), {"name", "purpose", "keys", "consumers"}, f"{group}-secret")
+        _exact(secrets[group]["name"], name, f"{group}-name")
+        _exact(secrets[group]["keys"], keys, f"{group}-keys")
+        _exact(secrets[group]["consumers"], consumers, f"{group}-consumers")
+        names.append(name)
     if len(set(names)) != len(names) or any(not re.fullmatch(r"[a-z][a-z0-9-]{2,63}", name) for name in names):
-        raise Rejected("secret-key-alias")
-    _exact(secret["missingDeniedOrUnavailable"], {
+        raise Rejected("secret-name-alias")
+    _exact(credential_set["missingDeniedOrUnavailable"], {
         "podStart": "reject", "migration": "reject", "readiness": "not-ready",
         "fallbackCredential": "forbidden"}, "secret-outage")
+
+    _exact(data["transportTrust"], {
+        "sandboxCA": "generate-in-fresh-sandbox-after-G3-approval",
+        "gitMaterial": "forbidden", "existingCAReadOrTransfer": "separate-approval-required",
+        "metadataEvidenceOnly": True}, "transport-trust")
 
     database = data["database"]
     _exact(set(database), {"name", "schema", "admin", "migration", "runtime"}, "database")

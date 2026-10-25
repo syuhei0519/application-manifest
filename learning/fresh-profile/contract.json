@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "platform.lab/fresh-account/v1alpha1",
+  "profile": "account-lightweight-fresh",
+  "dataMode": "new-empty-persistent-volume",
+  "namespaces": {
+    "control": "fresh-control",
+    "workload": "fresh-account",
+    "observability": "fresh-observability"
+  },
+  "applications": {
+    "root": "account-lightweight-root",
+    "releaseDefinitions": "fresh-release-definitions",
+    "workload": "fresh-account-release"
+  },
+  "resources": {
+    "api": "Rollout/fresh-account/account-api",
+    "database": "StatefulSet/fresh-account/account-postgresql",
+    "pvc": "PersistentVolumeClaim/fresh-account/account-data",
+    "roleBootstrap": "Job/fresh-account/account-db-role-bootstrap",
+    "migration": "Job/fresh-account/account-migration"
+  },
+  "images": {
+    "accountRuntime": {
+      "ref": "ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a",
+      "sourceCommit": "527b9bccf4ae56244d134ae384564ec1cccea815",
+      "configDigest": "sha256:5062ed82987c361535a339f6ee30c67d3fca5c8190989aa404f5bda13dd72822",
+      "platform": "linux/amd64",
+      "user": "10001:10001",
+      "entrypoint": ["/server"],
+      "ciArtifact": {
+        "runId": 40145897432,
+        "artifactId": 12580417539,
+        "archiveSha256": "9e9b4b12315c9efa665f82dd43975668b738bb65f6f2434f8350f0d4e9a9ba37",
+        "published": false,
+        "freshEligible": false,
+        "blocker": "G2 retained OCI archive or approved immutable registry retrieval is not established"
+      }
+    },
+    "postgres": {
+      "ref": "postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc",
+      "platform": "linux/amd64",
+      "observedChildDigest": "sha256:6b38fe68f2c02cafffbbce7496f76d110d8a947c039bd22c067e9a43c2250240",
+      "freshEligible": false,
+      "blocker": "G2 retained source is not established"
+    }
+  },
+  "secrets": {
+    "bootstrap": {"name": "account-db-bootstrap", "keys": ["admin-password"]},
+    "migration": {"name": "account-db-migration", "keys": ["username", "password", "uri"]},
+    "runtime": {"name": "account-db-runtime", "keys": ["username", "password", "uri"]}
+  }
+}

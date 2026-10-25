@@ -38,30 +38,31 @@ class CredentialContractTests(unittest.TestCase):
     def test_unknown_profile_and_unbounded_expiry_reject(self):
         for change in (
             lambda data: data.update(profile="arbitrary"),
-            lambda data: data["secret"]["expiry"].update(maxAgeDays=0),
-            lambda data: data["secret"]["expiry"].update(maxAgeDays=365),
-            lambda data: data["secret"]["expiry"].update(expiredBehavior="warn"),
+            lambda data: data["credentialSet"]["expiry"].update(maxAgeDays=0),
+            lambda data: data["credentialSet"]["expiry"].update(maxAgeDays=365),
+            lambda data: data["credentialSet"]["expiry"].update(expiredBehavior="warn"),
         ):
             with self.subTest(change=change), self.assertRaises(Rejected):
                 load_contract(self.mutate(change))
 
     def test_secret_storage_and_outage_must_fail_closed(self):
         changes = (
-            lambda data: data["secret"]["storageAndRecovery"].update(gitStorage="allowed"),
-            lambda data: data["secret"]["storageAndRecovery"].update(recoverySource=""),
-            lambda data: data["secret"]["storageAndRecovery"]["firstInput"].update(generatedByRepository=True),
-            lambda data: data["secret"]["missingDeniedOrUnavailable"].update(fallbackCredential="default"),
-            lambda data: data["secret"]["missingDeniedOrUnavailable"].update(readiness="ready"),
+            lambda data: data["credentialSet"]["storageAndRecovery"].update(gitStorage="allowed"),
+            lambda data: data["credentialSet"]["storageAndRecovery"].update(recoverySource=""),
+            lambda data: data["credentialSet"]["storageAndRecovery"]["firstInput"].update(generatedByRepository=True),
+            lambda data: data["credentialSet"]["storageAndRecovery"].update(existingCredentialTransfer="allowed"),
+            lambda data: data["credentialSet"]["missingDeniedOrUnavailable"].update(fallbackCredential="default"),
+            lambda data: data["credentialSet"]["missingDeniedOrUnavailable"].update(readiness="ready"),
         )
         for change in changes:
             with self.subTest(change=change), self.assertRaises(Rejected):
                 load_contract(self.mutate(change))
 
-    def test_secret_key_groups_are_distinct_and_finite(self):
+    def test_secret_objects_are_distinct_and_finite(self):
         def reused(data):
-            data["secret"]["keys"]["runtime"]["password"] = data["secret"]["keys"]["migration"]["password"]
+            data["secrets"]["runtime"]["name"] = data["secrets"]["migration"]["name"]
         def extra(data):
-            data["secret"]["keys"]["runtime"]["rootToken"] = "unexpected"
+            data["secrets"]["runtime"]["keys"].append("root-token")
         for change in (reused, extra):
             with self.subTest(change=change), self.assertRaises(Rejected):
                 load_contract(self.mutate(change))
