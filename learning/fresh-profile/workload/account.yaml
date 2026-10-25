@@ -20,30 +20,6 @@ metadata:
 automountServiceAccountToken: false
 ---
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: account-role-bootstrap
-  namespace: fresh-account
-data:
-  bootstrap.sql: |
-    \set ON_ERROR_STOP on
-    SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT', :'migration_role', :'migration_password')
-      WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migration_role')\gexec
-    SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT', :'runtime_role', :'runtime_password')
-      WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'runtime_role')\gexec
-    REVOKE ALL ON DATABASE account FROM PUBLIC;
-    CREATE SCHEMA IF NOT EXISTS account AUTHORIZATION :"migration_role";
-    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-    GRANT CONNECT ON DATABASE account TO :"migration_role", :"runtime_role";
-    GRANT USAGE ON SCHEMA account TO :"runtime_role";
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA account TO :"runtime_role";
-    GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA account TO :"runtime_role";
-    ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA account
-      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role";
-    ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA account
-      GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO :"runtime_role";
----
-apiVersion: v1
 kind: Service
 metadata:
   name: account-postgresql
@@ -120,11 +96,14 @@ metadata:
   name: account-db-role-bootstrap
   namespace: fresh-account
   annotations:
-    argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   backoffLimit: 3
   template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       restartPolicy: Never
       serviceAccountName: account-migration
@@ -140,6 +119,8 @@ spec:
           --set=migration_password="$MIGRATION_PASSWORD"
           --set=runtime_role="$RUNTIME_USERNAME"
           --set=runtime_password="$RUNTIME_PASSWORD"
+          --set=database_name=account
+          --set=service_schema=account
           --file=/contract/bootstrap.sql
         env:
         - {name: PGPASSWORD, valueFrom: {secretKeyRef: {name: account-db-bootstrap, key: admin-password}}}
@@ -161,11 +142,14 @@ metadata:
   name: account-migration
   namespace: fresh-account
   annotations:
-    argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   backoffLimit: 3
   template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       restartPolicy: Never
       serviceAccountName: account-migration

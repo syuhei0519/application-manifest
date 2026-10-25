@@ -27,14 +27,23 @@
       "platform": "linux/amd64",
       "user": "10001:10001",
       "entrypoint": ["/server"],
+      "baselineOnly": true,
+      "freshProfileCompatible": false,
       "ciArtifact": {
         "runId": 40145897432,
         "artifactId": 12580417539,
         "archiveSha256": "9e9b4b12315c9efa665f82dd43975668b738bb65f6f2434f8350f0d4e9a9ba37",
         "published": false,
         "freshEligible": false,
-        "blocker": "G2 retained OCI archive or approved immutable registry retrieval is not established"
+        "blocker": "retained local OCI exists, but this pre-PLAT-211 image does not implement the fresh profile contract"
       }
+    },
+    "freshRuntimeRequirement": {
+      "sourceAtOrAfter": "d797fc285618dea3eb9f64b425793eaf1e2a7012",
+      "requiredConfig": "PLAT-211 dual-profile namespace and Downward API support",
+      "immutableImageRef": "PENDING_VERIFIED_PLAT211_IMAGE",
+      "freshEligible": false,
+      "blocker": "verified main CI image digest/source/config/platform/entrypoint and retained G2 source are not yet available"
     },
     "postgres": {
       "ref": "postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc",

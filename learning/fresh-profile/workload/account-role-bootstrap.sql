@@ -1,7 +1,6 @@
--- Fresh-profile fixture only. Values are supplied as psql variables by an
--- approved manual bootstrap; no credential value belongs in Git or output.
--- The PostgreSQL bootstrap administrator retains database ownership. The
--- migration role owns only the Account schema, and runtime receives DML only.
+-- The only source for the generated account-role-bootstrap ConfigMap.
+-- Values are psql variables from the separately approved G3 bootstrap.
+\set ON_ERROR_STOP on
 
 SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD %L',
               :'migration_role', :'migration_password')
@@ -32,3 +31,4 @@ SELECT format('ALTER ROLE %I IN DATABASE %I SET search_path = %I, pg_catalog',
               :'migration_role', :'database_name', :'service_schema') \gexec
 SELECT format('ALTER ROLE %I IN DATABASE %I SET search_path = %I, pg_catalog',
               :'runtime_role', :'database_name', :'service_schema') \gexec
+

@@ -13,8 +13,10 @@ import yaml
 HERE = Path(__file__).resolve().parent
 CONTRACT = HERE / "contract.json"
 WORKLOAD = HERE / "workload" / "account.yaml"
-RELEASE = HERE / "release-definition" / "fresh-account-release.yaml"
-TOKEN = "__APPLICATION_MANIFEST_SHA__"
+SQL = HERE / "workload" / "account-role-bootstrap.sql"
+KUSTOMIZATION = HERE / "workload" / "kustomization.yaml"
+DB_CASES = HERE / "workload" / "db-permission-cases.json"
+RELEASE = HERE / "release-definition"
 
 
 class Rejected(ValueError):
@@ -49,9 +51,50 @@ def pod_spec(document):
     return None
 
 
-def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEASE):
-    contract = json.loads(Path(contract_path).read_text(encoding="utf-8"))
+def rendered_workload(workload_path=WORKLOAD, sql_path=SQL, kustomization_path=KUSTOMIZATION):
+    """Model the one deterministic configMapGenerator used by this profile."""
     documents = list(yaml.safe_load_all(Path(workload_path).read_text(encoding="utf-8")))
+    kustomization = yaml.safe_load(Path(kustomization_path).read_text(encoding="utf-8"))
+    require(kustomization == {
+        "apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization",
+        "resources": ["account.yaml"],
+        "configMapGenerator": [{"name": "account-role-bootstrap", "namespace": "fresh-account",
+                                "files": ["bootstrap.sql=account-role-bootstrap.sql"]}],
+        "generatorOptions": {"disableNameSuffixHash": True},
+    }, "kustomization-contract")
+    sql = Path(sql_path).read_text(encoding="utf-8")
+    documents.append({"apiVersion": "v1", "kind": "ConfigMap",
+                      "metadata": {"name": "account-role-bootstrap", "namespace": "fresh-account"},
+                      "data": {"bootstrap.sql": sql}})
+    return documents
+
+
+def validate_release_chart(release_path=RELEASE):
+    root = Path(release_path)
+    chart = yaml.safe_load((root / "Chart.yaml").read_text(encoding="utf-8"))
+    values = yaml.safe_load((root / "values.yaml").read_text(encoding="utf-8"))
+    template = (root / "templates" / "application.yaml").read_text(encoding="utf-8")
+    require(chart.get("name") == "fresh-account-release-definition", "release-chart-name")
+    require(values == {"workloadRevision": "", "accountRuntimeImage": ""}, "release-values")
+    require("__APPLICATION_MANIFEST_SHA__" not in template, "release-self-token")
+    for fragment in (
+        'required "workloadRevision is required"',
+        'regexMatch "^[0-9a-f]{40}$"',
+        'required "accountRuntimeImage is required"',
+        "name: fresh-account-release", "namespace: fresh-control",
+        "repoURL: https://github.com/syuhei0519/application-manifest.git",
+        "path: learning/fresh-profile/workload", "project: fresh-account",
+        "name: fresh-account-sandbox", "namespace: fresh-account",
+        "ghcr.io/syuhei0519/backend-app=",
+    ):
+        require(fragment in template, f"release-template:{fragment}")
+    return {"chart": chart, "values": values, "template": template}
+
+
+def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEASE,
+             sql_path=SQL, kustomization_path=KUSTOMIZATION, db_cases_path=DB_CASES):
+    contract = json.loads(Path(contract_path).read_text(encoding="utf-8"))
+    documents = rendered_workload(workload_path, sql_path, kustomization_path)
     require(all(isinstance(item, dict) for item in documents), "yaml-document")
     require(not any(item.get("kind") == "Secret" for item in documents), "secret-object-in-git")
 
@@ -99,6 +142,16 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
             "account-config")
     require(account_image["ciArtifact"]["published"] is False and
             account_image["ciArtifact"]["freshEligible"] is False, "account-supply-boundary")
+    require(account_image["freshProfileCompatible"] is False and account_image["baselineOnly"] is True,
+            "account-profile-compatibility")
+    fresh_requirement = contract["images"]["freshRuntimeRequirement"]
+    require(fresh_requirement == {
+        "sourceAtOrAfter": "d797fc285618dea3eb9f64b425793eaf1e2a7012",
+        "requiredConfig": "PLAT-211 dual-profile namespace and Downward API support",
+        "immutableImageRef": "PENDING_VERIFIED_PLAT211_IMAGE",
+        "freshEligible": False,
+        "blocker": "verified main CI image digest/source/config/platform/entrypoint and retained G2 source are not yet available"
+    }, "fresh-runtime-requirement")
     found_images = {container["image"] for item in documents if pod_spec(item)
                     for container in pod_spec(item).get("containers", [])}
     require(account_image["ref"] in found_images, "account-image")
@@ -118,11 +171,34 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
             "Prune=false,Delete=false", "pvc-retention")
     require(contract["dataMode"] == "new-empty-persistent-volume", "data-mode")
 
-    release = yaml.safe_load(Path(release_path).read_text(encoding="utf-8"))
-    require(identity(release) == "Application/fresh-control/fresh-account-release", "release-identity")
-    require(release["spec"]["source"]["path"] == "learning/fresh-profile/workload", "release-path")
-    revision = release["spec"]["source"]["targetRevision"]
-    require(revision == TOKEN or re.fullmatch(r"[0-9a-f]{40}", revision), "release-revision")
+    generated = index["ConfigMap/fresh-account/account-role-bootstrap"]["data"]["bootstrap.sql"]
+    require(generated == Path(sql_path).read_text(encoding="utf-8"), "generated-sql-drift")
+    require(sum(1 for item in documents if item.get("metadata", {}).get("name") == "account-role-bootstrap") == 1,
+            "sql-single-source")
+    jobs = {item["metadata"]["name"]: item for item in documents if item["kind"] == "Job"}
+    for name, wave in (("account-db-role-bootstrap", "10"), ("account-migration", "20")):
+        annotations = jobs[name]["metadata"]["annotations"]
+        require(annotations == {"argocd.argoproj.io/sync-wave": wave,
+                                "argocd.argoproj.io/sync-options": "Prune=false,Delete=false"},
+                f"job-order:{name}")
+        require(jobs[name]["spec"]["template"]["metadata"]["annotations"] ==
+                {"sidecar.istio.io/inject": "false"}, f"job-sidecar:{name}")
+    require("--set=database_name=account" in jobs["account-db-role-bootstrap"]["spec"]["template"]["spec"]["containers"][0]["args"][0]
+            and "--set=service_schema=account" in jobs["account-db-role-bootstrap"]["spec"]["template"]["spec"]["containers"][0]["args"][0],
+            "role-bootstrap-variables")
+
+    cases = json.loads(Path(db_cases_path).read_text(encoding="utf-8"))
+    expected_cases = {
+        ("migration-ddl-owned-schema", "account_migrator", "DDL", "account", "allow"),
+        ("runtime-dml-owned-schema", "account_runtime", "DML", "account", "allow"),
+        ("runtime-ddl-owned-schema", "account_runtime", "DDL", "account", "deny"),
+        ("runtime-other-schema", "account_runtime", "DML", "other_service", "deny"),
+        ("migration-other-schema", "account_migrator", "DDL", "other_service", "deny"),
+    }
+    actual_cases = {(case["id"], case["role"], case["operation"], case["target"], case["expected"])
+                    for case in cases.get("requiredLiveCases", [])}
+    require(actual_cases == expected_cases and cases.get("status") == "required-unrun", "db-permission-cases")
+    release = validate_release_chart(release_path)
     return contract, documents, release
 
 
@@ -131,4 +207,4 @@ if __name__ == "__main__":
     print("fresh workload valid",
           f"resources={len(documents)}",
           f"image={contract['images']['accountRuntime']['ref'].split('@')[1]}",
-          f"revision={release['spec']['source']['targetRevision']}")
+          "release=parameterized-chart")

@@ -12,7 +12,7 @@ class Rejected(ValueError):
 
 ROOT = Path(__file__).resolve().parent
 CONTRACT = ROOT / "credential-contract.json"
-SQL = ROOT / "account-role-bootstrap.sql"
+SQL = ROOT / "workload" / "account-role-bootstrap.sql"
 
 
 def _exact(value, expected, label):

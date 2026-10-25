@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
@@ -33,7 +34,10 @@ class FreshWorkloadTests(unittest.TestCase):
     def test_checked_contract_is_coherent_and_blocked_on_g2(self):
         contract, documents, release = fresh.validate()
         self.assertFalse(contract["images"]["accountRuntime"]["ciArtifact"]["freshEligible"])
-        self.assertEqual(release["spec"]["source"]["targetRevision"], fresh.TOKEN)
+        self.assertFalse(contract["images"]["accountRuntime"]["freshProfileCompatible"])
+        self.assertEqual(contract["images"]["freshRuntimeRequirement"]["immutableImageRef"],
+                         "PENDING_VERIFIED_PLAT211_IMAGE")
+        self.assertEqual(release["chart"]["name"], "fresh-account-release-definition")
         self.assertEqual(len(documents), 13)
 
     def test_wrong_account_image_and_rollouts_image_are_rejected(self):
@@ -59,11 +63,21 @@ class FreshWorkloadTests(unittest.TestCase):
         with self.assertRaises(fresh.Rejected):
             fresh.validate(workload_path=self.temp_yaml(changed))
 
-    def test_variable_or_non_sha_revision_is_rejected(self):
-        release = yaml.safe_load(fresh.RELEASE.read_text(encoding="utf-8"))
-        release["spec"]["source"]["targetRevision"] = "main"
+    def test_release_chart_has_no_self_sha_token(self):
+        release = fresh.validate_release_chart()
+        self.assertNotIn("__APPLICATION_MANIFEST_SHA__", release["template"])
+        self.assertIn("workloadRevision must be a 40-character lowercase Git SHA", release["template"])
+
+    def test_release_token_or_variable_contract_is_rejected(self):
+        temporary = Path(tempfile.mkdtemp(prefix="release-test-", dir=ROOT))
+        self.addCleanup(shutil.rmtree, temporary, True)
+        destination = temporary / "release-definition"
+        shutil.copytree(fresh.RELEASE, destination)
+        template = destination / "templates" / "application.yaml"
+        template.write_text(template.read_text(encoding="utf-8") + "\n# __APPLICATION_MANIFEST_SHA__\n",
+                            encoding="utf-8")
         with self.assertRaises(fresh.Rejected):
-            fresh.validate(release_path=self.temp_yaml([release]))
+            fresh.validate_release_chart(destination)
 
     def test_workload_tokens_and_pvc_retention_are_fail_closed(self):
         documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
@@ -71,6 +85,19 @@ class FreshWorkloadTests(unittest.TestCase):
         rollout["spec"]["template"]["spec"]["automountServiceAccountToken"] = True
         with self.assertRaises(fresh.Rejected):
             fresh.validate(workload_path=self.temp_yaml(documents))
+
+    def test_job_order_and_permission_case_drift_are_rejected(self):
+        documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+        migration = next(item for item in documents if item.get("kind") == "Job" and
+                         item["metadata"]["name"] == "account-migration")
+        migration["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] = "10"
+        with self.assertRaises(fresh.Rejected):
+            fresh.validate(workload_path=self.temp_yaml(documents))
+
+        cases = json.loads(fresh.DB_CASES.read_text(encoding="utf-8"))
+        cases["requiredLiveCases"][2]["expected"] = "allow"
+        with self.assertRaises(fresh.Rejected):
+            fresh.validate(db_cases_path=self.temp_json(cases))
 
 
 if __name__ == "__main__":
