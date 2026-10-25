@@ -75,7 +75,8 @@ spec:
               valueFrom: {secretKeyRef: {name: learning-account-db, key: app-password}}
             - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://account-release-otel-collector.observability.svc.cluster.local:4318"}
             - {name: DEPLOYMENT_ENVIRONMENT, value: local}
-            - {name: POD_NAMESPACE, value: account}
+            - name: POD_NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
             - name: POD_UID
               valueFrom: {fieldRef: {fieldPath: metadata.uid}}
           securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
