@@ -1,7 +1,7 @@
 owner: plat170-account
-sourceCommit: 46ef1419c11363e263e1f1c254ca9096ea2b5835
-imageRevision: sha256-09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a4
-image: ghcr.io/syuhei0519/backend-app@sha256:09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a452b967c0
+sourceCommit: 527b9bccf4ae56244d134ae384564ec1cccea815
+imageRevision: sha256-746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a
+image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
 strategy: Canary
 promotionMode: auto
 analysisPluginEnabled: true
