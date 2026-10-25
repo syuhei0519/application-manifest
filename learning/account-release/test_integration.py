@@ -151,6 +151,40 @@ class IntegrationTests(unittest.TestCase):
                 self.assertNotEqual(render(bad).returncode, 0, key)
             self.assertNotEqual(render({}).returncode, 0)
 
+    def test_runtime_profile_manifest_pairs_are_explicit(self):
+        def env_by_name(container):
+            return {item['name']: item for item in container['env']}
+
+        current_docs = list(yaml.safe_load_all(
+            (ROOT.parent/'existing-kind/services/resources.yaml').read_text()))
+        current = next(doc for doc in current_docs
+                       if doc.get('kind') == 'Deployment'
+                       and doc.get('metadata', {}).get('name') == 'learning-account')
+        current_env = env_by_name(current['spec']['template']['spec']['containers'][0])
+        self.assertEqual(current_env['ACCOUNT_RUNTIME_PROFILE']['value'],
+                         'current-existing-kind-account')
+        self.assertEqual(
+            current_env['POD_NAMESPACE']['valueFrom']['fieldRef']['fieldPath'],
+            'metadata.namespace')
+        self.assertEqual(
+            current_env['OTEL_EXPORTER_OTLP_ENDPOINT']['value'],
+            'http://otel-collector.observability.svc.cluster.local:4318')
+
+        migration_docs = list(yaml.safe_load_all(
+            (ROOT.parent/'existing-kind/account-foundation/initialization.yaml').read_text()))
+        migration = next(doc for doc in migration_docs
+                         if doc.get('kind') == 'Job'
+                         and doc.get('metadata', {}).get('name') == 'account-release-migration')
+        migration_env = env_by_name(migration['spec']['template']['spec']['containers'][0])
+        self.assertEqual(migration_env['ACCOUNT_RUNTIME_PROFILE']['value'],
+                         'fresh-learning-account-release')
+        self.assertEqual(
+            migration_env['POD_NAMESPACE']['valueFrom']['fieldRef']['fieldPath'],
+            'metadata.namespace')
+        self.assertEqual(
+            migration_env['OTEL_EXPORTER_OTLP_ENDPOINT']['value'],
+            'http://account-release-otel-collector.observability.svc.cluster.local:4318')
+
     def test_dynamic_sdk_queries(self):
         result = sdk_query_set('aaaaa', 'bbbbb', 2, 1)
         self.assertEqual(len(result), 6)
