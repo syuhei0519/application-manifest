@@ -506,15 +506,19 @@ class LiveAdapter:
         app=self.application()
         require(app['spec']['ignoreDifferences']==self.ignored(phase['strategy']) and
                 app['spec']['source']['targetRevision']==revision,'git-definition-not-observed')
-        if app.get('status',{}).get('sync',{}).get('revision')==revision:return True
+        # status.sync.revision is the comparison target and can advance before
+        # any apply. Only the completed operation proves which revision ran.
+        applied=app.get('status',{}).get('operationState',{})
+        if not app.get('operation') and applied.get('phase')=='Succeeded' and applied.get('syncResult',{}).get('revision')==revision:
+            return True
         if app.get('operation'):
             require(app['operation'].get('sync',{}).get('revision')==revision,'foreign-workload-operation')
             return False
         ro=self.get('rollout',NAME)
         require(ro['metadata']['uid']==expected['identity']['rollout_uid'] and
                 ro['metadata']['generation']==expected['identity']['generation'],'stale-runtime-identity')
-        require(app['status']['sync']['revision']==expected['identity']['git_revision'] and
-                app['status']['operationState']['phase']=='Succeeded','prior-sync-not-successful')
+        require(applied.get('syncResult',{}).get('revision')==expected['identity']['git_revision'] and
+                applied.get('phase')=='Succeeded','prior-sync-not-successful')
         history=json.loads(Path(self.config['state_file']).read_text())
         options=history.get('reviewed_sync_options',{}).get(revision)
         require(options in (['RespectIgnoreDifferences=true'],['RespectIgnoreDifferences=false']),

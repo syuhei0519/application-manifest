@@ -125,6 +125,8 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(len(self.calls),1)
         self.data['definition']['status']['sync']['revision']=new
         self.data['application']['spec']['source']['targetRevision']=new
+        # Real Argo comparison advances before the workload operation is issued.
+        self.data['application']['status']['sync'].update(revision=new,status='OutOfSync')
         self.assertFalse(self.adapter.sync_workload_after_definition(new,phase,expected))
         self.assertEqual(len(self.calls),2)
         for index,(args,kwargs) in enumerate(self.calls):
@@ -136,6 +138,18 @@ class AdapterTests(unittest.TestCase):
         self.data['application']['operation']=copy.deepcopy(prepared['patch'][-1]['value'])
         self.data['application']['operation']['sync']['revision']=new
         self.assertFalse(self.adapter.sync_workload_after_definition(new,phase,expected))
+        self.assertEqual(len(self.calls),2)
+        self.data['application'].pop('operation')
+        prior=copy.deepcopy(self.data['application']['status']['operationState'])
+        self.data['application']['status']['operationState']['syncResult']['revision']='c'*40
+        with self.assertRaisesRegex(Rejected,'prior-sync-not-successful'):
+            self.adapter.sync_workload_after_definition(new,phase,expected)
+        self.assertEqual(len(self.calls),2)
+        self.data['application']['status']['operationState']=prior
+        self.data['application']['status']['operationState']['syncResult']['revision']=new
+        self.data['application']['status']['sync']['status']='Synced'
+        self.data['rollout']['metadata']['generation']+=1
+        self.assertTrue(self.adapter.sync_workload_after_definition(new,phase,expected))
         self.assertEqual(len(self.calls),2)
 
     def test_restore_proof_requires_full_identity_and_fresh_receipt(self):
