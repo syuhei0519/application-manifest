@@ -3,5 +3,6 @@ sourceCommit: 46ef1419c11363e263e1f1c254ca9096ea2b5835
 imageRevision: sha256-09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a4
 image: ghcr.io/syuhei0519/backend-app@sha256:09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a452b967c0
 strategy: Canary
-promotionMode: manual
+promotionMode: auto
 analysisPluginEnabled: true
+bootstrapHash: 75f9db567b
