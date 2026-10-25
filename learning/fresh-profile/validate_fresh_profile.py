@@ -150,11 +150,11 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
             "account-profile-compatibility")
     fresh_requirement = contract["images"]["freshRuntimeRequirement"]
     require(fresh_requirement == {
-        "sourceAtOrAfter": "45c08d6e451770530e46fe35c0ea8990fd53a6c3",
+        "sourceAtOrAfter": "635814f5354f0fe238694d35137b283576a9127f",
         "requiredConfig": "finite fresh-account operation roles, exact namespace/schema, and Downward API identity",
-        "immutableImageRef": "PENDING_VERIFIED_PLAT211_IMAGE",
+        "immutableImageRef": "ghcr.io/syuhei0519/backend-app@sha256:fba8eae42982a0e818581b2ac6b41ba865920dafdbfd7d48c416f98c5b1eaebd",
         "freshEligible": False,
-        "blocker": "verified main CI image digest/source/config/platform/entrypoint and retained G2 source are not yet available"
+        "blocker": "verified main CI image identity is fixed; retained G2 source and post-import live proof are not yet approved or available"
     }, "fresh-runtime-requirement")
     found_images = {container["image"] for item in documents if pod_spec(item)
                     for container in pod_spec(item).get("containers", [])}

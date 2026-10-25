@@ -36,7 +36,9 @@ class FreshWorkloadTests(unittest.TestCase):
         self.assertFalse(contract["images"]["accountRuntime"]["ciArtifact"]["freshEligible"])
         self.assertFalse(contract["images"]["accountRuntime"]["freshProfileCompatible"])
         self.assertEqual(contract["images"]["freshRuntimeRequirement"]["immutableImageRef"],
-                         "PENDING_VERIFIED_PLAT211_IMAGE")
+                         "ghcr.io/syuhei0519/backend-app@sha256:"
+                         "fba8eae42982a0e818581b2ac6b41ba865920dafdbfd7d48c416f98c5b1eaebd")
+        self.assertFalse(contract["images"]["freshRuntimeRequirement"]["freshEligible"])
         self.assertEqual(release["chart"]["name"], "fresh-account-release-definition")
         self.assertEqual(len(documents), 13)
 
