@@ -113,6 +113,65 @@ class FreshWorkloadTests(unittest.TestCase):
         with self.assertRaisesRegex(fresh.Rejected, "application-wave|bootstrap-before-readiness"):
             fresh.validate(workload_path=self.temp_yaml(documents))
 
+    def test_runtime_and_migration_use_one_finite_profile_with_distinct_secrets(self):
+        _, documents, _ = fresh.validate()
+        workloads = {
+            item["metadata"]["name"]: item for item in documents
+            if item.get("kind") in {"Rollout", "Job"}
+        }
+        for name, secret in (("account-api", "account-db-runtime"),
+                             ("account-migration", "account-db-migration")):
+            container = workloads[name]["spec"]["template"]["spec"]["containers"][0]
+            env = {item["name"]: item for item in container["env"]}
+            self.assertEqual(env["ACCOUNT_RUNTIME_PROFILE"]["value"], "fresh-account")
+            self.assertEqual(env["PGHOST"]["value"], "account-postgresql")
+            self.assertEqual(env["PGUSER"]["valueFrom"]["secretKeyRef"],
+                             {"name": secret, "key": "username"})
+            self.assertNotIn("DATABASE_URL", env)
+            self.assertNotIn("PGOPTIONS", env)
+
+    def test_profile_alias_fallback_and_role_secret_swap_are_rejected(self):
+        base = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+        mutations = []
+
+        alias = copy.deepcopy(base)
+        rollout = next(item for item in alias if item.get("kind") == "Rollout")
+        env = rollout["spec"]["template"]["spec"]["containers"][0]["env"]
+        next(item for item in env if item["name"] == "ACCOUNT_RUNTIME_PROFILE")["value"] = "fresh_account"
+        mutations.append(alias)
+
+        fallback = copy.deepcopy(base)
+        migration = next(item for item in fallback if item.get("kind") == "Job" and
+                         item["metadata"]["name"] == "account-migration")
+        migration["spec"]["template"]["spec"]["containers"][0]["env"].append(
+            {"name": "DATABASE_URL", "valueFrom": {"secretKeyRef":
+                {"name": "account-db-migration", "key": "uri"}}})
+        mutations.append(fallback)
+
+        swapped = copy.deepcopy(base)
+        rollout = next(item for item in swapped if item.get("kind") == "Rollout")
+        user = next(item for item in rollout["spec"]["template"]["spec"]["containers"][0]["env"]
+                    if item["name"] == "PGUSER")
+        user["valueFrom"]["secretKeyRef"]["name"] = "account-db-migration"
+        mutations.append(swapped)
+
+        for documents in mutations:
+            with self.subTest(), self.assertRaises(fresh.Rejected):
+                fresh.validate(workload_path=self.temp_yaml(documents))
+
+    def test_namespace_identity_and_schema_contract_drift_are_rejected(self):
+        documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+        migration = next(item for item in documents if item.get("kind") == "Job" and
+                         item["metadata"]["name"] == "account-migration")
+        env = migration["spec"]["template"]["spec"]["containers"][0]["env"]
+        next(item for item in env if item["name"] == "POD_NAMESPACE")["valueFrom"]["fieldRef"]["fieldPath"] = "metadata.name"
+        with self.assertRaises(fresh.Rejected):
+            fresh.validate(workload_path=self.temp_yaml(documents))
+
+        contract = json.loads(fresh.CONTRACT.read_text(encoding="utf-8"))
+        contract["applicationRuntimeContract"]["database"]["schema"] = "public"
+        with self.assertRaises(fresh.Rejected):
+            fresh.validate(contract_path=self.temp_json(contract))
 
 if __name__ == "__main__":
     unittest.main()

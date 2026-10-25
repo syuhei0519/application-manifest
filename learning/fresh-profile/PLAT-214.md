@@ -14,6 +14,17 @@ credentials. Reading or transferring an existing credential or CA requires a
 different explicit approval; introducing SOPS, ESO, or a new secret store is
 not implied.
 
+The Account Rollout and migration Job both select the one finite application
+identity profile `fresh-account`. The `server` operation resolves only
+`account_runtime`; `migrate` resolves only `account_migrator`. Both use the
+exact `account-postgresql.fresh-account.svc:5432/account` database identity,
+schema `account`, database owner `postgres`, schema owner
+`account_migrator`, and the fixed fresh Collector endpoint. The manifest uses
+explicit `PG*` inputs plus `POD_NAMESPACE` and `POD_UID` from Downward API.
+`DATABASE_URL`, profile aliases, arbitrary `PGOPTIONS`, and fallback
+credentials are not part of this profile. Migration and runtime Secrets expose
+only `username` and `password`; no connection URI is required.
+
 `account-role-bootstrap.sql` is a review fixture for a fresh empty database. The
 PostgreSQL administrator owns the database, `account_migrator` owns only the
 `account` schema, and `account_runtime` receives only schema usage plus table and

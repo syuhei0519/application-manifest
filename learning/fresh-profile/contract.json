@@ -12,6 +12,30 @@
     "releaseDefinitions": "fresh-release-definitions",
     "workload": "fresh-account-release"
   },
+  "applicationRuntimeContract": {
+    "profile": "fresh-account",
+    "namespace": "fresh-account",
+    "database": {
+      "host": "account-postgresql",
+      "port": 5432,
+      "name": "account",
+      "owner": "postgres",
+      "schema": "account",
+      "schemaOwner": "account_migrator",
+      "sslMode": "disable"
+    },
+    "operations": {
+      "server": {"role": "account_runtime", "secret": "account-db-runtime"},
+      "migrate": {"role": "account_migrator", "secret": "account-db-migration"}
+    },
+    "collectorEndpoint": "http://otel-collector.fresh-observability.svc.cluster.local:4318",
+    "podIdentity": {
+      "namespaceFieldPath": "metadata.namespace",
+      "uidFieldPath": "metadata.uid"
+    },
+    "databaseUrlFallback": false,
+    "legacyEmptyProfileBehaviorPreserved": true
+  },
   "resources": {
     "api": "Rollout/fresh-account/account-api",
     "database": "StatefulSet/fresh-account/account-postgresql",
@@ -40,7 +64,7 @@
     },
     "freshRuntimeRequirement": {
       "sourceAtOrAfter": "d797fc285618dea3eb9f64b425793eaf1e2a7012",
-      "requiredConfig": "PLAT-211 dual-profile namespace and Downward API support",
+      "requiredConfig": "finite fresh-account operation roles, exact namespace/schema, and Downward API identity",
       "immutableImageRef": "PENDING_VERIFIED_PLAT211_IMAGE",
       "freshEligible": false,
       "blocker": "verified main CI image digest/source/config/platform/entrypoint and retained G2 source are not yet available"
@@ -55,7 +79,7 @@
   },
   "secrets": {
     "bootstrap": {"name": "account-db-bootstrap", "keys": ["admin-password"]},
-    "migration": {"name": "account-db-migration", "keys": ["username", "password", "uri"]},
-    "runtime": {"name": "account-db-runtime", "keys": ["username", "password", "uri"]}
+    "migration": {"name": "account-db-migration", "keys": ["username", "password"]},
+    "runtime": {"name": "account-db-runtime", "keys": ["username", "password"]}
   }
 }

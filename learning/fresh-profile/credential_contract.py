@@ -53,9 +53,9 @@ def load_contract(path=CONTRACT):
     expected = {
         "bootstrap": ("account-db-bootstrap", ["admin-password"],
                       ["StatefulSet/account-postgresql", "Job/account-db-role-bootstrap"]),
-        "migration": ("account-db-migration", ["username", "password", "uri"],
+        "migration": ("account-db-migration", ["username", "password"],
                       ["Job/account-db-role-bootstrap", "Job/account-migration"]),
-        "runtime": ("account-db-runtime", ["username", "password", "uri"],
+        "runtime": ("account-db-runtime", ["username", "password"],
                     ["Job/account-db-role-bootstrap", "Rollout/account-api"]),
     }
     _exact(set(secrets), set(expected), "secret-groups")

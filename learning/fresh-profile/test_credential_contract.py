@@ -30,6 +30,8 @@ class CredentialContractTests(unittest.TestCase):
 
     def test_repository_contract_and_sql(self):
         contract = load_contract()
+        self.assertEqual(contract["secrets"]["migration"]["keys"], ["username", "password"])
+        self.assertEqual(contract["secrets"]["runtime"]["keys"], ["username", "password"])
         self.assertEqual(contract["database"]["migration"]["ownedSchemas"], ["account"])
         self.assertEqual(contract["database"]["runtime"]["dmlSchemas"], ["account"])
         self.assertEqual(contract["database"]["runtime"]["ddlSchemas"], [])

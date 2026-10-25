@@ -129,10 +129,8 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
         ("account-db-bootstrap", "admin-password"),
         ("account-db-migration", "username"),
         ("account-db-migration", "password"),
-        ("account-db-migration", "uri"),
         ("account-db-runtime", "username"),
         ("account-db-runtime", "password"),
-        ("account-db-runtime", "uri"),
     }
     require(refs == expected_refs, "secret-reference-set")
     for item in documents:
@@ -153,7 +151,7 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
     fresh_requirement = contract["images"]["freshRuntimeRequirement"]
     require(fresh_requirement == {
         "sourceAtOrAfter": "d797fc285618dea3eb9f64b425793eaf1e2a7012",
-        "requiredConfig": "PLAT-211 dual-profile namespace and Downward API support",
+        "requiredConfig": "finite fresh-account operation roles, exact namespace/schema, and Downward API identity",
         "immutableImageRef": "PENDING_VERIFIED_PLAT211_IMAGE",
         "freshEligible": False,
         "blocker": "verified main CI image digest/source/config/platform/entrypoint and retained G2 source are not yet available"
@@ -163,14 +161,67 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
     require(account_image["ref"] in found_images, "account-image")
     require(contract["images"]["postgres"]["ref"] in found_images, "postgres-image")
     require(not any("966adba896524519" in image for image in found_images), "rollouts-image-reuse")
+
+    runtime_contract = contract.get("applicationRuntimeContract")
+    require(runtime_contract == {
+        "profile": "fresh-account",
+        "namespace": "fresh-account",
+        "database": {
+            "host": "account-postgresql", "port": 5432, "name": "account",
+            "owner": "postgres", "schema": "account", "schemaOwner": "account_migrator",
+            "sslMode": "disable",
+        },
+        "operations": {
+            "server": {"role": "account_runtime", "secret": "account-db-runtime"},
+            "migrate": {"role": "account_migrator", "secret": "account-db-migration"},
+        },
+        "collectorEndpoint": "http://otel-collector.fresh-observability.svc.cluster.local:4318",
+        "podIdentity": {"namespaceFieldPath": "metadata.namespace", "uidFieldPath": "metadata.uid"},
+        "databaseUrlFallback": False,
+        "legacyEmptyProfileBehaviorPreserved": True,
+    }, "application-runtime-contract")
+
     rollout = index["Rollout/fresh-account/account-api"]
-    runtime_env = {item["name"]: item for item in
-                   rollout["spec"]["template"]["spec"]["containers"][0]["env"]}
-    require(runtime_env["PLATFORM_LAB_PROFILE"].get("value") == "fresh-account", "telemetry-profile")
-    require(runtime_env["POD_UID"].get("valueFrom", {}).get("fieldRef", {}).get("fieldPath") == "metadata.uid",
-            "telemetry-pod-uid")
-    require("$(PLATFORM_LAB_PROFILE)" in runtime_env["OTEL_RESOURCE_ATTRIBUTES"].get("value", "") and
-            "$(POD_UID)" in runtime_env["OTEL_RESOURCE_ATTRIBUTES"].get("value", ""), "telemetry-attributes")
+    migration = index["Job/fresh-account/account-migration"]
+
+    fixed_env = {
+        "ACCOUNT_RUNTIME_PROFILE": "fresh-account",
+        "PGHOST": "account-postgresql",
+        "PGPORT": "5432",
+        "PGDATABASE": "account",
+        "PGSSLMODE": "disable",
+        "DEPLOYMENT_ENVIRONMENT": "local",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel-collector.fresh-observability.svc.cluster.local:4318",
+    }
+    expected_env_names = set(fixed_env) | {
+        "PGUSER", "PGPASSWORD", "POD_NAMESPACE", "POD_UID", "OTEL_RESOURCE_ATTRIBUTES"
+    }
+    for operation, document, secret, service in (
+        ("server", rollout, "account-db-runtime", "account-api"),
+        ("migrate", migration, "account-db-migration", "account-migration"),
+    ):
+        container = document["spec"]["template"]["spec"]["containers"][0]
+        env = {item["name"]: item for item in container["env"]}
+        require(set(env) == expected_env_names, f"{operation}-environment-set")
+        require(all(env[name].get("value") == value for name, value in fixed_env.items()),
+                f"{operation}-finite-profile-values")
+        require(env["PGUSER"].get("valueFrom", {}).get("secretKeyRef") ==
+                {"name": secret, "key": "username"}, f"{operation}-database-user")
+        require(env["PGPASSWORD"].get("valueFrom", {}).get("secretKeyRef") ==
+                {"name": secret, "key": "password"}, f"{operation}-database-password")
+        require(env["POD_NAMESPACE"].get("valueFrom", {}).get("fieldRef", {}).get("fieldPath") ==
+                "metadata.namespace", f"{operation}-pod-namespace")
+        require(env["POD_UID"].get("valueFrom", {}).get("fieldRef", {}).get("fieldPath") ==
+                "metadata.uid", f"{operation}-pod-uid")
+        require(env["OTEL_RESOURCE_ATTRIBUTES"].get("value") ==
+                f"service.name={service},deployment.environment=local,"
+                "platform.profile=$(ACCOUNT_RUNTIME_PROFILE),"
+                "k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.uid=$(POD_UID)",
+                f"{operation}-telemetry-attributes")
+        require(not ({"DATABASE_URL", "PLATFORM_LAB_PROFILE", "PGOPTIONS"} & set(env)),
+                f"{operation}-fallback-or-alias")
+    require(migration["spec"]["template"]["spec"]["containers"][0].get("args") == ["migrate"],
+            "migration-operation")
 
     pvc = index["PersistentVolumeClaim/fresh-account/account-data"]
     require(pvc["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] ==

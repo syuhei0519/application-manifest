@@ -159,7 +159,20 @@ spec:
         image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
         args: [migrate]
         env:
-        - {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: account-db-migration, key: uri}}}
+        - {name: ACCOUNT_RUNTIME_PROFILE, value: fresh-account}
+        - {name: PGHOST, value: account-postgresql}
+        - {name: PGPORT, value: "5432"}
+        - {name: PGDATABASE, value: account}
+        - {name: PGUSER, valueFrom: {secretKeyRef: {name: account-db-migration, key: username}}}
+        - {name: PGPASSWORD, valueFrom: {secretKeyRef: {name: account-db-migration, key: password}}}
+        - {name: PGSSLMODE, value: disable}
+        - {name: DEPLOYMENT_ENVIRONMENT, value: local}
+        - name: POD_NAMESPACE
+          valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+        - name: POD_UID
+          valueFrom: {fieldRef: {fieldPath: metadata.uid}}
+        - {name: OTEL_RESOURCE_ATTRIBUTES, value: "service.name=account-migration,deployment.environment=local,platform.profile=$(ACCOUNT_RUNTIME_PROFILE),k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.uid=$(POD_UID)"}
+        - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.fresh-observability.svc.cluster.local:4318}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities: {drop: [ALL]}
@@ -199,11 +212,19 @@ spec:
       - name: api
         image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
         env:
-        - {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: account-db-runtime, key: uri}}}
-        - {name: PLATFORM_LAB_PROFILE, value: fresh-account}
+        - {name: ACCOUNT_RUNTIME_PROFILE, value: fresh-account}
+        - {name: PGHOST, value: account-postgresql}
+        - {name: PGPORT, value: "5432"}
+        - {name: PGDATABASE, value: account}
+        - {name: PGUSER, valueFrom: {secretKeyRef: {name: account-db-runtime, key: username}}}
+        - {name: PGPASSWORD, valueFrom: {secretKeyRef: {name: account-db-runtime, key: password}}}
+        - {name: PGSSLMODE, value: disable}
+        - {name: DEPLOYMENT_ENVIRONMENT, value: local}
+        - name: POD_NAMESPACE
+          valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
         - name: POD_UID
           valueFrom: {fieldRef: {fieldPath: metadata.uid}}
-        - {name: OTEL_RESOURCE_ATTRIBUTES, value: "service.name=account-api,deployment.environment=fresh-account,platform.profile=$(PLATFORM_LAB_PROFILE),k8s.pod.uid=$(POD_UID)"}
+        - {name: OTEL_RESOURCE_ATTRIBUTES, value: "service.name=account-api,deployment.environment=local,platform.profile=$(ACCOUNT_RUNTIME_PROFILE),k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.uid=$(POD_UID)"}
         - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.fresh-observability.svc.cluster.local:4318}
         ports:
         - {name: http, containerPort: 8080}
