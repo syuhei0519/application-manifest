@@ -147,6 +147,9 @@ spec:
         - {name: MIGRATION_PASSWORD, valueFrom: {secretKeyRef: {name: account-db-migration, key: password}}}
         - {name: RUNTIME_USERNAME, valueFrom: {secretKeyRef: {name: account-db-runtime, key: username}}}
         - {name: RUNTIME_PASSWORD, valueFrom: {secretKeyRef: {name: account-db-runtime, key: password}}}
+        resources:
+          requests: {cpu: 25m, memory: 64Mi}
+          limits: {memory: 128Mi}
         volumeMounts:
         - {name: contract, mountPath: /contract, readOnly: true}
       volumes:
