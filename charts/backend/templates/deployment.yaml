@@ -9,7 +9,7 @@ metadata:
   labels:
     {{- include "backend.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 3
   progressDeadlineSeconds: 300
   strategy: {type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}
@@ -32,15 +32,15 @@ Secretの実値checksumは含めない。Secret環境変数の更新はrestartNo
 運用者が明示変更してPodTemplateを変える再起動契機。Secret更新だけでは既存processの環境変数は更新されない。
 */}}        account.lab/restart-nonce: {{ .Values.restartNonce | quote }}
     spec:
-      serviceAccountName: backend
-      automountServiceAccountToken: false
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
       imagePullSecrets: {{ toYaml .Values.imagePullSecrets | nindent 8 }}
       terminationGracePeriodSeconds: 30
       containers:
         - name: backend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}@{{ .Values.image.digest }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             {{- include "backend.env" . | nindent 12 }}
           ports: [{name: http, containerPort: 8080}]
@@ -51,18 +51,18 @@ Secretの実値checksumは含めない。Secret環境変数の更新はrestartNo
 startup成功まではliveness/readiness判定を待つ。liveness失敗はコンテナ再起動、readiness失敗はService対象から除外。
 backendのreadyzはschemaも確認、frontendのreadyzはNginx応答だけでDBまでの疎通を保証しない。
 */}}          startupProbe:
-            httpGet: {path: /livez, port: http}
-            periodSeconds: 5
-            timeoutSeconds: 2
-            failureThreshold: 30
+            httpGet: {path: {{ .Values.probes.startup.path }}, port: http}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
           livenessProbe:
-            httpGet: {path: /livez, port: http}
-            periodSeconds: 10
-            timeoutSeconds: 2
-            failureThreshold: 3
+            httpGet: {path: {{ .Values.probes.liveness.path }}, port: http}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
           readinessProbe:
-            httpGet: {path: /readyz, port: http}
-            periodSeconds: 5
-            timeoutSeconds: 2
-            failureThreshold: 2
+            httpGet: {path: {{ .Values.probes.readiness.path }}, port: http}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
       volumes: [{name: tmp, emptyDir: {}}]

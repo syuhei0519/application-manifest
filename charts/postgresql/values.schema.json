@@ -1,9 +1,43 @@
 {
-  "$schema":"https://json-schema.org/draft-07/schema#","type":"object","additionalProperties":false,
-  "required":["replicaCount","image","imagePullSecrets","serviceAccount","service","config","secrets","persistence","resources","podSecurityContext","securityContext"],
-  "properties":{
-    "replicaCount":{"const":1},
-    "image":{"type":"object","required":["repository","tag","digest","pullPolicy"],"properties":{"repository":{"const":"docker.io/library/postgres"},"tag":{"const":"17.10-bookworm"},"digest":{"const":"sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f"},"pullPolicy":{"const":"IfNotPresent"}}},
-    "imagePullSecrets":{"type":"array","maxItems":0},"serviceAccount":{"type":"object"},"service":{"type":"object"},"config":{"type":"object"},"secrets":{"type":"object"},"persistence":{"type":"object","properties":{"enabled":{"const":true},"storageClass":{"const":"standard"},"size":{"const":"2Gi"},"accessModes":{"const":["ReadWriteOnce"]}}},"resources":{"type":"object"},"podSecurityContext":{"type":"object"},"securityContext":{"type":"object"}
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["replicaCount", "image", "imagePullSecrets", "serviceAccount", "service", "config", "secrets", "persistence", "resources", "podSecurityContext", "securityContext"],
+  "properties": {
+    "replicaCount": {"const": 1},
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": {"const": "docker.io/library/postgres"},
+        "tag": {"const": "17.10-bookworm"},
+        "digest": {"const": "sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f"},
+        "pullPolicy": {"enum": ["IfNotPresent", "Never"]}
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"const": "registry-postgresql-pull"}}}
+    },
+    "serviceAccount": {"const": {"name": "postgresql", "automountServiceAccountToken": false}},
+    "service": {"const": {"type": "ClusterIP", "port": 5432}},
+    "config": {
+      "type": "object", "additionalProperties": false,
+      "required": ["dbName", "pgData", "maxConnections", "sharedBuffers"],
+      "properties": {
+        "dbName": {"const": "account"},
+        "pgData": {"const": "/var/lib/postgresql/data/pgdata"},
+        "maxConnections": {"type": "integer", "minimum": 20, "maximum": 100},
+        "sharedBuffers": {"enum": ["64MB", "128MB", "256MB"]}
+      }
+    },
+    "secrets": {"const": {"existingSecret": "account-db", "adminPasswordKey": "admin-password", "appUsernameKey": "app-username", "appPasswordKey": "app-password"}},
+    "persistence": {"const": {"enabled": true, "storageClass": "standard", "size": "2Gi", "accessModes": ["ReadWriteOnce"]}},
+    "resources": {"const": {"requests": {"cpu": "100m", "memory": "256Mi"}, "limits": {"cpu": "500m", "memory": "512Mi"}}},
+    "podSecurityContext": {"const": {"runAsUser": 999, "runAsGroup": 999, "fsGroup": 999, "fsGroupChangePolicy": "OnRootMismatch", "runAsNonRoot": true, "seccompProfile": {"type": "RuntimeDefault"}}},
+    "securityContext": {"const": {"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "capabilities": {"drop": ["ALL"]}}}
   }
 }

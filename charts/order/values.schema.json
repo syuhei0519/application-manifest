@@ -23,7 +23,9 @@
       "type": "boolean"
     },
     "replicaCount": {
-      "const": 1
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
     },
     "image": {
       "type": "object",
@@ -45,12 +47,20 @@
           "type": "string"
         },
         "pullPolicy": {
-          "const": "IfNotPresent"
+          "enum": ["IfNotPresent", "Never"]
         }
       }
     },
     "imagePullSecrets": {
-      "const": []
+      "type": "array",
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {"name": {"const": "registry-order-pull"}}
+      }
     },
     "release": {
       "type": "object",
@@ -163,31 +173,51 @@
       }
     },
     "probes": {
-      "const": {
-        "startup": {
-          "path": "/livez",
-          "periodSeconds": 5,
-          "timeoutSeconds": 2,
-          "failureThreshold": 30
-        },
-        "liveness": {
-          "path": "/livez",
-          "periodSeconds": 10,
-          "timeoutSeconds": 2,
-          "failureThreshold": 3
-        },
-        "readiness": {
-          "path": "/readyz",
-          "periodSeconds": 5,
-          "timeoutSeconds": 2,
-          "failureThreshold": 2
-        }
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startup", "liveness", "readiness"],
+      "properties": {
+        "startup": {"$ref": "#/definitions/startupProbe"},
+        "liveness": {"$ref": "#/definitions/livenessProbe"},
+        "readiness": {"$ref": "#/definitions/readinessProbe"}
       }
     },
     "migration": {
       "const": {
         "activeDeadlineSeconds": 180,
         "backoffLimit": 1
+      }
+    }
+  },
+  "definitions": {
+    "startupProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "path": {"const": "/livez"},
+        "periodSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10},
+        "failureThreshold": {"type": "integer", "minimum": 3, "maximum": 60}
+      }
+    },
+    "livenessProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "path": {"const": "/livez"},
+        "periodSeconds": {"type": "integer", "minimum": 5, "maximum": 30},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10},
+        "failureThreshold": {"type": "integer", "minimum": 1, "maximum": 10}
+      }
+    },
+    "readinessProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "path": {"const": "/readyz"},
+        "periodSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10},
+        "failureThreshold": {"type": "integer", "minimum": 1, "maximum": 10}
       }
     }
   },

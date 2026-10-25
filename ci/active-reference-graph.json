@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "platform-lab/reference-graph/v1",
+  "entries": [
+    {
+      "path": "learning/existing-kind",
+      "classification": "active-current",
+      "owner": "application-manifest",
+      "mutable": true,
+      "purpose": "Current existing-cluster declarations consumed by the canonical root"
+    },
+    {
+      "path": "learning/account-release",
+      "classification": "active-release-definition",
+      "owner": "application-manifest",
+      "mutable": true,
+      "purpose": "Current Account release profile and progressive delivery definition"
+    },
+    {
+      "path": "learning/account-release/session",
+      "classification": "historical-evidence",
+      "owner": "application-manifest",
+      "mutable": false,
+      "purpose": "Completed PLAT-170 evidence; never a fresh-cluster input"
+    },
+    {
+      "path": "environments/local",
+      "classification": "legacy-compatibility",
+      "owner": "application-manifest",
+      "mutable": false,
+      "purpose": "Compatibility renderer input; not the current release proposal target"
+    },
+    {
+      "path": "charts/backend",
+      "classification": "legacy-compatibility",
+      "owner": "application-manifest",
+      "mutable": true,
+      "purpose": "Supported compatibility chart with a strict values contract"
+    },
+    {
+      "path": "charts/frontend",
+      "classification": "legacy-compatibility",
+      "owner": "application-manifest",
+      "mutable": true,
+      "purpose": "Supported compatibility chart preserving the /api route"
+    },
+    {
+      "path": "charts/postgresql",
+      "classification": "legacy-compatibility",
+      "owner": "application-manifest",
+      "mutable": true,
+      "purpose": "Supported retained-PVC compatibility chart"
+    },
+    {
+      "path": "charts/order",
+      "classification": "planned-disabled",
+      "owner": "application-manifest",
+      "mutable": true,
+      "purpose": "Order adoption preparation; disabled state renders an explicit marker only"
+    },
+    {
+      "path": "charts/order-postgresql",
+      "classification": "planned-disabled",
+      "owner": "application-manifest",
+      "mutable": true,
+      "purpose": "Order DB preparation; disabled state renders an explicit marker only"
+    },
+    {
+      "path": "learning/canary",
+      "classification": "learning-evidence",
+      "owner": "application-manifest",
+      "mutable": false,
+      "purpose": "Accepted canary learning material, not a fresh-profile root"
+    },
+    {
+      "path": "learning/istio",
+      "classification": "learning-evidence",
+      "owner": "application-manifest",
+      "mutable": false,
+      "purpose": "Accepted routing learning material, not a fresh-profile root"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ metadata:
     {{- include "postgresql.labels" . | nindent 4 }}
 spec:
   serviceName: postgresql-headless
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   updateStrategy: {type: RollingUpdate}
   selector:
     matchLabels: {app.kubernetes.io/name: postgresql, app.kubernetes.io/instance: {{ .Release.Name }}}
@@ -24,14 +24,15 @@ spec:
 初期化ConfigMap変更をPodTemplateへ伝える。既存PGDATAではinit scriptを再適用しないため、role rotation完了とは別。
 */}}        checksum/init: {{ include (print $.Template.BasePath "/init-configmap.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: postgresql
-      automountServiceAccountToken: false
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | nindent 8 }}
       terminationGracePeriodSeconds: 60
       securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: postgresql
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}@{{ .Values.image.digest }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/bin/sh", "-ec"]
           args:
             - |
