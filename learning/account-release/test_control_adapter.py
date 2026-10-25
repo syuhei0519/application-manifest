@@ -40,7 +40,8 @@ class AdapterTests(unittest.TestCase):
             rollout_uid=self.data['rollout']['metadata']['uid'],application_uid=self.data['application']['metadata']['uid'],
             definition_application_uid='definition-uid',session_started_at=self.now,session_expires_at=self.now+86400,
             token_expires_at=self.now+3600,git_base_branch='main',
-            gh_wrapper=r'C:\Users\espoi\.codex\bin\gh.ps1',powershell='/bin/powershell',kubectl='/bin/kubectl',
+            gh_wrapper=r'C:\Users\espoi\.codex\bin\gh.ps1',
+            powershell=str(Path(self.tmp.name)/'powershell'),kubectl=str(Path(self.tmp.name)/'kubectl'),
             state_file=str(Path(self.tmp.name)/'state.json'),approved_bootstrap_revisions=['a'*40])
         self.adapter=LiveAdapter(self.config,CATALOG,runner=self.command,clock=lambda:self.now)
         self.adapter.get=lambda kind,name=None,namespace=None:copy.deepcopy(self.data[{

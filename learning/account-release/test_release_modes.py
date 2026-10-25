@@ -12,7 +12,7 @@ import yaml
 
 from contract import Rejected, evaluate_metrics
 from release_modes import desired_documents, runtime_status, switch_plan, validate_request
-from test_integration import CATALOG, IMAGES
+from test_integration import CATALOG, IMAGES, typed_profile
 from deployment_target import CONTROL_NAMESPACE
 
 ROOT = Path(__file__).resolve().parent
@@ -40,7 +40,7 @@ class ModesTests(unittest.TestCase):
                 '-c','user.email=fixture@example.invalid',*args],stderr=subprocess.PIPE,text=True).strip()
             git('init')
             for strategy,mode,seed in [('Rolling',None,'abc123'),('Canary','auto',''),('Canary','manual','abc123')]:
-                profile=desired_documents('c'*40,CATALOG,IMAGES['candidate'],strategy,mode,seed,True)[1]['spec']['source']['helm']['valuesObject']
+                profile=typed_profile(desired_documents('c'*40,CATALOG,IMAGES['candidate'],strategy,mode,seed,True)[1]['spec']['source']['helm']['valuesObject'])
                 (release/'runtime-profile.yaml').write_text(yaml.safe_dump(profile))
                 git('add','.');git('commit','-m','fixture profile '+strategy+str(mode))
                 sha=git('rev-parse','HEAD')
@@ -91,7 +91,7 @@ class ModesTests(unittest.TestCase):
             for strategy, mode, seed in [('Canary','manual',''),('Rolling',None,''),('Rolling',None,'abc123')]:
                 _,app=desired_documents('c'*40,CATALOG,IMAGES['candidate'],strategy,mode,seed)
                 p=Path(tmp)/'values.json'
-                p.write_text(json.dumps(app['spec']['source']['helm']['valuesObject']))
+                p.write_text(json.dumps(typed_profile(app['spec']['source']['helm']['valuesObject'])))
                 render=subprocess.check_output([os.environ.get('HELM','helm'),'template','account-release',
                     str(ROOT/'chart'),'-n','learning-account-release','-f',str(p)],text=True)
                 docs={d['kind']:d for d in yaml.safe_load_all(render)}
@@ -144,7 +144,7 @@ class ModesTests(unittest.TestCase):
                                        ('Canary','manual',''),('Canary','auto','abc123')]:
                 _,app=desired_documents('c'*40,CATALOG,IMAGES['candidate'],strategy,mode,seed,True)
                 values=Path(tmp)/'values.json'
-                values.write_text(json.dumps(app['spec']['source']['helm']['valuesObject']))
+                values.write_text(json.dumps(typed_profile(app['spec']['source']['helm']['valuesObject'])))
                 rendered=subprocess.check_output([os.environ.get('HELM','helm'),'template','account-release',
                     str(ROOT/'chart'),'-n','learning-account-release','-f',str(values)],text=True)
                 docs={d['kind']:d for d in yaml.safe_load_all(rendered)}
@@ -164,7 +164,7 @@ class ModesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             for mode in ['manual','auto']:
                 docs=desired_documents('c'*40,CATALOG,IMAGES['candidate'],'Canary',mode,analysis_enabled=True)
-                path=Path(tmp)/'v.json';path.write_text(json.dumps(docs[1]['spec']['source']['helm']['valuesObject']))
+                path=Path(tmp)/'v.json';path.write_text(json.dumps(typed_profile(docs[1]['spec']['source']['helm']['valuesObject'])))
                 rendered=subprocess.check_output([os.environ.get('HELM','helm'),'template','account-release',str(ROOT/'chart'),'-n','learning-account-release','-f',str(path)],text=True)
                 objects={d['kind']:d for d in yaml.safe_load_all(rendered)}
                 steps=objects['Rollout']['spec']['strategy']['canary']['steps']

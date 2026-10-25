@@ -376,7 +376,16 @@ def verify_entry(entry,owner):
     require(annotations.get('account.lab/release-schema-version')==version and
             annotations.get('account.lab/source-repository')==repo and annotations.get('account.lab/source-commit')==commit)
     require(annotations.get('account.lab/service')=='order' if service=='order' else 'account.lab/service' not in annotations)
-    if service=='order':
+    current=(entry.get('namespace')=='learning-account-release' and entry.get('kind')=='Rollout' and
+             entry.get('name')=='account-release')
+    if current:
+        require(annotations.get('account.lab/github-event')=='push' and annotations.get('account.lab/github-ref')=='refs/heads/main' and
+                annotations.get('account.lab/github-workflow-ref')==repo+'/.github/workflows/ci.yml@refs/heads/main' and
+                annotations.get('account.lab/published')=='true')
+        fields={'release-schema-version','source-repository','source-commit','github-event','github-ref','github-workflow-ref',
+            'github-run-id','github-run-attempt','image-digest','release-record-url','release-record-sha256','sbom-url','sbom-sha256','published'}
+        require(set(annotations)=={'account.lab/'+key for key in fields})
+    elif service=='order':
         require(set(annotations)=={'account.lab/'+key for key in ('release-schema-version','service','source-repository',
             'source-commit','github-run-id','github-run-attempt','image-digest','release-record-url','release-record-sha256','sbom-url','sbom-sha256')})
     run_id=annotation_id(annotations['account.lab/github-run-id']);attempt=annotation_id(annotations['account.lab/github-run-attempt'])
@@ -427,7 +436,10 @@ def verify():
     run(['python3','-I','ci/trusted-render.py','--repo','.', '--target',base,'--source',head,'--verifier',verifier,
          '--producer-job-id',str(run_id),'--output','.trusted/github-render.json','--test-only'],env=clean)
     render=load('.trusted/github-render.json');require(render['targetSha']==base and render['sourceSha']==head and render['verifierSha']==verifier)
-    before=render['renders']['before']['inventory']['entries'];after=render['renders']['candidate']['inventory']['entries']
+    before=(render['renders']['before']['inventory']['entries']+
+            render['renders']['before']['currentAccountInventory']['entries'])
+    after=(render['renders']['candidate']['inventory']['entries']+
+           render['renders']['candidate']['currentAccountInventory']['entries'])
     def key(e):return tuple(e[k] for k in ('namespace','kind','name','podSpecPath','containerType','containerName'))
     old={key(e):e for e in before};verified=[];cache={}
     for entry in after:

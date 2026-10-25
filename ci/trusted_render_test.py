@@ -11,6 +11,11 @@ def files(charts):
     return {path:{} for chart in charts for path in ('charts/'+chart+'/Chart.yaml','environments/local/'+chart+'.yaml')}
 
 class Inventory(unittest.TestCase):
+    def test_combined_entries_keeps_current_profile_separate(self):
+        render={'inventory':{'entries':[{'namespace':'account'}]},
+                'currentAccountInventory':{'entries':[{'namespace':'learning-account-release'}]}}
+        self.assertEqual([x['namespace'] for x in m.combined_entries(render)],
+                         ['account','learning-account-release'])
     def test_baseline_absence_and_complete_additions(self):
         baseline=m.chart_inventory(files(m.ACTIVE_CHARTS))
         self.assertEqual(baseline,list(m.ACTIVE_CHARTS))

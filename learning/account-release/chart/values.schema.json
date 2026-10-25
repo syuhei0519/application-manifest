@@ -1,18 +1,78 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object", "additionalProperties": false,
+  "type": "object",
+  "additionalProperties": false,
   "required": ["owner", "image", "sourceCommit", "imageRevision"],
   "properties": {
     "owner": {"const": "plat170-account"},
-    "image": {"type": "string", "pattern": "^[a-z0-9./_-]+@sha256:[a-f0-9]{64}$"},
+    "image": {
+      "oneOf": [
+        {"type": "string", "pattern": "^ghcr\\.io/syuhei0519/backend-app@sha256:[a-f0-9]{64}$"},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["repository", "tag", "digest", "pullPolicy"],
+          "properties": {
+            "repository": {"const": "ghcr.io/syuhei0519/backend-app"},
+            "tag": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "pullPolicy": {"const": "IfNotPresent"}
+          }
+        }
+      ]
+    },
     "sourceCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
     "imageRevision": {"type": "string", "pattern": "^sha256-[a-f0-9]{56}$"},
+    "release": {
+      "oneOf": [
+        {"type": "object", "maxProperties": 0},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["schemaVersion", "sourceRepository", "sourceCommit", "event", "ref", "workflowRef", "runId", "runAttempt", "artifactId", "archiveSha256", "published"],
+          "properties": {
+            "schemaVersion": {"const": "checked-artifact-v1"},
+            "sourceRepository": {"const": "syuhei0519/backend-app"},
+            "sourceCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "event": {"const": "push"},
+            "ref": {"const": "refs/heads/main"},
+            "workflowRef": {"const": "syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main"},
+            "runId": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+            "runAttempt": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+            "artifactId": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+            "archiveSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "published": {"const": false}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["schemaVersion", "sourceRepository", "sourceCommit", "event", "ref", "workflowRef", "runId", "runAttempt", "recordUrl", "recordSha256", "sbomUrl", "sbomSha256", "published"],
+          "properties": {
+            "schemaVersion": {"const": "github-v1"},
+            "sourceRepository": {"const": "syuhei0519/backend-app"},
+            "sourceCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "event": {"const": "push"},
+            "ref": {"const": "refs/heads/main"},
+            "workflowRef": {"const": "syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main"},
+            "runId": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+            "runAttempt": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+            "recordUrl": {"type": "string", "pattern": "^https://github\\.com/syuhei0519/backend-app/releases/download/gha-[a-f0-9]{40}-[1-9][0-9]*-[1-9][0-9]*/release-record\\.json$"},
+            "recordSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "sbomUrl": {"type": "string", "pattern": "^https://github\\.com/syuhei0519/backend-app/releases/download/gha-[a-f0-9]{40}-[1-9][0-9]*-[1-9][0-9]*/sbom\\.cdx\\.json$"},
+            "sbomSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "published": {"const": true}
+          }
+        }
+      ]
+    },
     "strategy": {"enum": ["Canary", "Rolling"]},
     "promotionMode": {"enum": ["manual", "auto", null]},
     "bootstrapHash": {"type": "string", "pattern": "^([a-z0-9]{5,16})?$"},
     "analysisPluginEnabled": {"type": "boolean"}
   },
   "allOf": [
+    {"oneOf": [
+      {"properties": {"image": {"type": "string"}, "release": {"type": "object", "maxProperties": 0}}},
+      {"properties": {"image": {"type": "object"}, "release": {"type": "object", "required": ["schemaVersion"]}}, "required": ["release"]}
+    ]},
     {"if": {"properties": {"strategy": {"const": "Rolling"}}, "required": ["strategy"]},
      "then": {"properties": {"promotionMode": {"type": "null"}}},
      "else": {"properties": {"promotionMode": {"enum": ["manual", "auto"]}}}},

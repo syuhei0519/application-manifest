@@ -17,6 +17,23 @@ from release_modes import desired_documents
 ROOT = Path(__file__).resolve().parent
 
 
+def profile_image(profile):
+    value = profile.get('image') if isinstance(profile, dict) else None
+    if isinstance(value, str):
+        return value
+    require(isinstance(value, dict) and set(value) == {'repository', 'tag', 'digest', 'pullPolicy'} and
+            value['pullPolicy'] == 'IfNotPresent', 'finite-image-profile-required')
+    return f"{value['repository']}:{value['tag']}@{value['digest']}"
+
+
+def profile_catalog_image(profile):
+    value = profile.get('image') if isinstance(profile, dict) else None
+    if isinstance(value, str):
+        return value
+    profile_image(profile)
+    return f"{value['repository']}@{value['digest']}"
+
+
 def committed_source(repo, commit):
     """Read regular blobs from an exact commit; ignore the mutable checkout."""
     import re
@@ -61,7 +78,12 @@ def runtime_documents(commit, catalog, image, repo, helm='helm'):
         if 'bootstrapHash' in profile:
             docs[1]['spec']['source']['helm']['valuesObject']['bootstrapHash'] = profile['bootstrapHash']
     expected = docs[1]['spec']['source']['helm']['valuesObject']
-    require(profile == expected, 'tracked-runtime-profile-must-match-reviewed-image')
+    comparable = copy.deepcopy(profile)
+    if isinstance(comparable.get('image'), dict):
+        require(isinstance(comparable.get('release'), dict), 'typed-release-profile-required')
+        comparable['image'] = profile_catalog_image(comparable)
+        comparable.pop('release')
+    require(comparable == expected, 'tracked-runtime-profile-must-match-reviewed-image')
     docs[1]['spec']['source']['helm'] = dict(releaseName='account-release', valueFiles=['../runtime-profile.yaml'])
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -72,7 +94,8 @@ def runtime_documents(commit, catalog, image, repo, helm='helm'):
         rendered = subprocess.check_output([helm, 'template', 'account-release', str(root/'chart'), '-n',
             'learning-account-release', '-f', str(root/'runtime-profile.yaml')], text=True)
     rollout = next(d for d in yaml.safe_load_all(rendered) if d['kind'] == 'Rollout')
-    require(rollout['spec']['template']['spec']['containers'][0]['image'] == image,
+    require(profile_catalog_image(profile) == image and
+            rollout['spec']['template']['spec']['containers'][0]['image'] == profile_image(profile),
             'committed-chart-image-must-match-reviewed-image')
     env = {item['name']: item for item in rollout['spec']['template']['spec']['containers'][0]['env']}
     for name, field in [('POD_NAMESPACE', 'metadata.namespace'), ('POD_UID', 'metadata.uid')]:
