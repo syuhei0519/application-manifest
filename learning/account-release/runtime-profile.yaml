@@ -5,3 +5,4 @@ image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad
 strategy: Rolling
 promotionMode: null
 analysisPluginEnabled: true
+bootstrapHash: 7b9d75757f
