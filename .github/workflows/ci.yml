@@ -73,17 +73,17 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: syuhei0519/platform-gitops
-          ref: 3bb6860998e0558ca4d92ad14a89ccf21c93a767
+          ref: 4d92a2a239a795f0cae70d4d7e0a141084150799
           path: .build/current-platform
           persist-credentials: false
       - name: Learning Account canary static checks
         run: |
           python3 -m venv .build/canary-venv
           .build/canary-venv/bin/python -m pip install PyYAML==6.0.3 jsonschema==4.26.0
-          PAIRED_APPLICATION_MANIFEST="$PWD" \
-            .build/canary-venv/bin/python .build/current-platform/learning/existing-kind/test_current_contract.py
           docker run --rm --entrypoint cat alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 /usr/bin/helm > .build/helm
           chmod +x .build/helm
+          PATH="$PWD/.build:$PATH" PAIRED_APPLICATION_MANIFEST="$PWD" \
+            .build/canary-venv/bin/python .build/current-platform/learning/existing-kind/test_current_contract.py
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_integration.py' -v
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_release_modes.py' -v
           .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_operations.py' -v
