@@ -1,5 +1,7 @@
 # application-manifest
 
+profile の変更が二段階の Argo CD 同期と Pod に届く流れは [4 repository 共通の学習ガイド](https://github.com/syuhei0519/platform-gitops/blob/205e9a652d9fa5b550c7cb813bf94a64fcfa7f62/docs/learning-guides/README.md) を参照してください。Abort と Git の前版復元の違い、timeout 後の照合、正常系・異常系の検証もまとめています。
+
 ## Existing kind deployment (PLAT-195/198)
 
 For `kind-learning-20261018-69c763`, the ordinary deployment entry is a reviewed
