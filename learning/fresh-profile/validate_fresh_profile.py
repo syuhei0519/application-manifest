@@ -150,7 +150,7 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
             "account-profile-compatibility")
     fresh_requirement = contract["images"]["freshRuntimeRequirement"]
     require(fresh_requirement == {
-        "sourceAtOrAfter": "d797fc285618dea3eb9f64b425793eaf1e2a7012",
+        "sourceAtOrAfter": "45c08d6e451770530e46fe35c0ea8990fd53a6c3",
         "requiredConfig": "finite fresh-account operation roles, exact namespace/schema, and Downward API identity",
         "immutableImageRef": "PENDING_VERIFIED_PLAT211_IMAGE",
         "freshEligible": False,
