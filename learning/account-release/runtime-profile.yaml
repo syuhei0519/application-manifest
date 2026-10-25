@@ -1,7 +1,23 @@
 owner: plat170-account
 sourceCommit: 527b9bccf4ae56244d134ae384564ec1cccea815
 imageRevision: sha256-746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a
-image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
+image:
+  repository: ghcr.io/syuhei0519/backend-app
+  tag: 527b9bccf4ae56244d134ae384564ec1cccea815
+  digest: sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
+  pullPolicy: IfNotPresent
+release:
+  schemaVersion: checked-artifact-v1
+  sourceRepository: syuhei0519/backend-app
+  sourceCommit: 527b9bccf4ae56244d134ae384564ec1cccea815
+  event: push
+  ref: refs/heads/main
+  workflowRef: syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main
+  runId: "40145897432"
+  runAttempt: "1"
+  artifactId: "12580417539"
+  archiveSha256: 9e9b4b12315c9efa665f82dd43975668b738bb65f6f2434f8350f0d4e9a9ba37
+  published: false
 strategy: Canary
 promotionMode: auto
 analysisPluginEnabled: true
