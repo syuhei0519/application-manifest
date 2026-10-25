@@ -99,6 +99,20 @@ class FreshWorkloadTests(unittest.TestCase):
         with self.assertRaises(fresh.Rejected):
             fresh.validate(db_cases_path=self.temp_json(cases))
 
+    def test_api_readiness_is_strictly_after_migration(self):
+        documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+        rollout = next(item for item in documents if item.get("kind") == "Rollout")
+        self.assertEqual(rollout["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"], "30")
+        del rollout["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"]
+        with self.assertRaisesRegex(fresh.Rejected, "application-wave|bootstrap-before-readiness"):
+            fresh.validate(workload_path=self.temp_yaml(documents))
+
+        documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+        rollout = next(item for item in documents if item.get("kind") == "Rollout")
+        rollout["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] = "20"
+        with self.assertRaisesRegex(fresh.Rejected, "application-wave|bootstrap-before-readiness"):
+            fresh.validate(workload_path=self.temp_yaml(documents))
+
 
 if __name__ == "__main__":
     unittest.main()

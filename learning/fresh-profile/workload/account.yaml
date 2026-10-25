@@ -175,6 +175,8 @@ kind: Rollout
 metadata:
   name: account-api
   namespace: fresh-account
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
 spec:
   replicas: 2
   selector:
@@ -224,6 +226,8 @@ kind: Service
 metadata:
   name: account-api
   namespace: fresh-account
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
 spec:
   selector:
     app.kubernetes.io/name: account-api
@@ -235,6 +239,8 @@ kind: DestinationRule
 metadata:
   name: account-api
   namespace: fresh-account
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
 spec:
   host: account-api.fresh-account.svc.cluster.local
 ---
@@ -243,6 +249,8 @@ kind: VirtualService
 metadata:
   name: account-api
   namespace: fresh-account
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
 spec:
   hosts: [account-api.fresh-account.svc.cluster.local]
   http:

@@ -51,6 +51,12 @@ def pod_spec(document):
     return None
 
 
+def sync_wave(document):
+    value = document.get("metadata", {}).get("annotations", {}).get("argocd.argoproj.io/sync-wave", "0")
+    require(re.fullmatch(r"-?[0-9]+", str(value)) is not None, "sync-wave-format")
+    return int(value)
+
+
 def rendered_workload(workload_path=WORKLOAD, sql_path=SQL, kustomization_path=KUSTOMIZATION):
     """Model the one deterministic configMapGenerator used by this profile."""
     documents = list(yaml.safe_load_all(Path(workload_path).read_text(encoding="utf-8")))
@@ -183,6 +189,19 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
                 f"job-order:{name}")
         require(jobs[name]["spec"]["template"]["metadata"]["annotations"] ==
                 {"sidecar.istio.io/inject": "false"}, f"job-sidecar:{name}")
+    require(sync_wave(jobs["account-db-role-bootstrap"]) == 10 and
+            sync_wave(jobs["account-migration"]) == 20, "database-job-order")
+    application_identities = {
+        "Rollout/fresh-account/account-api",
+        "Service/fresh-account/account-api",
+        "DestinationRule/fresh-account/account-api",
+        "VirtualService/fresh-account/account-api",
+    }
+    require(all(sync_wave(index[name]) == 30 for name in application_identities), "application-wave")
+    require(sync_wave(index["StatefulSet/fresh-account/account-postgresql"]) <
+            sync_wave(jobs["account-db-role-bootstrap"]) <
+            sync_wave(jobs["account-migration"]) <
+            sync_wave(rollout), "bootstrap-before-readiness")
     require("--set=database_name=account" in jobs["account-db-role-bootstrap"]["spec"]["template"]["spec"]["containers"][0]["args"][0]
             and "--set=service_schema=account" in jobs["account-db-role-bootstrap"]["spec"]["template"]["spec"]["containers"][0]["args"][0],
             "role-bootstrap-variables")
