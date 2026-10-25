@@ -17,6 +17,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: fresh-account
   syncPolicy:
+    managedNamespaceMetadata:
+      labels: {platform.lab/profile: account-lightweight-fresh}
     syncOptions:
     - CreateNamespace=true
     - ApplyOutOfSyncOnly=true

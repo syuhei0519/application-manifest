@@ -104,6 +104,14 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
     require(account_image["ref"] in found_images, "account-image")
     require(contract["images"]["postgres"]["ref"] in found_images, "postgres-image")
     require(not any("966adba896524519" in image for image in found_images), "rollouts-image-reuse")
+    rollout = index["Rollout/fresh-account/account-api"]
+    runtime_env = {item["name"]: item for item in
+                   rollout["spec"]["template"]["spec"]["containers"][0]["env"]}
+    require(runtime_env["PLATFORM_LAB_PROFILE"].get("value") == "fresh-account", "telemetry-profile")
+    require(runtime_env["POD_UID"].get("valueFrom", {}).get("fieldRef", {}).get("fieldPath") == "metadata.uid",
+            "telemetry-pod-uid")
+    require("$(PLATFORM_LAB_PROFILE)" in runtime_env["OTEL_RESOURCE_ATTRIBUTES"].get("value", "") and
+            "$(POD_UID)" in runtime_env["OTEL_RESOURCE_ATTRIBUTES"].get("value", ""), "telemetry-attributes")
 
     pvc = index["PersistentVolumeClaim/fresh-account/account-data"]
     require(pvc["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] ==

@@ -211,6 +211,11 @@ spec:
         image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
         env:
         - {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: account-db-runtime, key: uri}}}
+        - {name: PLATFORM_LAB_PROFILE, value: fresh-account}
+        - name: POD_UID
+          valueFrom: {fieldRef: {fieldPath: metadata.uid}}
+        - {name: OTEL_RESOURCE_ATTRIBUTES, value: "service.name=account-api,deployment.environment=fresh-account,platform.profile=$(PLATFORM_LAB_PROFILE),k8s.pod.uid=$(POD_UID)"}
+        - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.fresh-observability.svc.cluster.local:4318}
         ports:
         - {name: http, containerPort: 8080}
         readinessProbe:
