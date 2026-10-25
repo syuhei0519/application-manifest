@@ -25,6 +25,10 @@ class Rejected(ValueError):
     pass
 
 
+class DefinitiveNoWriteRejected(Rejected):
+    """The adapter proved that this dispatch performed no external write."""
+
+
 def require(ok, reason):
     if not ok:
         raise Rejected(reason)

@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from contract import Rejected
+from contract import DefinitiveNoWriteRejected, Rejected
 from operations import Coordinator
 from test_integration import CATALOG, IMAGES
 from test_release_modes import current, request
@@ -79,6 +79,15 @@ class OperationsTests(unittest.TestCase):
         self.core.reconcile(ACTOR,'request-001')
         self.core.request(ACTOR,request())
         self.assertEqual(len(self.adapter.calls),1)
+
+    def test_absent_pr_observation_never_releases_reservation(self):
+        self.assertEqual(self.core.request(ACTOR,request())['state'],'review-pending')
+        self.adapter.proposal_outcome=lambda *args:{'state':'outcome-unknown','reason':'proposal-not-found'}
+        result=self.core.reconcile(ACTOR,'request-001')
+        self.assertEqual(result['state'],'outcome-unknown')
+        self.assertEqual(self.core.db.execute('SELECT request_id FROM exclusion').fetchone()[0],'request-001')
+        with self.assertRaisesRegex(Rejected,'service-environment-busy'):
+            self.core.request(ACTOR,dict(request(),request_id='request-002'))
         self.assertNotIn('private',str(self.core.history(ACTOR)))
         with self.assertRaisesRegex(Rejected,'service-environment-busy'):
             self.core.request(ACTOR,dict(request(),request_id='request-002'))
@@ -88,6 +97,33 @@ class OperationsTests(unittest.TestCase):
         self.adapter.propose=lambda *args:dict(original(*args),base_revision='e'*40)
         self.assertEqual(self.core.request(ACTOR,request())['state'],'outcome-unknown')
         self.assertEqual(self.core.db.execute('SELECT count(*) FROM exclusion').fetchone()[0],1)
+
+    def test_typed_pre_write_main_conflict_rejects_and_releases_reservation(self):
+        def conflict(*args):
+            self.adapter.calls.append(('propose',args[0]))
+            raise DefinitiveNoWriteRejected('git-base-changed')
+        self.adapter.propose=conflict
+        result=self.core.request(ACTOR,request())
+        self.assertEqual(result['state'],'rejected')
+        self.assertEqual(result['result'],{'state':'rejected','reason':'git-base-changed','git_change_absent':True})
+        self.assertEqual(self.core.db.execute('SELECT count(*) FROM exclusion').fetchone()[0],0)
+        self.assertEqual(len(self.adapter.calls),1)
+        self.assertEqual(self.core.request(ACTOR,request()),result)
+        self.assertEqual(len(self.adapter.calls),1)
+
+    def test_all_derived_phase_ids_are_validated_before_reservation(self):
+        accepted=dict(request(),request_id='a'*72)
+        self.assertEqual(self.core.request(ACTOR,accepted)['state'],'review-pending')
+        self.assertEqual(self.adapter.calls,[('propose','a'*72+'-phase-0')])
+
+        self.core.db.close();self.tmp.cleanup()
+        self.tmp=tempfile.TemporaryDirectory();self.path=Path(self.tmp.name)/'operations.sqlite'
+        self.adapter=Adapter();self.core=Coordinator(self.path,CATALOG,self.adapter,[ACTOR])
+        rejected=self.core.submit(ACTOR,dict(request(),request_id='b'*73))
+        self.assertEqual(rejected['state'],'rejected')
+        self.assertEqual(rejected['result']['reason'],'derived-proposal-id-invalid')
+        self.assertEqual(self.adapter.calls,[])
+        self.assertEqual(self.core.db.execute('SELECT count(*) FROM exclusion').fetchone()[0],0)
 
     def test_adapter_evidence_cannot_leak_arbitrary_reason_or_identity(self):
         self.core.request(ACTOR,request())

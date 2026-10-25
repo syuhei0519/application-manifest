@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from contract import require, validate_catalog
+from contract import DefinitiveNoWriteRejected, require, validate_catalog
 from integration import REPO, POINTERS, image_revision
 from operations import ID, SHA
 from release_modes import runtime_status
@@ -255,8 +255,24 @@ class LiveAdapter:
     def propose(self,proposal_id,expected_revision,phase):
         require(ID.fullmatch(proposal_id) and len(proposal_id)<=80,'invalid-proposal-id')
         root='repos/'+REPOSITORY
-        current=self.gh('GET',root+'/git/ref/heads/'+self.config['git_base_branch'])
-        require(current['object']['sha']==expected_revision,'git-base-changed')
+        try:
+            current=self.gh('GET',root+'/git/ref/heads/'+self.config['git_base_branch'])
+            current_revision=current['object']['sha']
+            if current_revision!=expected_revision:
+                # Reads of both exact Git revisions distinguish an unrelated
+                # main advance from a profile change.  Neither case rebases a
+                # branch in place; the caller must observe main and use a new
+                # request id.  Everything in this block precedes the first POST.
+                reason=('git-base-advanced-profile-unchanged'
+                        if self.profile(expected_revision)==self.profile(current_revision)
+                        else 'git-profile-changed')
+                raise DefinitiveNoWriteRejected(reason)
+        except DefinitiveNoWriteRejected:
+            raise
+        except Exception as exc:
+            # A failed read is still proven zero-write, but never exposes a raw
+            # upstream error or value through the public rejection.
+            raise DefinitiveNoWriteRejected('git-pre-write-read-failed') from exc
         branch='release/account-'+proposal_id
         # A unique deterministic branch makes partial success discoverable. No
         # force push, main update or merge API exists in this adapter.

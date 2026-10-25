@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 
-from contract import Rejected
+from contract import DefinitiveNoWriteRejected, Rejected
 from control_adapter import LiveAdapter, PROFILE, REPOSITORY
 from operations import Coordinator
 from deployment_target import CONTEXT, CONTROL_NAMESPACE, SERVER, DEFINITION
@@ -105,6 +105,40 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaises(Rejected):self.adapter.gh('POST','repos/another/repo/pulls',{})
         with self.assertRaises(Rejected):self.adapter._update_branch('main','a'*40,'b'*40)
         self.assertEqual(self.calls,[])
+
+    def test_unchanged_profile_main_advance_is_typed_and_performs_zero_writes(self):
+        calls=[]
+        def gh(method,endpoint,payload=None):
+            calls.append((method,endpoint,payload))
+            return {'object':{'sha':'b'*40}}
+        self.adapter.gh=gh
+        self.adapter.profile=lambda revision:{'image':'same-profile'}
+        with self.assertRaisesRegex(DefinitiveNoWriteRejected,'git-base-advanced-profile-unchanged'):
+            self.adapter.propose('request-001-phase-0','a'*40,{})
+        self.assertEqual(calls,[('GET',f'repos/{REPOSITORY}/git/ref/heads/main',None)])
+        self.assertFalse(any(method=='POST' for method,_,_ in calls))
+
+    def test_profile_change_rejects_before_first_write(self):
+        calls=[]
+        def gh(method,endpoint,payload=None):
+            calls.append((method,endpoint,payload))
+            return {'object':{'sha':'b'*40}}
+        self.adapter.gh=gh
+        self.adapter.profile=lambda revision:{'image':revision}
+        with self.assertRaisesRegex(DefinitiveNoWriteRejected,'git-profile-changed'):
+            self.adapter.propose('request-001-phase-0','a'*40,{})
+        self.assertEqual([method for method,_,_ in calls],['GET'])
+
+    def test_response_loss_after_first_post_is_not_typed_zero_write(self):
+        calls=[]
+        def gh(method,endpoint,payload=None):
+            calls.append((method,endpoint,payload))
+            if method=='GET':return {'object':{'sha':'a'*40}}
+            raise TimeoutError('synthetic response loss after accepted POST')
+        self.adapter.gh=gh
+        with self.assertRaises(TimeoutError):
+            self.adapter.propose('request-001-phase-0','a'*40,{})
+        self.assertEqual([method for method,_,_ in calls],['GET','POST'])
 
     def test_deleted_context_and_unbounded_session_are_rejected(self):
         for change in [dict(context='kind-plat171-account'),dict(git_base_branch='trial/plat171-account-20261022'),
