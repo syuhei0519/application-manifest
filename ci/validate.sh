@@ -25,6 +25,15 @@ for chart in $charts; do
   helm template "$chart" "charts/$chart" -f "environments/local/$chart.yaml" > ".rendered/$chart.yaml"
 done
 
+# The adopted Account profile is deliberately still flat and digest-only. Run
+# the same fixed inventory binary used by trusted PR verification so CI proves
+# that bounded compatibility path before a proposal is evaluated.
+helm lint --strict learning/account-release/chart -f learning/account-release/runtime-profile.yaml
+helm template account-release learning/account-release/chart --namespace learning-account-release \
+  -f learning/account-release/runtime-profile.yaml > .rendered/account-release-current.yaml
+.build/inventory --namespace learning-account-release < .rendered/account-release-current.yaml \
+  > .rendered/account-release-current.inventory.json
+
 for chart in $charts; do cat ".rendered/$chart.yaml"; done > .rendered/all.yaml
 if grep -Eq '^kind: (Namespace|Secret|ClusterRole|ClusterRoleBinding)$' .rendered/all.yaml; then
   echo 'forbidden resource kind rendered' >&2

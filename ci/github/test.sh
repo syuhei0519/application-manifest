@@ -8,6 +8,7 @@ for module in tools/*/go.mod; do
   if test "$dir" = tools/checksum; then continue; fi
   (cd "$dir"; go test ./...)
 done
+(cd tools/inventory; CGO_ENABLED=0 go build -trimpath -o ../../.build/inventory .)
 (cd tools/scan-gate; CGO_ENABLED=0 go build -trimpath -o ../../.security/scan-gate .)
 (cd tools/checksum; CGO_ENABLED=0 go test -c -o ../../.build/checksum-test .)
 python3 -I ci/trusted_render_test.py -v

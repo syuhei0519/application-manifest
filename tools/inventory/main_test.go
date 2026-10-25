@@ -28,6 +28,52 @@ func TestDestinationNamespace(t *testing.T) {
 
 const img = "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
+const currentAccountDigestImage = "ghcr.io/syuhei0519/backend-app@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+func currentAccountFixture() string {
+	return `apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: account-release
+  namespace: learning-account-release
+spec:
+  template:
+    metadata:
+      annotations:
+        learning.local/source-commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        learning.local/image: ` + currentAccountDigestImage + `
+    spec:
+      containers:
+      - name: api
+        image: ` + currentAccountDigestImage + "\n"
+}
+
+func TestCurrentAccountDigestOnlyCompatibilityIsBounded(t *testing.T) {
+	input := currentAccountFixture()
+	out, err := inventory([]byte(input), "learning-account-release")
+	if err != nil || len(out.Entries) != 1 {
+		t.Fatalf("current Account profile rejected: %v", err)
+	}
+	entry := out.Entries[0]
+	if entry.Repository != "ghcr.io/syuhei0519/backend-app" || entry.Tag != strings.Repeat("a", 40) || entry.Digest != "sha256:"+strings.Repeat("b", 64) {
+		t.Fatalf("current Account identity=%+v", entry)
+	}
+	for name, changed := range map[string]string{
+		"wrong-workload":            strings.Replace(input, "name: account-release", "name: other", 1),
+		"wrong-container":           strings.Replace(input, "name: api", "name: other", 1),
+		"wrong-repository":          strings.ReplaceAll(input, "ghcr.io/syuhei0519/backend-app", "example.invalid/backend-app"),
+		"bad-source":                strings.Replace(input, strings.Repeat("a", 40), "main", 1),
+		"image-annotation-mismatch": strings.Replace(input, "learning.local/image: "+currentAccountDigestImage, "learning.local/image: ghcr.io/syuhei0519/backend-app@sha256:"+strings.Repeat("c", 64), 1),
+		"typed-annotation-no-tag":   strings.Replace(input, "learning.local/source-commit:", "account.lab/source-commit: "+strings.Repeat("a", 40)+"\n        learning.local/source-commit:", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := inventory([]byte(changed), "learning-account-release"); err == nil {
+				t.Fatal("accepted escaped digest-only compatibility input")
+			}
+		})
+	}
+}
+
 func fixture(kind string) string {
 	api := "apps/v1"
 	spec := "spec:\n  template:\n    metadata:\n      annotations:\n        account.lab/pipeline-id: \"1\"\n    spec:\n      containers:\n      - name: app\n        image: " + img + "\n"

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -67,6 +68,32 @@ func imageParts(image string) (string, string, string, error) {
 		return "", "", "", fmt.Errorf("floating/invalid image")
 	}
 	return repo, tag, parts[1], nil
+}
+
+var sourceCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+// inventoryImageParts preserves the strict tagged-image contract, with one
+// bounded compatibility bridge for the already-adopted Account release
+// profile. That profile predates typed release identity and pins a digest-only
+// image; its fixed source annotation supplies the missing immutable tag.
+func inventoryImageParts(image, namespace, kind, name, containerName string, annotations map[string]any) (string, string, string, error) {
+	repo, tag, digest, err := imageParts(image)
+	if err == nil {
+		return repo, tag, digest, nil
+	}
+	parts := strings.Split(image, "@")
+	sourceCommit := str(annotations, "learning.local/source-commit")
+	if namespace != "learning-account-release" || kind != "Rollout" || name != "account-release" || containerName != "api" ||
+		len(parts) != 2 || parts[0] != "ghcr.io/syuhei0519/backend-app" ||
+		!sourceCommitPattern.MatchString(sourceCommit) || str(annotations, "learning.local/image") != image {
+		return "", "", "", err
+	}
+	for key := range annotations {
+		if strings.HasPrefix(key, "account.lab/") {
+			return "", "", "", err
+		}
+	}
+	return imageParts(parts[0] + ":" + sourceCommit + "@" + parts[1])
 }
 
 func inventory(data []byte, namespace string) (Output, error) {
@@ -195,7 +222,7 @@ func inventory(data []byte, namespace string) (Output, error) {
 				if containerName == "" {
 					return result, fmt.Errorf("container name missing")
 				}
-				repo, tag, digest, err := imageParts(str(c, "image"))
+				repo, tag, digest, err := inventoryImageParts(str(c, "image"), ns, kind, name, containerName, annotations)
 				if err != nil {
 					return result, fmt.Errorf("%s/%s: %w", resourceKey, containerName, err)
 				}
