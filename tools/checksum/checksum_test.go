@@ -4,7 +4,6 @@ package checksum
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -55,14 +54,29 @@ func deployment(t *testing.T, service string, overrides ...string) (string, any)
 	return "", nil
 }
 
+func deploymentRejected(t *testing.T, service string, overrides ...string) {
+	t.Helper()
+	helm := os.Getenv("HELM")
+	if helm == "" {
+		helm = "helm"
+	}
+	args := []string{"template", service, "../../charts/" + service, "-f", "../../environments/local/" + service + ".yaml"}
+	for _, v := range overrides {
+		args = append(args, "--set", v)
+	}
+	if data, err := exec.Command(helm, args...).CombinedOutput(); err == nil {
+		t.Fatalf("forbidden override accepted: %v\n%s", overrides, data)
+	}
+}
+
 func TestConfigChangesRollPodTemplate(t *testing.T) {
 	cases := map[string][]string{
-		"frontend": {"config.apiBasePath=/fixture-api", "config.apiUpstream=http://fixture-backend:8080"},
-		"backend":  {"config.logLevel=debug", "config.dbHost=fixture-db", "config.dbPort=5433", "config.dbName=fixture", "config.sslmode=require"},
+		"frontend": {"restartNonce=fixture", "probes.readiness.periodSeconds=7"},
+		"backend":  {"config.logLevel=debug", "restartNonce=fixture", "probes.readiness.periodSeconds=7"},
 	}
 	baselines := map[string][]string{
-		"frontend": {"config.apiBasePath=/api", "config.apiUpstream=http://backend.account.svc.cluster.local:8080"},
-		"backend":  {"config.logLevel=info", "config.dbHost=postgresql", "config.dbPort=5432", "config.dbName=account", "config.sslmode=disable"},
+		"frontend": {},
+		"backend":  {},
 	}
 	for service, overrides := range cases {
 		t.Run(service, func(t *testing.T) {
@@ -70,24 +84,29 @@ func TestConfigChangesRollPodTemplate(t *testing.T) {
 			for _, override := range overrides {
 				t.Run(override, func(t *testing.T) {
 					checksum, template := deployment(t, service, append(append([]string{}, baselines[service]...), override)...)
-					if checksum == oldChecksum || reflect.DeepEqual(template, oldTemplate) {
-						t.Fatalf("%s did not change checksum and PodTemplate", override)
+					if reflect.DeepEqual(template, oldTemplate) {
+						t.Fatalf("%s did not change PodTemplate", override)
+					}
+					if override == "config.logLevel=debug" && checksum == oldChecksum {
+						t.Fatalf("%s did not change config checksum", override)
+					}
+					if override != "config.logLevel=debug" && checksum != oldChecksum {
+						t.Fatalf("%s unexpectedly changed config checksum", override)
 					}
 					t.Logf("%s checksum %s -> %s", override, oldChecksum, checksum)
 				})
 			}
-			checksum, template := deployment(t, service, append(append([]string{}, baselines[service]...), "service.port=18080")...)
-			if checksum != oldChecksum || !reflect.DeepEqual(template, oldTemplate) {
-				t.Fatal("unrelated Service port rolled PodTemplate")
-			}
+			deploymentRejected(t, service, "service.port=18080")
 			// Secret参照変更でrolloutが必要になる場合も、ConfigMap checksumへSecretを含めてはいけない。Chart入出力にSecret実値は存在しない。
 			if service == "backend" {
-				checksum, _ = deployment(t, service, append(append([]string{}, baselines[service]...), "secrets.existingSecret=fixture-secret")...)
-				if checksum != oldChecksum {
-					t.Fatal("Secret reference contaminated config checksum")
+				for _, override := range []string{"config.dbHost=fixture-db", "config.dbPort=5433", "config.dbName=fixture", "config.sslmode=require", "secrets.existingSecret=fixture-secret"} {
+					deploymentRejected(t, service, override)
+				}
+			} else {
+				for _, override := range []string{"config.apiBasePath=/fixture-api", "config.apiUpstream=http://fixture-backend:8080"} {
+					deploymentRejected(t, service, override)
 				}
 			}
-			fmt.Println(service, "unrelated Service port preserves PodTemplate")
 		})
 	}
 }

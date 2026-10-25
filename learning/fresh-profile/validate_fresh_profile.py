@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""Validate the PLAT-214/216 fresh workload without contacting Kubernetes."""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+import yaml
+
+
+HERE = Path(__file__).resolve().parent
+CONTRACT = HERE / "contract.json"
+WORKLOAD = HERE / "workload" / "account.yaml"
+SQL = HERE / "workload" / "account-role-bootstrap.sql"
+KUSTOMIZATION = HERE / "workload" / "kustomization.yaml"
+DB_CASES = HERE / "workload" / "db-permission-cases.json"
+RELEASE = HERE / "release-definition"
+
+
+class Rejected(ValueError):
+    pass
+
+
+def require(value, reason):
+    if not value:
+        raise Rejected(reason)
+
+
+def identity(document):
+    metadata = document.get("metadata", {})
+    return f"{document.get('kind')}/{metadata.get('namespace')}/{metadata.get('name')}"
+
+
+def secret_refs(value, refs):
+    if isinstance(value, dict):
+        ref = value.get("secretKeyRef")
+        if isinstance(ref, dict):
+            refs.add((ref.get("name"), ref.get("key")))
+        for child in value.values():
+            secret_refs(child, refs)
+    elif isinstance(value, list):
+        for child in value:
+            secret_refs(child, refs)
+
+
+def pod_spec(document):
+    if document["kind"] in {"Job", "Rollout", "StatefulSet"}:
+        return document["spec"]["template"]["spec"]
+    return None
+
+
+def sync_wave(document):
+    value = document.get("metadata", {}).get("annotations", {}).get("argocd.argoproj.io/sync-wave", "0")
+    require(re.fullmatch(r"-?[0-9]+", str(value)) is not None, "sync-wave-format")
+    return int(value)
+
+
+def rendered_workload(workload_path=WORKLOAD, sql_path=SQL, kustomization_path=KUSTOMIZATION):
+    """Model the one deterministic configMapGenerator used by this profile."""
+    documents = list(yaml.safe_load_all(Path(workload_path).read_text(encoding="utf-8")))
+    kustomization = yaml.safe_load(Path(kustomization_path).read_text(encoding="utf-8"))
+    require(kustomization == {
+        "apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization",
+        "resources": ["account.yaml"],
+        "configMapGenerator": [{"name": "account-role-bootstrap", "namespace": "fresh-account",
+                                "files": ["bootstrap.sql=account-role-bootstrap.sql"]}],
+        "generatorOptions": {"disableNameSuffixHash": True},
+    }, "kustomization-contract")
+    sql = Path(sql_path).read_text(encoding="utf-8")
+    documents.append({"apiVersion": "v1", "kind": "ConfigMap",
+                      "metadata": {"name": "account-role-bootstrap", "namespace": "fresh-account"},
+                      "data": {"bootstrap.sql": sql}})
+    return documents
+
+
+def validate_release_chart(release_path=RELEASE):
+    root = Path(release_path)
+    chart = yaml.safe_load((root / "Chart.yaml").read_text(encoding="utf-8"))
+    values = yaml.safe_load((root / "values.yaml").read_text(encoding="utf-8"))
+    template = (root / "templates" / "application.yaml").read_text(encoding="utf-8")
+    require(chart.get("name") == "fresh-account-release-definition", "release-chart-name")
+    require(values == {"workloadRevision": "", "accountRuntimeImage": ""}, "release-values")
+    require("__APPLICATION_MANIFEST_SHA__" not in template, "release-self-token")
+    for fragment in (
+        'required "workloadRevision is required"',
+        'regexMatch "^[0-9a-f]{40}$"',
+        'required "accountRuntimeImage is required"',
+        "name: fresh-account-release", "namespace: fresh-control",
+        "repoURL: https://github.com/syuhei0519/application-manifest.git",
+        "path: learning/fresh-profile/workload", "project: fresh-account",
+        "server: https://kubernetes.default.svc", "namespace: fresh-account",
+        "ghcr.io/syuhei0519/backend-app=",
+    ):
+        require(fragment in template, f"release-template:{fragment}")
+    return {"chart": chart, "values": values, "template": template}
+
+
+def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEASE,
+             sql_path=SQL, kustomization_path=KUSTOMIZATION, db_cases_path=DB_CASES):
+    contract = json.loads(Path(contract_path).read_text(encoding="utf-8"))
+    documents = rendered_workload(workload_path, sql_path, kustomization_path)
+    require(all(isinstance(item, dict) for item in documents), "yaml-document")
+    require(not any(item.get("kind") == "Secret" for item in documents), "secret-object-in-git")
+
+    expected = {
+        "ServiceAccount/fresh-account/account-database",
+        "ServiceAccount/fresh-account/account-migration",
+        "ServiceAccount/fresh-account/account-runtime",
+        "ConfigMap/fresh-account/account-role-bootstrap",
+        "Service/fresh-account/account-postgresql",
+        "PersistentVolumeClaim/fresh-account/account-data",
+        "StatefulSet/fresh-account/account-postgresql",
+        "Job/fresh-account/account-db-role-bootstrap",
+        "Job/fresh-account/account-migration",
+        "Rollout/fresh-account/account-api",
+        "Service/fresh-account/account-api",
+        "DestinationRule/fresh-account/account-api",
+        "VirtualService/fresh-account/account-api",
+    }
+    actual = {identity(item) for item in documents}
+    require(actual == expected and len(documents) == len(expected), "resource-inventory")
+
+    index = {identity(item): item for item in documents}
+    refs = set()
+    secret_refs(documents, refs)
+    expected_refs = {
+        ("account-db-bootstrap", "admin-password"),
+        ("account-db-migration", "username"),
+        ("account-db-migration", "password"),
+        ("account-db-runtime", "username"),
+        ("account-db-runtime", "password"),
+    }
+    require(refs == expected_refs, "secret-reference-set")
+    for item in documents:
+        pod = pod_spec(item)
+        if pod:
+            require(pod.get("automountServiceAccountToken") is False, "service-account-token")
+            require(pod.get("serviceAccountName") in {"account-database", "account-migration", "account-runtime"},
+                    "service-account-name")
+
+    account_image = contract["images"]["accountRuntime"]
+    require(account_image["sourceCommit"] == "527b9bccf4ae56244d134ae384564ec1cccea815", "account-source")
+    require(account_image["entrypoint"] == ["/server"] and account_image["user"] == "10001:10001",
+            "account-config")
+    require(account_image["ciArtifact"]["published"] is False and
+            account_image["ciArtifact"]["freshEligible"] is False, "account-supply-boundary")
+    require(account_image["freshProfileCompatible"] is False and account_image["baselineOnly"] is True,
+            "account-profile-compatibility")
+    fresh_requirement = contract["images"]["freshRuntimeRequirement"]
+    require(fresh_requirement == {
+        "sourceAtOrAfter": "635814f5354f0fe238694d35137b283576a9127f",
+        "requiredConfig": "finite fresh-account operation roles, exact namespace/schema, and Downward API identity",
+        "immutableImageRef": "ghcr.io/syuhei0519/backend-app@sha256:fba8eae42982a0e818581b2ac6b41ba865920dafdbfd7d48c416f98c5b1eaebd",
+        "freshEligible": False,
+        "blocker": "verified main CI image identity is fixed; retained G2 source and post-import live proof are not yet approved or available"
+    }, "fresh-runtime-requirement")
+    found_images = {container["image"] for item in documents if pod_spec(item)
+                    for container in pod_spec(item).get("containers", [])}
+    require(account_image["ref"] in found_images, "account-image")
+    require(contract["images"]["postgres"]["ref"] in found_images, "postgres-image")
+    require(not any("966adba896524519" in image for image in found_images), "rollouts-image-reuse")
+
+    runtime_contract = contract.get("applicationRuntimeContract")
+    require(runtime_contract == {
+        "profile": "fresh-account",
+        "namespace": "fresh-account",
+        "database": {
+            "host": "account-postgresql", "port": 5432, "name": "account",
+            "owner": "postgres", "schema": "account", "schemaOwner": "account_migrator",
+            "sslMode": "disable",
+        },
+        "operations": {
+            "server": {"role": "account_runtime", "secret": "account-db-runtime"},
+            "migrate": {"role": "account_migrator", "secret": "account-db-migration"},
+        },
+        "collectorEndpoint": "http://otel-collector.fresh-observability.svc.cluster.local:4318",
+        "podIdentity": {"namespaceFieldPath": "metadata.namespace", "uidFieldPath": "metadata.uid"},
+        "databaseUrlFallback": False,
+        "legacyEmptyProfileBehaviorPreserved": True,
+    }, "application-runtime-contract")
+
+    rollout = index["Rollout/fresh-account/account-api"]
+    migration = index["Job/fresh-account/account-migration"]
+
+    fixed_env = {
+        "ACCOUNT_RUNTIME_PROFILE": "fresh-account",
+        "PGHOST": "account-postgresql",
+        "PGPORT": "5432",
+        "PGDATABASE": "account",
+        "PGSSLMODE": "disable",
+        "DEPLOYMENT_ENVIRONMENT": "local",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel-collector.fresh-observability.svc.cluster.local:4318",
+    }
+    expected_env_names = set(fixed_env) | {
+        "PGUSER", "PGPASSWORD", "POD_NAMESPACE", "POD_UID", "OTEL_RESOURCE_ATTRIBUTES"
+    }
+    for operation, document, secret, service in (
+        ("server", rollout, "account-db-runtime", "account-api"),
+        ("migrate", migration, "account-db-migration", "account-migration"),
+    ):
+        container = document["spec"]["template"]["spec"]["containers"][0]
+        env = {item["name"]: item for item in container["env"]}
+        require(set(env) == expected_env_names, f"{operation}-environment-set")
+        require(all(env[name].get("value") == value for name, value in fixed_env.items()),
+                f"{operation}-finite-profile-values")
+        require(env["PGUSER"].get("valueFrom", {}).get("secretKeyRef") ==
+                {"name": secret, "key": "username"}, f"{operation}-database-user")
+        require(env["PGPASSWORD"].get("valueFrom", {}).get("secretKeyRef") ==
+                {"name": secret, "key": "password"}, f"{operation}-database-password")
+        require(env["POD_NAMESPACE"].get("valueFrom", {}).get("fieldRef", {}).get("fieldPath") ==
+                "metadata.namespace", f"{operation}-pod-namespace")
+        require(env["POD_UID"].get("valueFrom", {}).get("fieldRef", {}).get("fieldPath") ==
+                "metadata.uid", f"{operation}-pod-uid")
+        require(env["OTEL_RESOURCE_ATTRIBUTES"].get("value") ==
+                f"service.name={service},deployment.environment=local,"
+                "platform.profile=$(ACCOUNT_RUNTIME_PROFILE),"
+                "k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.uid=$(POD_UID)",
+                f"{operation}-telemetry-attributes")
+        require(not ({"DATABASE_URL", "PLATFORM_LAB_PROFILE", "PGOPTIONS"} & set(env)),
+                f"{operation}-fallback-or-alias")
+    require(migration["spec"]["template"]["spec"]["containers"][0].get("args") == ["migrate"],
+            "migration-operation")
+
+    pvc = index["PersistentVolumeClaim/fresh-account/account-data"]
+    require(pvc["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] ==
+            "Prune=false,Delete=false", "pvc-retention")
+    require(contract["dataMode"] == "new-empty-persistent-volume", "data-mode")
+
+    generated = index["ConfigMap/fresh-account/account-role-bootstrap"]["data"]["bootstrap.sql"]
+    require(generated == Path(sql_path).read_text(encoding="utf-8"), "generated-sql-drift")
+    require(sum(1 for item in documents if item.get("metadata", {}).get("name") == "account-role-bootstrap") == 1,
+            "sql-single-source")
+    jobs = {item["metadata"]["name"]: item for item in documents if item["kind"] == "Job"}
+    for name, wave in (("account-db-role-bootstrap", "10"), ("account-migration", "20")):
+        annotations = jobs[name]["metadata"]["annotations"]
+        require(annotations == {"argocd.argoproj.io/sync-wave": wave,
+                                "argocd.argoproj.io/sync-options": "Prune=false,Delete=false"},
+                f"job-order:{name}")
+        require(jobs[name]["spec"]["template"]["metadata"]["annotations"] ==
+                {"sidecar.istio.io/inject": "false"}, f"job-sidecar:{name}")
+    require(sync_wave(jobs["account-db-role-bootstrap"]) == 10 and
+            sync_wave(jobs["account-migration"]) == 20, "database-job-order")
+    application_identities = {
+        "Rollout/fresh-account/account-api",
+        "Service/fresh-account/account-api",
+        "DestinationRule/fresh-account/account-api",
+        "VirtualService/fresh-account/account-api",
+    }
+    require(all(sync_wave(index[name]) == 30 for name in application_identities), "application-wave")
+    require(sync_wave(index["StatefulSet/fresh-account/account-postgresql"]) <
+            sync_wave(jobs["account-db-role-bootstrap"]) <
+            sync_wave(jobs["account-migration"]) <
+            sync_wave(rollout), "bootstrap-before-readiness")
+    require("--set=database_name=account" in jobs["account-db-role-bootstrap"]["spec"]["template"]["spec"]["containers"][0]["args"][0]
+            and "--set=service_schema=account" in jobs["account-db-role-bootstrap"]["spec"]["template"]["spec"]["containers"][0]["args"][0],
+            "role-bootstrap-variables")
+
+    cases = json.loads(Path(db_cases_path).read_text(encoding="utf-8"))
+    expected_cases = {
+        ("migration-ddl-owned-schema", "account_migrator", "DDL", "account", "allow"),
+        ("runtime-dml-owned-schema", "account_runtime", "DML", "account", "allow"),
+        ("runtime-ddl-owned-schema", "account_runtime", "DDL", "account", "deny"),
+        ("runtime-other-schema", "account_runtime", "DML", "other_service", "deny"),
+        ("migration-other-schema", "account_migrator", "DDL", "other_service", "deny"),
+    }
+    actual_cases = {(case["id"], case["role"], case["operation"], case["target"], case["expected"])
+                    for case in cases.get("requiredLiveCases", [])}
+    require(actual_cases == expected_cases and cases.get("status") == "required-unrun", "db-permission-cases")
+    release = validate_release_chart(release_path)
+    return contract, documents, release
+
+
+if __name__ == "__main__":
+    contract, documents, release = validate()
+    print("fresh workload valid",
+          f"resources={len(documents)}",
+          f"image={contract['images']['accountRuntime']['ref'].split('@')[1]}",
+          "release=parameterized-chart")

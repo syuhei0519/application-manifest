@@ -63,6 +63,12 @@ jobs:
           modules: scan-gate
       - name: Policy and boundary tests
         run: bash ci/github/test.sh
+      - name: Fresh profile and declaration contracts
+        run: |
+          python3 -I learning/fresh-profile/test_credential_contract.py -v
+          python3 -I learning/fresh-profile/test_validate_fresh_profile.py -v
+          python3 -I ci/reference_graph_test.py
+          HELM_BIN=ci/helm-container.sh python3 -I ci/values_contract_test.py
       - name: Account release safety contract
         run: python3 -m unittest discover -s learning/account-release -p 'test_contract.py' -v
       - name: Render, policy and checksum checks

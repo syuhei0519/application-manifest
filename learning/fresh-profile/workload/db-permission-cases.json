@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "platform.lab/db-permission-cases/v1",
+  "database": "account",
+  "schema": "account",
+  "requiredLiveCases": [
+    {"id": "migration-ddl-owned-schema", "role": "account_migrator", "operation": "DDL", "target": "account", "expected": "allow"},
+    {"id": "runtime-dml-owned-schema", "role": "account_runtime", "operation": "DML", "target": "account", "expected": "allow"},
+    {"id": "runtime-ddl-owned-schema", "role": "account_runtime", "operation": "DDL", "target": "account", "expected": "deny"},
+    {"id": "runtime-other-schema", "role": "account_runtime", "operation": "DML", "target": "other_service", "expected": "deny"},
+    {"id": "migration-other-schema", "role": "account_migrator", "operation": "DDL", "target": "other_service", "expected": "deny"}
+  ],
+  "status": "required-unrun"
+}
+

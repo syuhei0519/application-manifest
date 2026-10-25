@@ -1,0 +1,32 @@
+{{- $revision := required "workloadRevision is required" .Values.workloadRevision -}}
+{{- if not (regexMatch "^[0-9a-f]{40}$" $revision) -}}
+{{- fail "workloadRevision must be a 40-character lowercase Git SHA" -}}
+{{- end -}}
+{{- $runtimeImage := required "accountRuntimeImage is required" .Values.accountRuntimeImage -}}
+{{- if not (regexMatch "^ghcr\\.io/syuhei0519/backend-app@sha256:[0-9a-f]{64}$" $runtimeImage) -}}
+{{- fail "accountRuntimeImage must be the approved immutable backend-app digest" -}}
+{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fresh-account-release
+  namespace: fresh-control
+spec:
+  project: fresh-account
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: fresh-account
+  source:
+    repoURL: https://github.com/syuhei0519/application-manifest.git
+    targetRevision: {{ $revision | quote }}
+    path: learning/fresh-profile/workload
+    kustomize:
+      images:
+      - {{ printf "ghcr.io/syuhei0519/backend-app=%s" $runtimeImage | quote }}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=false
+

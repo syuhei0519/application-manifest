@@ -9,7 +9,7 @@ metadata:
     {{- include "order-postgresql.labels" . | nindent 4 }}
 spec:
   serviceName: order-postgresql-headless
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   updateStrategy: {type: RollingUpdate}
   selector:
     matchLabels: {app.kubernetes.io/name: order-postgresql, app.kubernetes.io/instance: {{ .Release.Name }}}
@@ -20,14 +20,15 @@ spec:
       annotations:
         checksum/init: {{ include (print $.Template.BasePath "/init-configmap.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: order-postgresql
-      automountServiceAccountToken: false
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | nindent 8 }}
       terminationGracePeriodSeconds: 60
       securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: order-postgresql
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}@{{ .Values.image.digest }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/bin/sh", "-ec"]
           args:
             - |

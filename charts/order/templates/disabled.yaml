@@ -1,0 +1,12 @@
+{{- if not .Values.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-disabled
+  labels:
+    {{- include "order.labels" . | nindent 4 }}
+    platform.lab/profile-state: disabled
+data:
+  enabled: "false"
+  reason: "image-and-account-connection-not-adopted"
+{{- end }}

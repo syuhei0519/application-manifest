@@ -21,10 +21,13 @@
   ],
   "properties": {
     "replicaCount": {
-      "const": 1
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
     },
     "image": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
         "repository",
         "tag",
@@ -45,7 +48,7 @@
           "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "pullPolicy": {
-          "const": "IfNotPresent"
+          "enum": ["IfNotPresent", "Never"]
         }
       }
     },
@@ -200,41 +203,68 @@
       ]
     },
     "imagePullSecrets": {
-      "const": [
-        {
-          "name": "registry-backend-pull"
-        }
-      ]
+      "type": "array",
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {"name": {"const": "registry-backend-pull"}}
+      }
     },
     "serviceAccount": {
-      "type": "object"
+      "const": {"name": "backend", "automountServiceAccountToken": false}
     },
     "service": {
-      "type": "object"
+      "const": {"type": "ClusterIP", "port": 8080}
     },
     "config": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dbHost", "dbPort", "dbName", "sslmode", "logLevel"],
+      "properties": {
+        "dbHost": {"const": "postgresql"},
+        "dbPort": {"const": 5432},
+        "dbName": {"const": "account"},
+        "sslmode": {"const": "disable"},
+        "logLevel": {"enum": ["debug", "info", "warn", "error"]}
+      }
     },
     "secrets": {
-      "type": "object"
+      "const": {"existingSecret": "account-db", "usernameKey": "app-username", "passwordKey": "app-password"}
     },
     "resources": {
-      "type": "object"
+      "const": {"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"cpu": "500m", "memory": "256Mi"}}
     },
     "podSecurityContext": {
-      "type": "object"
+      "const": {"runAsUser": 10001, "runAsGroup": 10001, "fsGroup": 10001, "runAsNonRoot": true, "seccompProfile": {"type": "RuntimeDefault"}}
     },
     "securityContext": {
-      "type": "object"
+      "const": {"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "capabilities": {"drop": ["ALL"]}}
     },
     "probes": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startup", "liveness", "readiness"],
+      "properties": {
+        "startup": {"$ref": "#/definitions/startupProbe"},
+        "liveness": {"$ref": "#/definitions/livenessProbe"},
+        "readiness": {"$ref": "#/definitions/readinessProbe"}
+      }
     },
     "migration": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activeDeadlineSeconds", "backoffLimit"],
+      "properties": {
+        "activeDeadlineSeconds": {"type": "integer", "minimum": 60, "maximum": 300},
+        "backoffLimit": {"type": "integer", "minimum": 0, "maximum": 3}
+      }
     },
     "restartNonce": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{0,64}$"
     },
     "telemetry": {
       "type": "object",
@@ -254,6 +284,38 @@
         "environment": {
           "const": "local"
         }
+      }
+    }
+  },
+  "definitions": {
+    "startupProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "path": {"const": "/livez"},
+        "periodSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10},
+        "failureThreshold": {"type": "integer", "minimum": 3, "maximum": 60}
+      }
+    },
+    "livenessProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "path": {"const": "/livez"},
+        "periodSeconds": {"type": "integer", "minimum": 5, "maximum": 30},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10},
+        "failureThreshold": {"type": "integer", "minimum": 1, "maximum": 10}
+      }
+    },
+    "readinessProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "path": {"const": "/readyz"},
+        "periodSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10},
+        "failureThreshold": {"type": "integer", "minimum": 1, "maximum": 10}
       }
     }
   }

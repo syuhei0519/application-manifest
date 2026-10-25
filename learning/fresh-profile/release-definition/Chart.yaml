@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fresh-account-release-definition
+description: Immutable child Application definition for the fresh Account profile
+type: application
+version: 0.1.0
+

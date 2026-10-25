@@ -18,7 +18,9 @@
   ],
   "properties": {
     "replicaCount": {
-      "const": 1
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
     },
     "image": {
       "type": "object",
@@ -43,16 +45,20 @@
           "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "pullPolicy": {
-          "const": "IfNotPresent"
+          "enum": ["IfNotPresent", "Never"]
         }
       }
     },
     "imagePullSecrets": {
-      "const": [
-        {
-          "name": "registry-frontend-pull"
-        }
-      ]
+      "type": "array",
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {"name": {"const": "registry-frontend-pull"}}
+      }
     },
     "release": {
       "oneOf": [
@@ -204,29 +210,49 @@
         }
       ]
     },
-    "serviceAccount": {
-      "type": "object"
-    },
-    "service": {
-      "type": "object"
-    },
+    "serviceAccount": {"const": {"name": "frontend", "automountServiceAccountToken": false}},
+    "service": {"const": {"type": "ClusterIP", "port": 80}},
     "config": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiUpstream", "apiBasePath"],
+      "properties": {
+        "apiUpstream": {"const": "http://backend.account.svc.cluster.local:8080"},
+        "apiBasePath": {"const": "/api"}
+      }
     },
-    "resources": {
-      "type": "object"
-    },
-    "podSecurityContext": {
-      "type": "object"
-    },
-    "securityContext": {
-      "type": "object"
-    },
+    "resources": {"const": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"cpu": "250m", "memory": "128Mi"}}},
+    "podSecurityContext": {"const": {"runAsUser": 10001, "runAsGroup": 10001, "fsGroup": 10001, "runAsNonRoot": true, "seccompProfile": {"type": "RuntimeDefault"}}},
+    "securityContext": {"const": {"allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "capabilities": {"drop": ["ALL"]}}},
     "probes": {
-      "type": "object"
+      "type": "object", "additionalProperties": false,
+      "required": ["startup", "liveness", "readiness"],
+      "properties": {
+        "startup": {"$ref": "#/definitions/startupProbe"},
+        "liveness": {"$ref": "#/definitions/livenessProbe"},
+        "readiness": {"$ref": "#/definitions/readinessProbe"}
+      }
     },
     "restartNonce": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{0,64}$"
+    }
+  },
+  "definitions": {
+    "startupProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {"path": {"const": "/livez"}, "periodSeconds": {"type": "integer", "minimum": 1, "maximum": 30}, "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10}, "failureThreshold": {"type": "integer", "minimum": 3, "maximum": 60}}
+    },
+    "livenessProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {"path": {"const": "/livez"}, "periodSeconds": {"type": "integer", "minimum": 5, "maximum": 30}, "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10}, "failureThreshold": {"type": "integer", "minimum": 1, "maximum": 10}}
+    },
+    "readinessProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {"path": {"const": "/readyz"}, "periodSeconds": {"type": "integer", "minimum": 1, "maximum": 30}, "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 10}, "failureThreshold": {"type": "integer", "minimum": 1, "maximum": 10}}
     }
   }
 }

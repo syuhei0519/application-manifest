@@ -12,7 +12,9 @@ docker run --rm --network=none --user "$(id -u):$(id -g)" -e HOME=/tmp \
     if test "$chart" = order-postgresql; then fixture=postgresql-enabled.yaml; fi
     helm lint --strict "charts/$chart" -f "environments/local/$chart.yaml"
     helm template "$chart" "charts/$chart" -f "environments/local/$chart.yaml" > /tmp/disabled
-    test -z "$(cat /tmp/disabled)"
+    grep -q "^kind: ConfigMap$" /tmp/disabled
+    grep -q "platform.lab/profile-state: disabled" /tmp/disabled
+    ! grep -Eq "^kind: (Deployment|StatefulSet|Job)$" /tmp/disabled
     helm lint --strict "charts/$chart" -f "ci/fixtures/order/$fixture"
     helm template "$chart" "charts/$chart" --namespace account -f "ci/fixtures/order/$fixture" > ".rendered/synthetic-order/$chart.yaml"
   done
