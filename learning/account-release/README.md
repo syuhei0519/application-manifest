@@ -1,5 +1,8 @@
 # Account GitOps / Istio 統合（PLAT-170）
 
+`main` が proposal 前に進んだ場合の zero-write 判定と新規 ID による
+[安全な no-op rebaseline 手順](REBASELINE.md)を、通常の release 操作と分離する。
+
 本ディレクトリの実装は [PLAT-169 契約](CONTRACT.md)を Account 専用経路につなぐ。
 [明示承認](APPROVAL.md)の範囲で専用kindから10/50/100%・Abort・CRUDを実測した。
 再現手順は [SESSION.md](SESSION.md)、実測値と残る統合条件は [PLAT-170-handoff.md](PLAT-170-handoff.md) に記録する。

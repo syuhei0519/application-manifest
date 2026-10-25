@@ -14,7 +14,7 @@ import re
 import sqlite3
 import time
 
-from contract import Rejected, require, validate_catalog
+from contract import DefinitiveNoWriteRejected, Rejected, require, validate_catalog
 from release_modes import ENTITY, ENVIRONMENT, validate_request, switch_plan
 
 ID = re.compile(r'[A-Za-z0-9_-]{8,80}')
@@ -162,6 +162,12 @@ class Coordinator:
             if existing:
                 return existing
             preview = self.preview(actor, payload, kind)
+            # Every deterministic external identity must be valid before the
+            # durable target reservation is created.  A valid request id can
+            # still be too long after the phase suffix is added.
+            for phase in range(len(preview['phases'])):
+                require(ID.fullmatch(self.phase_proposal_id(request_id, phase)) is not None,
+                        'derived-proposal-id-invalid')
             lock = self.db.execute('SELECT request_id FROM exclusion WHERE target=?', (ENTITY,)).fetchone()
             if lock:
                 # Abort is deliberately non-terminal. A verified recovery may
@@ -207,6 +213,19 @@ class Coordinator:
                 self._validate_proposal(result)
                 require(result['base_revision']==row['expected']['identity']['git_revision'],
                         'proposal-base-mismatch')
+            except DefinitiveNoWriteRejected as exc:
+                # Only this explicit adapter type may close the request and
+                # release its exclusion after dispatch started.  It is raised
+                # solely before the adapter's first mutating call.
+                reason=str(exc)
+                require(re.fullmatch('[a-z0-9-]{1,100}',reason) is not None,
+                        'invalid-no-write-rejection')
+                result={'state':'rejected','reason':reason,'git_change_absent':True}
+                self.db.execute('UPDATE requests SET state=?,result=? WHERE id=?',
+                                ('rejected',encode(result),request_id))
+                self.db.execute('DELETE FROM exclusion WHERE target=? AND request_id=?',
+                                (ENTITY,request_id))
+                self.event(request_id,row['actor'],'rejected',result,'git-pre-write')
             except Exception:
                 self.db.execute('UPDATE requests SET state=? WHERE id=?', ('outcome-unknown', request_id))
                 self.event(request_id, row['actor'], 'proposal-outcome-unknown', {})
@@ -222,7 +241,11 @@ class Coordinator:
 
     @staticmethod
     def proposal_id(row):
-        return row['id'] + '-phase-' + str(row['expected']['phase'])
+        return Coordinator.phase_proposal_id(row['id'],row['expected']['phase'])
+
+    @staticmethod
+    def phase_proposal_id(request_id,phase):
+        return request_id + '-phase-' + str(phase)
 
     def advance(self, actor, request_id, expected):
         """Plan the next independently reviewed Git phase after observed proof."""

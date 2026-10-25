@@ -69,10 +69,19 @@ jobs:
         run: |
           mkdir -p .security/public
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work --entrypoint sh alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 -ec "sh ci/validate.sh; .security/scan-gate -check-render-only .rendered -out .security/public/pre-render.json; (cd tools/checksum; ../../.build/checksum-test -test.v)"
+      - name: Checkout paired current platform contract
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: syuhei0519/platform-gitops
+          ref: 785ee3311143cf5fb201b6f1c93c2d02390e4067
+          path: .build/current-platform
+          persist-credentials: false
       - name: Learning Account canary static checks
         run: |
           python3 -m venv .build/canary-venv
           .build/canary-venv/bin/python -m pip install PyYAML==6.0.3 jsonschema==4.26.0
+          PAIRED_APPLICATION_MANIFEST="$PWD" \
+            .build/canary-venv/bin/python .build/current-platform/learning/existing-kind/test_current_contract.py
           docker run --rm --entrypoint cat alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 /usr/bin/helm > .build/helm
           chmod +x .build/helm
           PATH="$PWD/.build:$PATH" .build/canary-venv/bin/python -m unittest discover -s learning/account-release -p 'test_integration.py' -v
