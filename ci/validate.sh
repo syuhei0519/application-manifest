@@ -4,6 +4,7 @@
 set -eu
 
 mkdir -p .rendered
+python3 -I learning/fresh-profile/test_credential_contract.py -v
 # Complete fixed inventory: no PR-controlled list can remove an input from CI.
 charts='frontend backend postgresql'
 for path in charts/*/; do
