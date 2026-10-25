@@ -4,4 +4,4 @@ imageRevision: sha256-09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a4
 image: ghcr.io/syuhei0519/backend-app@sha256:09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a452b967c0
 strategy: Rolling
 promotionMode: null
-analysisPluginEnabled: false
+analysisPluginEnabled: true
