@@ -1,3 +1,4 @@
+// Canary の解析機能を単独で検証するための Go module と依存定義です。
 module learning.local/account-analysis-test
 
 go 1.26.1

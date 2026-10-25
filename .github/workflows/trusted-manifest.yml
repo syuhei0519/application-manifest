@@ -1,3 +1,4 @@
+# 公開済みイメージの由来を検証して、配備定義の変更提案を作る workflow です。
 name: Trusted manifest verification
 on:
   workflow_dispatch:

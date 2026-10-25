@@ -1,3 +1,4 @@
+// 認証と権限を確認したリリース API を提供し、共通の操作処理へ要求を渡します。
 import { createBackendPlugin, coreServices } from '@backstage/backend-plugin-api';
 import { NotAllowedError } from '@backstage/errors';
 import express from 'express';

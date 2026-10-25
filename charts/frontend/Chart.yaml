@@ -1,3 +1,4 @@
+# Account のブラウザー画面の Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: frontend
 description: Account UI runtime

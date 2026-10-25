@@ -1,3 +1,4 @@
+# Account リリース試験で使う専用 DB と初期化の配備定義です。
 # Dedicated disposable database only. No credential values; apply after approval.
 apiVersion: v1
 kind: ConfigMap

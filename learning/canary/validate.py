@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Canary Chart と成功・失敗 profile を描画し、段階配備と解析の設定を静的に確認します。
 """Account-only schema/render/ownership/negative/recovery checks. No cluster calls."""
 import argparse
 import copy

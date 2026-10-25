@@ -1,4 +1,4 @@
-{{- if and .Values.analysis.enabled (ne (default "fixed" .Values.analysis.mode) "metrics") }}
+{{/* 試験 provider の応答で段階配備を判定する解析定義を出力します。 */}}{{- if and .Values.analysis.enabled (ne (default "fixed" .Values.analysis.mode) "metrics") }}
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:

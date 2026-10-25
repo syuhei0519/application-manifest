@@ -1,3 +1,4 @@
+# Order 専用 PostgreSQLを描画する既定値です。環境別の値は呼び出し側から上書きします。
 # Disabled preparation only. No published Order image has been selected.
 enabled: false
 replicaCount: 1

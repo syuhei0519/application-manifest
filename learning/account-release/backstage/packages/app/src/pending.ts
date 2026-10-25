@@ -1,3 +1,4 @@
+// 未完了の操作をブラウザーに記録し、画面を開き直した後も同じ操作の結果を追えるようにします。
 export type Pending = { id: string; kind: string; state: string };
 export const pendingKey = 'account-release-request-index-v1';
 export function readPending(storage: Pick<Storage,'getItem'>): Pending[] {

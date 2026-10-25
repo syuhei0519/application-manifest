@@ -1,4 +1,4 @@
-{{- if or (gt (len .Release.Namespace) 63) (not (regexMatch "^learning-[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Release.Namespace)) -}}
+{{/* 学習用の各 API と専用 DBの描画で、許可しない値の組み合わせを描画時に拒否し、不正な配備定義を作らないようにします。 */}}{{- if or (gt (len .Release.Namespace) 63) (not (regexMatch "^learning-[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Release.Namespace)) -}}
 {{- fail "explicit dedicated learning-* namespace required" -}}
 {{- end -}}
 {{- if ne .Release.Name (include "learning.name" .) -}}

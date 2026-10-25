@@ -1,3 +1,4 @@
+# リリース操作の調整処理から、固定した配備対象への読み書きを引き受ける接続部分です。
 """Fixed-target adapters. All mutating requests use expected identity/CAS.
 
 Configuration is server-only, prepared for an explicitly approved trial. No

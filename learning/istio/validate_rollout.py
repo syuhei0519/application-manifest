@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Istio と Rollout を組み合わせた配備設定を描画し、経路と段階の整合性を確認します。
 """Offline schema/render checks; no controller or cluster success is inferred."""
 import argparse
 import copy

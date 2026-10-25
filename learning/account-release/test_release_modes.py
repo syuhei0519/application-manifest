@@ -1,3 +1,4 @@
+# 配備方式と承認方式の各組み合わせについて、提案と実行時の制約を確認します。
 import copy
 import json
 import os

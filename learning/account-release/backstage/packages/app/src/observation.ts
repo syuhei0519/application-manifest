@@ -1,3 +1,4 @@
+// 観測値を画面表示用に整理し、未取得の値を正常な数値と取り違えないようにします。
 /** Missing or invalid controller windows must stay visible as missing data. */
 export function observationTime(seconds: unknown): string {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return '未取得';

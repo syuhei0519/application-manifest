@@ -1,3 +1,4 @@
+# Account API と migrationの Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: backend
 description: Account API runtime and schema migration

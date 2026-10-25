@@ -1,4 +1,4 @@
-apiVersion: v1
+{{/* 学習用 API ごとの専用 DB と、保存領域・初期化設定・接続口を出力します。 */}}apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "learning.name" . }}-data

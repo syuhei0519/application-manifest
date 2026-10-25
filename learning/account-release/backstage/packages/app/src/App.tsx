@@ -1,3 +1,4 @@
+// Backstage の画面経路と認証を組み立て、カタログやリリース画面へつなぎます。
 import { Navigate, Route } from 'react-router-dom';
 import { createApp } from '@backstage/app-defaults';
 import { AppRouter, FlatRoutes } from '@backstage/core-app-api';

@@ -1,4 +1,4 @@
-{{- define "order.labels" -}}
+{{/* Order API と migrationの描画で、複数のテンプレートで使う名前・ラベル・設定の組み立てをまとめます。 */}}{{- define "order.labels" -}}
 app.kubernetes.io/name: order
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: order

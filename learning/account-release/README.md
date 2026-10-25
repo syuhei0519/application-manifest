@@ -121,3 +121,36 @@ Prometheus instant API の `value[0]` は評価時刻であり、sample鮮度の
 | 6 所有field/reconcile | 各pauseで通常sync2回、4 pointer/実ルート/Pod identity保持 | ignore範囲を拡大しない |
 
 PLAT-170 は進行中。静的実装・draft PR・CI の成功のみでは Done にしない。
+
+## 構成と入口
+
+配備方式は [RELEASE-MODES.md](RELEASE-MODES.md)、操作・状態の約束は [CONTRACT.md](CONTRACT.md) から読みます。
+
+この階層のディレクトリと役割は次のとおりです。末端のファイルは親の説明から追えます。
+
+| 場所 | 役割 |
+| --- | --- |
+| [application-chart/](application-chart) | Account リリースを管理する Argo CD Applicationを描画する Chart。 |
+| [backstage/](backstage/README.md) | リリース操作の画面と、認証・権限を確認して共通処理を呼ぶ backend。 |
+| [chart/](chart) | Account の段階配備と解析を描画する Chart。 |
+| [fixtures/](fixtures) | 状態遷移・観測結果・権限の境界を再現する固定した試験入力。 |
+| [metric-plugin/](metric-plugin/README.md) | Argo Rollouts から呼ばれ、計測対象の版と結果を検証する Go plugin。 |
+| [session/](session) | 過去の承認済み試行で使った補助コードと結果。現在の通常配備入口とは分けて読みます。 |
+
+### 本文にコメントを入れないファイル
+
+JSON などの形式、埋め込み・checksum、既存 reader の文字コードの前提を保つため、役割はここで説明します。
+
+| ファイル | 役割 |
+| --- | --- |
+| [chart/templates/release.yaml](chart/templates/release.yaml) | Account の Rollout と Service、Istio の経路を同じ設定から出力します。 |
+| [chart/values.schema.json](chart/values.schema.json) | Account の段階配備と解析に渡す設定値の必須項目・型・許可する値を検証する schema です。 |
+| [contract.py](contract.py) | Account リリースの状態と要求を検証する共通規則です。UI や実環境への操作から切り離して使います。 試験クライアントの ConfigMap に原文が埋め込まれます。 |
+| [deployment_target.py](deployment_target.py) | リリース操作が触れてよい対象と取得元を定義し、任意の対象へ操作が広がるのを防ぎます。 試験クライアントの ConfigMap に原文が埋め込まれます。 |
+| [envoy-scrape.yaml](envoy-scrape.yaml) | Account の段階配備を比較するため、Envoy の観測データを収集する設定です。 |
+| [image-catalog.existing-kind.json](image-catalog.existing-kind.json) | 既存環境向けに参照するイメージ候補と固定 digest の対応表です。 |
+| [image-catalog.pending.json](image-catalog.pending.json) | レビューが済む前のイメージ候補を保持し、確認済み候補と区別する一覧です。 |
+| [image-catalog.reviewed.json](image-catalog.reviewed.json) | レビューしたイメージ候補と由来を、配備提案で照合するための一覧です。 |
+| [load.py](load.py) | 承認した試験クライアントから固定の読み取り先へ要求を送り、配備比較用の小さな負荷を作ります。 試験クライアントの ConfigMap に原文が埋め込まれます。 |
+| [policy-cases.json](policy-cases.json) | リリース方針の許可・拒否を静的検証するための入力ケースです。 |
+| [runtime-profile.yaml](runtime-profile.yaml) | Account の配備版と配備方式を指定する入力です。リリース用 Chart と操作処理が参照します。 |

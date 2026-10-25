@@ -1,3 +1,4 @@
+# 観測結果の由来と測定条件を検証し、リリース判定に使える証拠かを確かめます。
 """Offline verifier for server-owned measured receipts; never performs IO.
 
 The UI cannot write these receipts. A session observer captures the fixed target,

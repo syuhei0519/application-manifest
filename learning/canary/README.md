@@ -342,3 +342,30 @@ fixtureへの追加apply/削除はlocal Test担当の操作であり、Argo SA�
 
 Prometheusによる明示opt-in profile・準備pause・欠測拒否・負荷/復帰は [METRICS.md](METRICS.md) を参照。
 既存の手動/固定結果Analysisの手順と履歴は保持する。
+
+## 構成と入口
+
+この階層のディレクトリと役割は次のとおりです。末端のファイルは親の説明から追えます。
+
+| 場所 | 役割 |
+| --- | --- |
+| [analysis-test/](analysis-test) | 解析 provider と Prometheus 応答を確認する Go テスト。 |
+| [chart/](chart) | Account の Canary 配備と解析を描画する Chart。 |
+| [fixture/](fixture) | Canary 解析用の試験 providerを描画する Chart。 |
+| [profiles/](profiles) | 成功・失敗・候補版などのケースを作る上書き値。 |
+
+### 本文にコメントを入れないファイル
+
+JSON などの形式、埋め込み・checksum、既存 reader の文字コードの前提を保つため、役割はここで説明します。
+
+| ファイル | 役割 |
+| --- | --- |
+| [chart/values.schema.json](chart/values.schema.json) | Account の Canary 配備と解析に渡す設定値の必須項目・型・許可する値を検証する schema です。 |
+| [chart/values.yaml](chart/values.yaml) | Account の Canary 配備と解析を描画する既定値です。環境別の値は呼び出し側から上書きします。 |
+| [fixture/files/provider.py](fixture/files/provider.py) | Canary の解析に決めた結果を返す試験用 HTTP provider です。ConfigMap にそのまま埋め込まれます。 |
+| [fixture/values.schema.json](fixture/values.schema.json) | Canary 解析用の試験 providerに渡す設定値の必須項目・型・許可する値を検証する schema です。 |
+| [profiles/candidate.yaml](profiles/candidate.yaml) | 候補版へ進める Canary の入力です。対応する学習用 Chart の値を上書きして検証に使います。 |
+| [profiles/failed.yaml](profiles/failed.yaml) | 解析が失敗する Canary の入力です。対応する学習用 Chart の値を上書きして検証に使います。 |
+| [profiles/good.yaml](profiles/good.yaml) | 解析が成功する Canary の入力です。対応する学習用 Chart の値を上書きして検証に使います。 |
+| [profiles/metrics-candidate.yaml](profiles/metrics-candidate.yaml) | 実測クエリで候補版を判定する Canary の入力です。対応する学習用 Chart の値を上書きして検証に使います。 |
+| [profiles/metrics-good.yaml](profiles/metrics-good.yaml) | 実測クエリで安定版を判定する Canary の入力です。対応する学習用 Chart の値を上書きして検証に使います。 |

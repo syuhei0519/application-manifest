@@ -1,3 +1,4 @@
+# Account リリースの隔離試験に使う kind クラスターの構成です。
 # Creation is gated by the separate credential/RBAC/security approval proposal.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4

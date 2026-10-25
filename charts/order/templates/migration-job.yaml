@@ -1,4 +1,4 @@
-{{- if .Values.enabled }}
+{{/* Order API と migrationの描画で、API の更新前に DB の構造を揃える migration Job を出力します。 */}}{{- if .Values.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:

@@ -1,3 +1,4 @@
+# PLAT-170 で Argo CD Core への登録を準備した際の補助スクリプトです。過去の実行手順として保持します。
 # Historical approved session helper. Reapproval and new ownership guards are required for another session.
 import json
 import subprocess

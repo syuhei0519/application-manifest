@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
+# 追跡対象のソースを検査用に取り出し、セキュリティ方針に沿って CI の合否を判定します。
 set -eu
 umask 077
 mkdir -p .security/private .security/public .security/source .cache/trivy

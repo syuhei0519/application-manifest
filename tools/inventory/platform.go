@@ -1,3 +1,4 @@
+// platform 側の描画結果を、許可したリソースとイメージの分類に限定して取り出します。
 package main
 
 import "fmt"

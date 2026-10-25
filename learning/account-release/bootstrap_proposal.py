@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Account リリース用の初期構成を、レビューできる提案ファイルとして作ります。
 """Render reviewable installation proposals; never create credentials or apply.
 
 Only a clean checkout at PLATFORM_SHA is accepted. Upstream Core/Rollouts bytes

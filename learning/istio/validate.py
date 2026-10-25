@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Istio の経路設定を描画し、通常・重み付き・sidecar なしの構成を静的に確認します。
 """Offline routing contracts against the fixed platform Istio 1.31.2 source."""
 import argparse
 import copy

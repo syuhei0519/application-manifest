@@ -1,3 +1,4 @@
+# 通信比率や応答の測定処理を、小さな試験データで確認します。
 """Synthetic accounting tests; these are not Kubernetes traffic evidence."""
 import importlib.util
 from pathlib import Path

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Rollout を管理する Application の提案を作り、配備対象と固定版の対応を検証します。
 """Offline Core proposal; no RBAC, credentials, cluster calls, or automatic sync."""
 import argparse
 import re

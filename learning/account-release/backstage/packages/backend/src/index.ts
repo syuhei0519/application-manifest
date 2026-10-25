@@ -1,3 +1,4 @@
+// Backstage backend に必要な plugin と認証・権限処理を登録する起動入口です。
 import { createBackend } from '@backstage/backend-defaults';
 import accountRelease from './plugin';
 import permissionPolicy from './permissionPolicy';

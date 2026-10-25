@@ -1,3 +1,4 @@
+# 学習用の各 API と専用 DBの Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: learning-service
 description: Isolated local-image learning path; render one independent service at a time

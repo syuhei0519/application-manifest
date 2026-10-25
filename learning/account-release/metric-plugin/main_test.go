@@ -1,3 +1,4 @@
+// 計測 plugin の要求・応答と判定条件を、外部サービスを差し替えて確認します。
 package main
 
 import (

@@ -1,3 +1,4 @@
+# 状態保存の整合性と同時更新の扱いを確認し、検証済み履歴が失われないようにします。
 import json
 from pathlib import Path
 import tempfile

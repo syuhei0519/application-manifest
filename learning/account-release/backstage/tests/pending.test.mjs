@@ -1,3 +1,4 @@
+// 未完了の操作を保存・復元する処理を確認し、意図しない再送を防ぎます。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { beginPending, readPending, settlePending, uncertain } from '../packages/app/src/pending.ts';

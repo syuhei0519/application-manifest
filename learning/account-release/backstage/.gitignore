@@ -1,3 +1,4 @@
+# Backstage の依存・ビルド結果・ローカル設定を Git の変更対象から除きます。
 node_modules/
 .yarn/
 dist-types/

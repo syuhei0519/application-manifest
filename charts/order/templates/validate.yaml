@@ -1,4 +1,4 @@
-{{- if .Values.enabled }}
+{{/* Order API と migrationの描画で、許可しない値の組み合わせを描画時に拒否し、不正な配備定義を作らないようにします。 */}}{{- if .Values.enabled }}
 {{- if ne .Values.image.tag .Values.release.sourceCommit }}
 {{- fail "Order image tag must equal release sourceCommit" }}
 {{- end }}

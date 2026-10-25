@@ -1,3 +1,4 @@
+# Istio と Rollout を組み合わせた段階配備の Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: istio-rollout-learning
 version: 0.1.0

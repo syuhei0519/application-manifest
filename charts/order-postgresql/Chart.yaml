@@ -1,3 +1,4 @@
+# Order 専用 PostgreSQLの Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: order-postgresql
 description: Disabled Order preparation chart; requires separate release and deployment gates.

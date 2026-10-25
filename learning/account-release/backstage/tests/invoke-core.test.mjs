@@ -1,3 +1,4 @@
+// 操作 bridge の呼び出しについて、期限・終了・クライアント切断時の扱いを確認します。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { invokeCore } from '../packages/backend/src/invokeCore.ts';

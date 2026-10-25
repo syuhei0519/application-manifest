@@ -1,3 +1,4 @@
+# Canary 解析用の試験 providerの Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: learning-account-analysis-fixture
 version: 0.1.0

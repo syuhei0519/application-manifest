@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 上流の schema・権限境界・計測クエリと、Account リリース用設定の整合性を静的に確認します。
 """Offline integration schemas, access boundary and PromQL export for promtool."""
 import argparse
 import json

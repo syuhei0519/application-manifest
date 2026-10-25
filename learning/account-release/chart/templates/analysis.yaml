@@ -1,4 +1,4 @@
-{{- if .Values.analysisPluginEnabled }}
+{{/* 配備中の計測結果を判定する AnalysisTemplate を出力します。 */}}{{- if .Values.analysisPluginEnabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:

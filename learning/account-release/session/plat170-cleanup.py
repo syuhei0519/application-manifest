@@ -1,3 +1,4 @@
+# PLAT-170 の試験後に専用資源を片付けた際の補助スクリプトです。現在の配備入口には使いません。
 # Historical approved session helper. Reapproval and new ownership guards are required for another session.
 """Execute only after the approved trial evidence is saved; exact dedicated cluster only."""
 import json

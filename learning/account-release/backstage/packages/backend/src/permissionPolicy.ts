@@ -1,3 +1,4 @@
+// Backstage backend でリリース操作の許可を判定し、画面表示だけに権限制御を任せないようにします。
 import { createBackendModule } from '@backstage/backend-plugin-api';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { policyExtensionPoint } from '@backstage/plugin-permission-node/alpha';

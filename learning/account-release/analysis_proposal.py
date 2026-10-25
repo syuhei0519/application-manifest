@@ -1,3 +1,4 @@
+# Account の段階配備で使う解析設定の提案を、API に適用せずに組み立てます。
 """Offline delta to the pinned PLAT-170 bootstrap. This does not authorize/apply it."""
 from copy import deepcopy
 import re

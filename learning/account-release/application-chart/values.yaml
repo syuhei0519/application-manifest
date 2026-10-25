@@ -1,2 +1,3 @@
+# Account リリースを管理する Argo CD Applicationを描画する既定値です。環境別の値は呼び出し側から上書きします。
 strategy: Canary
 manifestRevision: ''

@@ -1,3 +1,4 @@
+# 偽造・不足・矛盾のある観測結果を、リリース判定の証拠として受理しないことを確認します。
 import copy
 import json
 from pathlib import Path

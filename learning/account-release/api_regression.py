@@ -1,3 +1,4 @@
+# 承認した試験環境で Account API の作成・取得・更新・削除を確認する回帰試験です。
 """Run only inside the approved dedicated client, after Abort traffic measurement."""
 import json
 import time

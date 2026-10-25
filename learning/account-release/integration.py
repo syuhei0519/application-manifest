@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 配備提案や通信観測の組み合わせを検証し、リリース試験の前提が揃うかを確認します。
 """Offline Account GitOps proposals and actual Envoy counter evidence checks.
 
 No cluster, Git or HTTP writes. Catalog review is an external trust boundary.

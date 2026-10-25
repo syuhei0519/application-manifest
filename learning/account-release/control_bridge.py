@@ -1,3 +1,4 @@
+# 認証済み Backstage から JSON の要求を受け、リリース操作の共通処理へ渡す入口です。
 """Fixed JSON bridge for the authenticated Backstage backend; not a shell API."""
 import argparse
 import datetime

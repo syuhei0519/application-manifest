@@ -1,3 +1,4 @@
+# Account の版と稼働 instance を区別して評価するための PromQL を生成します。
 # Derived from platform-gitops 867cb81f learning/monitoring/revision_queries.py; dynamic observed instance counts.
 def conservation(requests, count, infinite, request_increase, count_increase):
     """Raw series must agree; only cross-instrument extrapolation gets <0.01 request tolerance."""

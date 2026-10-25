@@ -1,3 +1,4 @@
+// Backend の配備と migration Job に、同じ公開証跡の注釈が付くことを各公開形式で確認します。
 package checksum
 
 import (

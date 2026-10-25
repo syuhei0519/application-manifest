@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 固定版 Argo CD の補正・merge 処理を試験入力で実行し、同期時のフィールドの扱いを確認します。
 """Run pinned official correction/merge functions and Kubernetes three-way apply."""
 import argparse
 import json

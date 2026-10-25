@@ -1,3 +1,4 @@
+# 測定した観測結果を検証して保存する運用側の入口です。画面から未検証の値を登録させません。
 """Operator-only ingestion of measured receipts. Not exposed by Backstage HTTP.
 
 Capture fixed-target before/after objects and the measured 200-call Envoy/client

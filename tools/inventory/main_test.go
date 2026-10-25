@@ -1,3 +1,4 @@
+// 描画済み YAML からのイメージ抽出と、許可外の入力の拒否を確認します。
 package main
 
 import (

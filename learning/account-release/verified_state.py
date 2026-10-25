@@ -1,3 +1,4 @@
+# 検証済みの状態と履歴を、同時更新による取り違えや途中書き込みを防いで保存します。
 """Atomic, exclusive updates to the server-owned observation history.
 
 A stale lock stops updates and requires operator inspection; it is never broken

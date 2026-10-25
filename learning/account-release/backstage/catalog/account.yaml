@@ -1,3 +1,4 @@
+# Backstage のカタログに Account を登録し、所有者やリリース画面との関連を示します。
 apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata: {name: account-owners, title: Account 担当}

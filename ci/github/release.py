@@ -1,3 +1,4 @@
+# 公開証跡と source の由来を検証し、信頼できるイメージだけを配備定義の変更提案に使います。
 """GitHub-native publication and data-only manifest verification.
 
 Only GHCR images and GitHub release records are accepted; other registries
