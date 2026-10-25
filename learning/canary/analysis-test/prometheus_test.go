@@ -1,3 +1,4 @@
+// Canary の Prometheus 計測が期待する応答と判定を扱うことを確認します。
 package analysis_test
 
 import (

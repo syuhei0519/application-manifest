@@ -1,4 +1,4 @@
-{{- if and .Values.analysis.enabled (eq .Values.analysis.mode "metrics") }}
+{{/* 版ごとの計測クエリを使う Canary の解析定義を出力します。 */}}{{- if and .Values.analysis.enabled (eq .Values.analysis.mode "metrics") }}
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:

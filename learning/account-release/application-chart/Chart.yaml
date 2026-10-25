@@ -1,3 +1,4 @@
+# Account リリースを管理する Argo CD Applicationの Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: account-release-definition
 version: 0.1.0

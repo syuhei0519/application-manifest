@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 固定したソースから試験用の構成ファイルを作ります。この生成処理だけでは実環境に適用しません。
 """Offline runtime artifact generator. No credentials or Kubernetes API calls."""
 import argparse
 import copy

@@ -1,3 +1,4 @@
+# PLAT-170 のリリース試行を進めた際の補助スクリプトです。過去の実行手順として保持します。
 # Historical approved session helper. Reapproval and new ownership guards are required for another session.
 """Single approved dedicated-kind session. Never reads Secret objects."""
 import argparse

@@ -70,3 +70,30 @@ those old images through this existing-kind Portal: their telemetry identity gua
 is incompatible with the new Collector. Registry publication is not needed.
 The operator's initial Rolling bootstrap establishes the healthy baseline; it does
 not count as the PLAT-177 UI Rolling acceptance case.
+
+## 構成と入口
+
+[app-config.yaml](app-config.yaml) が全体設定です。packages/app/src の画面から packages/backend/src の API を経由して操作を依頼します。
+
+この階層のディレクトリと役割は次のとおりです。末端のファイルは親の説明から追えます。
+
+| 場所 | 役割 |
+| --- | --- |
+| [catalog/](catalog) | Backstage に表示する Account の所有者・関連情報。 |
+| [packages/](packages) | app がブラウザー画面、backend が認証済み API と操作 bridge の呼び出しを担当します。 |
+| [tests/](tests) | 画面の観測値・未完了操作・bridge の境界を確認するテスト。 |
+
+### 本文にコメントを入れないファイル
+
+JSON などの形式、埋め込み・checksum、既存 reader の文字コードの前提を保つため、役割はここで説明します。
+
+| ファイル | 役割 |
+| --- | --- |
+| [access-proposal.yaml](access-proposal.yaml) | Backstage がリリース操作に必要とするアクセス範囲を示す、レビュー用の権限定義です。 |
+| [backstage.json](backstage.json) | Backstage が workspace の対応版を識別するためのメタデータです。 |
+| [operation-policy.yaml](operation-policy.yaml) | Backstage から許可するリリース操作と対象を定義し、操作範囲の確認に使います。 |
+| [package.json](package.json) | Backstage 全体の workspace 構成と、開発・検査コマンドを定義します。 |
+| [packages/app/package.json](packages/app/package.json) | Backstage のブラウザー画面が使う依存と起動・ビルドのコマンドを定義します。 |
+| [packages/app/public/index.html](packages/app/public/index.html) | Backstage の画面を載せる HTML の入口です。画面のビルド時にテンプレートとして使います。 |
+| [packages/backend/package.json](packages/backend/package.json) | Backstage の backend が使う依存と起動・ビルドのコマンドを定義します。 |
+| [tsconfig.json](tsconfig.json) | Backstage の画面と backend を型検査する TypeScript 設定です。 |

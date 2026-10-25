@@ -1,4 +1,4 @@
-apiVersion: v1
+{{/* 解析試験用 provider のコード・実行 Pod・接続口をまとめて出力します。 */}}apiVersion: v1
 kind: ConfigMap
 metadata:
   name: learning-account-analysis-provider

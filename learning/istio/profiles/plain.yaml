@@ -1,2 +1,3 @@
+# sidecar なしの通信を比較する設定です。対応する学習用 Chart の値を上書きして検証に使います。
 mode: stable
 phase: plain

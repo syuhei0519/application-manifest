@@ -1,3 +1,4 @@
+# リリース要求と状態遷移の許可・拒否条件を、実環境への操作なしで確認します。
 import copy
 import unittest
 from contract import TARGET, Rejected, evaluate_metrics, transition, validate_start, validate_catalog

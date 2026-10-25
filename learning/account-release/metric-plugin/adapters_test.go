@@ -1,3 +1,4 @@
+// 計測 plugin の HTTP・RPC 接続部分について、実サービスなしで契約を確認します。
 package main
 
 import (

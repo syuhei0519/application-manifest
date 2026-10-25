@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 承認した試験環境で Account の CRUD を確認し、経路切替による API への影響を調べます。
 """Explicit Account non-impact check after routing restoration. Writes one temporary row."""
 import argparse
 import json

@@ -1,3 +1,4 @@
+// Order の配備・migration・設定変更時の checksum が契約どおりになることを確認します。
 package checksum
 
 import (

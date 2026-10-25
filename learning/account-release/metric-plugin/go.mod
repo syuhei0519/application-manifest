@@ -1,3 +1,4 @@
+// 計測 plugin を独立してビルドするための Go module と依存定義です。
 module learning.local/account-release-metric
 
 go 1.27.1

@@ -1,3 +1,4 @@
+// 現在の稼働状態の表示で、欠けた値や異なる版を正しく扱うことを確認します。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

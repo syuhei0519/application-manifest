@@ -1,4 +1,4 @@
-{{- if .Values.enabled }}
+{{/* Order API と migrationの描画で、アプリの起動・更新・稼働確認に使う Deployment を出力します。 */}}{{- if .Values.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

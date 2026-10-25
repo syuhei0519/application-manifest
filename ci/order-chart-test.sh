@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Order と専用 PostgreSQL の Chart を描画し、無効時の出力や不正な設定の拒否を確認します。
 # Synthetic render only. Does not authenticate a release or contact Kubernetes.
 set -euo pipefail
 mkdir -p .build .rendered/synthetic-order .security/public

@@ -1,3 +1,4 @@
+// 観測値の表示用変換で、未取得や無効な値を成功扱いしないことを確認します。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { observationTime, rateText, errorRateText } from '../packages/app/src/observation.ts';

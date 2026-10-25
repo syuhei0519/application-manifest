@@ -1,3 +1,4 @@
+# 操作の予約・重複・中断・結果保存を確認し、二重実行や不明な結果の再送を防ぎます。
 import copy
 import tempfile
 from pathlib import Path

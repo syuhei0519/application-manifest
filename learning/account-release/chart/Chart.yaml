@@ -1,3 +1,4 @@
+# Account の段階配備と解析の Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: account-release
 description: Isolated Account manual Canary with Istio; PLAT-170

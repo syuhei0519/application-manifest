@@ -1,2 +1,3 @@
+# Canary 解析用の試験 providerを描画する既定値です。環境別の値は呼び出し側から上書きします。
 # Local Test fixture only; not an Argo Application source.
 owner: ''

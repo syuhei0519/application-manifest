@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 学習用ビルドが失敗したとき、古い成果物を使って後続処理を進めないことを確認します。
 """Exercise the actual documented build block with synthetic Git/Docker only."""
 import os
 from pathlib import Path

@@ -1,3 +1,4 @@
+// Argo Rollouts からの計測要求を受け、検証したクエリと稼働状態に基づいて結果を返します。
 // Account-only controller metric provider. It does not mutate Kubernetes or Git.
 package main
 

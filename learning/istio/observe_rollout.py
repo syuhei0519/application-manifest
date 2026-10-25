@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 保存した JSON から Rollout と経路の観測結果を取り出します。実環境への問い合わせは行いません。
 """Read saved JSON snapshots; print only selected routing evidence, never raw objects."""
 import argparse
 import json

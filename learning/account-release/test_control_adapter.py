@@ -1,3 +1,4 @@
+# 操作用 adapter が固定対象と実行条件を守ることを、外部処理を差し替えて確認します。
 import copy
 import json
 from pathlib import Path

@@ -1,3 +1,4 @@
+// Argo CD と Kubernetes の更新処理に試験入力を渡し、経路設定の差分がどう扱われるかを確認します。
 package controller
 
 import (

@@ -1,3 +1,4 @@
+// Canary の解析で使う試験用 provider の入力・応答契約を確認します。
 package analysis_test
 
 import (

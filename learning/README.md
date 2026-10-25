@@ -279,3 +279,24 @@ Helm renderは実Service DNS疎通の合格ではありません。
 未検証: 実imageの対応、実namespaceでのPayment Service/EndpointSlice/DNS、Order Service経由の
 成功・拒否・同一request_id replay/conflict・timeout/応答喪失、実適用と復旧。
 独立Test/Review、同一headのCI、Managerの製品AC最終判断は別工程です。
+
+## 構成と入口
+
+この階層のディレクトリと役割は次のとおりです。末端のファイルは親の説明から追えます。
+
+| 場所 | 役割 |
+| --- | --- |
+| [account-release/](account-release/README.md) | Account の配備提案、操作・観測の検証、Backstage と計測 plugin。 |
+| [canary/](canary/README.md) | Canary 配備の成功・失敗・計測条件を検証する定義と試験。 |
+| [chart/](chart) | 学習用の各 API と専用 DBを描画する Chart。 |
+| [existing-kind/](existing-kind/README.md) | 既存環境の所有範囲と GitOps 入口、引き継ぎ時の提案・記録。 |
+| [istio/](istio/README.md) | 通信経路、sidecar、段階配備を学ぶための定義と静的検証。 |
+
+### 本文にコメントを入れないファイル
+
+JSON などの形式、埋め込み・checksum、既存 reader の文字コードの前提を保つため、役割はここで説明します。
+
+| ファイル | 役割 |
+| --- | --- |
+| [chart/values.schema.json](chart/values.schema.json) | 学習用の各 API と専用 DBに渡す設定値の必須項目・型・許可する値を検証する schema です。 |
+| [chart/values.yaml](chart/values.yaml) | 学習用の各 API と専用 DBを描画する既定値です。環境別の値は呼び出し側から上書きします。 |

@@ -1,3 +1,4 @@
+// GitHub の公開証跡が Chart の注釈に正しく反映され、不正な由来が拒否されることを確認します。
 package checksum
 
 import (

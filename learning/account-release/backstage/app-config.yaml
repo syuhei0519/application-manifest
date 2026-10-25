@@ -1,3 +1,4 @@
+# Backstage の画面・backend・認証・連携先を設定する入口です。秘密は外部から参照します。
 app:
   title: Account リリース
   baseUrl: http://127.0.0.1:3000

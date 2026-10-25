@@ -1,3 +1,4 @@
+// Python の操作 bridge を期限付きで呼び出し、ブラウザー切断だけで操作の結果を見失わないようにします。
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 

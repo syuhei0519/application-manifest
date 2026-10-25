@@ -1,3 +1,4 @@
+# Account の Canary 配備と解析の Chart 名と版を Helm に伝えるメタデータです。
 apiVersion: v2
 name: learning-account-canary
 version: 0.1.0

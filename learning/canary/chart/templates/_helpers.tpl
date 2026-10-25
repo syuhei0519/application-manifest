@@ -1,4 +1,4 @@
-{{- define "learning.name" -}}learning-account{{- end -}}
+{{/* Account の Canary 配備と解析の描画で、複数のテンプレートで使う名前・ラベル・設定の組み立てをまとめます。 */}}{{- define "learning.name" -}}learning-account{{- end -}}
 {{- define "learning.database" -}}
 account
 {{- end -}}

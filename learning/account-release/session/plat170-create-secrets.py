@@ -1,3 +1,4 @@
+# PLAT-170 の試験用 Secret を準備した際の補助スクリプトです。現在の配備入口には使いません。
 # Historical approved session helper. Reapproval and new ownership guards are required for another session.
 import json
 import secrets

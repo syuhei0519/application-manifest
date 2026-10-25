@@ -1,3 +1,4 @@
+# Rollout の提案と状態観測が、配備の各段階を正しく扱うことを確認します。
 """Synthetic field boundary and active route negatives; not runtime acceptance."""
 import copy
 import importlib.util

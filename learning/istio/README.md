@@ -156,3 +156,26 @@ plain apply だけでは v2/VS/DR は消えないため上の個別削除が必�
 2 Pod の proxy/init 不在、v1 のみの EndpointSlice、VS/DR/v2 不在を確認し Account CRUD を再実行する。
 port-forward を終了する。control 撤去は既存 platform の所有照合と順序に従い、CRD/namespace/CA Secret を一括削除しない。
 秘密値、内部ログ、非公開実行ID は Git/PR に公開せず、必要な集計と未検証点だけを Handoff に残す。
+
+## 構成と入口
+
+この階層のディレクトリと役割は次のとおりです。末端のファイルは親の説明から追えます。
+
+| 場所 | 役割 |
+| --- | --- |
+| [argocd-sync-test/](argocd-sync-test) | 固定版 Argo CD の同期時の差分処理を確認する Go テスト。 |
+| [chart/](chart) | Istio の通信比率を確かめる試験アプリを描画する Chart。 |
+| [profiles/](profiles) | 通常・重み付き・sidecar なしの経路を比較する上書き値。 |
+| [rollout-chart/](rollout-chart) | Istio と Rollout を組み合わせた段階配備を描画する Chart。 |
+| [rollout-profiles/](rollout-profiles) | Rollout の安定版・次版・失敗を再現する上書き値。 |
+| [tests/](tests) | 通信測定と Rollout の境界を確認する Python テスト。 |
+
+### 本文にコメントを入れないファイル
+
+JSON などの形式、埋め込み・checksum、既存 reader の文字コードの前提を保つため、役割はここで説明します。
+
+| ファイル | 役割 |
+| --- | --- |
+| [chart/files/demo.py](chart/files/demo.py) | Istio の通信試験で版や失敗を返す HTTP サーバーです。Chart が ConfigMap にそのまま埋め込みます。 |
+| [chart/values.schema.json](chart/values.schema.json) | Istio の通信比率を確かめる試験アプリに渡す設定値の必須項目・型・許可する値を検証する schema です。 |
+| [rollout-chart/values.schema.json](rollout-chart/values.schema.json) | Istio と Rollout を組み合わせた段階配備に渡す設定値の必須項目・型・許可する値を検証する schema です。 |

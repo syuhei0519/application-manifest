@@ -1,3 +1,4 @@
+# Rolling と Canary、手動と自動の組み合わせについて、要求と実際の状態を照合します。
 """PLAT-171 shared input and observed-runtime contract (no writes)."""
 from copy import deepcopy
 import re

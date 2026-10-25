@@ -1,3 +1,4 @@
+// platform の inventory 作成で、許可外リソースやイメージの混入を拒否することを確認します。
 package main
 
 import (

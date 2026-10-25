@@ -1,6 +1,6 @@
 {{/*
 frontendのDeployment生成。Argoがcharts/frontendとenvironments/local/frontend.yamlをHelmで展開する。
-image/release/設定からPodTemplateを作る。注釈はci/trusted_contract.pyのinventory照合対象。
+image/release/設定からPodTemplateを作る。注釈はtools/inventory/main.goのinventory照合対象。
 */}}apiVersion: apps/v1
 kind: Deployment
 metadata:

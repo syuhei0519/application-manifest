@@ -1,3 +1,4 @@
+// Account の現在の稼働状態を表示し、要求した設定と観測できた結果を区別します。
 import { Button, Typography } from '@material-ui/core';
 
 export const stateNames: Record<string,string> = {

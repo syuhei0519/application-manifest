@@ -1,3 +1,4 @@
+# リリース操作の受付・予約・結果保存を調整し、結果が不明な操作を安易に繰り返さないようにします。
 """Account release coordinator. Durable reservations survive retries and restarts.
 
 Adapters perform Git/Rollouts IO. A failed or timed-out call is never implicitly

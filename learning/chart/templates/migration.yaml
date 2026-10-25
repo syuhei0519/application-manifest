@@ -1,4 +1,4 @@
-apiVersion: batch/v1
+{{/* 学習用 API の更新前に専用 DB の構造を揃える Job を出力します。 */}}apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ include "learning.name" . }}-migration

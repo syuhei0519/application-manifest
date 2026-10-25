@@ -1,3 +1,4 @@
+// Account のリリース要求と結果確認を行う画面です。処理中・結果不明の操作も利用者に示します。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApi, discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';

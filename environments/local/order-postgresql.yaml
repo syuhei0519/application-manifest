@@ -1,2 +1,3 @@
+# ローカル環境でOrder 専用 DB の opt-in 配備に使う、Chart の上書き設定です。
 # Disabled: real release selection belongs to M2; enabling belongs to the deployment gate.
 enabled: false

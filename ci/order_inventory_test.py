@@ -1,3 +1,4 @@
+# Order の描画結果から、許可したイメージだけが inventory に取り出されることを確認します。
 """Mutate real rendered synthetic charts against the unchanged M0 inventory gate."""
 import json
 from pathlib import Path

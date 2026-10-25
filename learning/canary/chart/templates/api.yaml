@@ -1,4 +1,4 @@
-apiVersion: {{ if eq .Values.mode "rollout" }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+{{/* 設定した方式に応じて Account の Deployment または Rollout を出力します。 */}}apiVersion: {{ if eq .Values.mode "rollout" }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
 kind: {{ if eq .Values.mode "rollout" }}Rollout{{ else }}Deployment{{ end }}
 metadata:
   name: {{ include "learning.name" . }}{{ if eq .Values.mode "rollout" }}-canary{{ end }}

@@ -1,3 +1,4 @@
+# 信頼済み commit からの描画で、入力ファイル・Chart・設定値の境界を守ることを確認します。
 """Synthetic fixed-inventory tests; no deployment or release authorization."""
 import importlib.util
 from pathlib import Path

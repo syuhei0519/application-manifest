@@ -1,4 +1,4 @@
-{{- define "learning.name" -}}learning-{{ .Values.service }}{{- end -}}
+{{/* 学習用の各 API と専用 DBの描画で、複数のテンプレートで使う名前・ラベル・設定の組み立てをまとめます。 */}}{{- define "learning.name" -}}learning-{{ .Values.service }}{{- end -}}
 {{- define "learning.database" -}}
 {{- get (dict "account" "account" "order" "orders" "payment" "payments" "notification" "notifications") .Values.service -}}
 {{- end -}}

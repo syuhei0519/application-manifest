@@ -1,3 +1,4 @@
+// Pod を持つリソースの見落としやホスト共有設定を、inventory 検査で拒否することを確認します。
 package main
 
 import (

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# 固定検証器によるmerge候補のrender/inventory生成。ci/trusted-producer.pyが呼ぶ。
+# 固定検証器によるmerge候補のrender/inventory生成。ci/github/release.pyが呼ぶ。
 # Chart/valuesの入力bytesと生成YAML・全PodSpec imageを束ね、checksum付きreportを返す。
 # 隔離runtimeはci/namespace_sandbox.py、inventory parserはtools/inventory/main.go。
 """固定ソースからの検証器。render/parseの隔離実行へ資格情報を渡さない。"""

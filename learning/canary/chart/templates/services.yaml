@@ -1,4 +1,4 @@
-{{- $root := . -}}
+{{/* Canary の安定版・候補版へ接続する Service を出力します。 */}}{{- $root := . -}}
 {{- $names := list "learning-account" -}}
 {{- if eq .Values.mode "rollout" -}}
 {{- $names = list "learning-account" "learning-account-stable" "learning-account-canary" -}}

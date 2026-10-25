@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 学習用 API・DB の Chart を描画し、サービスごとの構成と安全上の制限を静的に確認します。
 """Offline render/schema fixtures for this learning path only. No cluster calls."""
 import argparse
 import copy

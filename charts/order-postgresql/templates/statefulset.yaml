@@ -1,4 +1,4 @@
-{{- if .Values.enabled }}
+{{/* Order 専用 PostgreSQLの描画で、永続領域を使う DB の起動と稼働確認を定義します。 */}}{{- if .Values.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

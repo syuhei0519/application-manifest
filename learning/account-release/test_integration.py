@@ -1,3 +1,4 @@
+# 配備提案と観測データの結び付きが正しいことを、小さな試験入力で確認します。
 """Offline fixtures; example.invalid digests are never runtime acceptance."""
 import copy
 import json

@@ -14,3 +14,14 @@ FSのnpm開発依存は検査範囲に入る。最終runtime imageのSBOMが、�
 
 AT11_CASEは空（通常）またはscanner-timeout/stale-db/expired-exceptionの失敗専用列挙値だけを受け付ける。実Trivyの1ns timeout、privateの古いDBメタデータ、未使用でも失効した固定例外を実際の判定経路へ渡す。共有cacheと実policyは改変せず、未知値も失敗にする。隔離Dockerの実shell試験は三ケースとも意図した診断と非0終了を確認した。protected-main CIで後続publish/verify/proposalの停止を照合する受入は別途必須。
 
+## 構成と入口
+
+
+### 本文にコメントを入れないファイル
+
+JSON などの形式、埋め込み・checksum、既存 reader の文字コードの前提を保つため、役割はここで説明します。
+
+| ファイル | 役割 |
+| --- | --- |
+| [scan-policy.json](scan-policy.json) | 共有 scan-gate が使うセキュリティ検査の合否条件です。 |
+| [scan-policy.schema.json](scan-policy.schema.json) | 検査方針の JSON に必要な項目と許される値を定義します。 |

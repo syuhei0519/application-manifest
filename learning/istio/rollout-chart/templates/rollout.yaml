@@ -1,4 +1,4 @@
-{{- if ne .Release.Namespace "learning-istio-demo" }}
+{{/* 段階ごとの更新と待機を行う、Istio 連携用 Rollout を出力します。 */}}{{- if ne .Release.Namespace "learning-istio-demo" }}
 {{- fail "only learning-istio-demo is allowed" }}
 {{- end }}
 apiVersion: argoproj.io/v1alpha1

@@ -1,4 +1,4 @@
-apiVersion: v1
+{{/* Rollout の安定版・候補版への Service と Istio の経路を出力します。 */}}apiVersion: v1
 kind: Service
 metadata:
   name: mesh-rollout

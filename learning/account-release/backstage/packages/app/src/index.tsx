@@ -1,3 +1,4 @@
+// Backstage の React 画面をブラウザーへ表示する起動入口です。
 import '@backstage/cli/asset-types';
 import ReactDOM from 'react-dom/client';
 import App from './App';

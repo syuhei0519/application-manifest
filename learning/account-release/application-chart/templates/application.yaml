@@ -1,4 +1,4 @@
-{{- if or (ne .Release.Namespace "learning-progressive-control") (ne .Release.Name "account-release-definition") -}}
+{{/* Account の配備 Chart と固定 profile を参照する Application を出力します。 */}}{{- if or (ne .Release.Namespace "learning-progressive-control") (ne .Release.Name "account-release-definition") -}}
 {{- fail "fixed existing-kind definition target required" -}}
 {{- end -}}
 {{- if not (has .Values.strategy (list "Canary" "Rolling")) -}}
