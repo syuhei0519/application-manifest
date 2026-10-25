@@ -48,19 +48,31 @@ func orderRender(t *testing.T, chart, fixture string, overrides ...string) ([]ma
 func TestOrderDisabledAndSchemaBoundaries(t *testing.T) {
 	for _, c := range []struct{ chart, fixture string }{{"order", "enabled.yaml"}, {"order-postgresql", "postgresql-enabled.yaml"}} {
 		t.Run(c.chart, func(t *testing.T) {
+			assertDisabledMarker := func(docs []map[string]any, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatal("disabled render", err)
+				}
+				if len(docs) != 1 || docs[0]["kind"] != "ConfigMap" {
+					t.Fatalf("disabled render must contain only its marker ConfigMap: %#v", docs)
+				}
+				metadata := om(docs[0]["metadata"])
+				if metadata["name"] != c.chart+"-disabled" || om(metadata["labels"])["platform.lab/profile-state"] != "disabled" {
+					t.Fatal("invalid disabled marker identity")
+				}
+				if om(docs[0]["data"])["enabled"] != "false" {
+					t.Fatal("invalid disabled marker state")
+				}
+			}
 			docs, err := orderRender(t, c.chart, "")
-			if err != nil || len(docs) != 0 {
-				t.Fatal("disabled resources", err)
-			}
+			assertDisabledMarker(docs, err)
 			docs, err = orderRender(t, c.chart, c.fixture, "enabled=false")
-			if err != nil || len(docs) != 0 {
-				t.Fatal("disabled fixture resources")
-			}
-			bad := []string{"enabled=oops", "replicaCount=2", "config.dbName=account", "secrets.existingSecret=account-db", "serviceAccount.automountServiceAccountToken=true", "podSecurityContext.runAsUser=0", "securityContext.readOnlyRootFilesystem=false", "securityContext.capabilities.add[0]=NET_ADMIN", "service.type=NodePort", "image.digest=sha256:bad", "extra=true"}
+			assertDisabledMarker(docs, err)
+			bad := []string{"enabled=oops", "config.dbName=account", "secrets.existingSecret=account-db", "serviceAccount.automountServiceAccountToken=true", "podSecurityContext.runAsUser=0", "securityContext.readOnlyRootFilesystem=false", "securityContext.capabilities.add[0]=NET_ADMIN", "service.type=NodePort", "image.digest=sha256:bad", "extra=true"}
 			if c.chart == "order" {
 				bad = append(bad, "image.repository=ghcr.io/syuhei0519/backend-app", "image.tag=latest", "release.sourceCommit="+strings.Repeat("a", 40), "release.service=backend", "release.schemaVersion=github-v1", "release.runId=999", "release.recordSha256=bad", "migration.activeDeadlineSeconds=181", "migration.backoffLimit=2", "config.dbHost=postgresql", "secrets.usernameKey=admin-password")
 			} else {
-				bad = append(bad, "persistence.enabled=false", "persistence.size=1Gi", "persistence.storageClass=other", "image.tag=17.9-bookworm", "config.pgData=/tmp/data")
+				bad = append(bad, "replicaCount=2", "persistence.enabled=false", "persistence.size=1Gi", "persistence.storageClass=other", "image.tag=17.9-bookworm", "config.pgData=/tmp/data")
 			}
 			for _, v := range bad {
 				t.Run(v, func(t *testing.T) {
