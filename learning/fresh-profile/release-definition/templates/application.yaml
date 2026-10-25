@@ -14,7 +14,7 @@ metadata:
 spec:
   project: fresh-account
   destination:
-    name: fresh-account-sandbox
+    server: https://kubernetes.default.svc
     namespace: fresh-account
   source:
     repoURL: https://github.com/syuhei0519/application-manifest.git

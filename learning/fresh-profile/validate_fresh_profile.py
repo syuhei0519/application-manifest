@@ -84,7 +84,7 @@ def validate_release_chart(release_path=RELEASE):
         "name: fresh-account-release", "namespace: fresh-control",
         "repoURL: https://github.com/syuhei0519/application-manifest.git",
         "path: learning/fresh-profile/workload", "project: fresh-account",
-        "name: fresh-account-sandbox", "namespace: fresh-account",
+        "server: https://kubernetes.default.svc", "namespace: fresh-account",
         "ghcr.io/syuhei0519/backend-app=",
     ):
         require(fragment in template, f"release-template:{fragment}")
