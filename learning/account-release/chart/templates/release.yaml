@@ -66,6 +66,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports: [{name: http, containerPort: 8080, protocol: TCP}]
           env:
+            - {name: ACCOUNT_RUNTIME_PROFILE, value: fresh-learning-account-release}
             - {name: PGHOST, value: learning-account-db}
             - {name: PGPORT, value: "5432"}
             - {name: PGDATABASE, value: account}
