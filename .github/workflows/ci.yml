@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: syuhei0519/platform-gitops
-          ref: 785ee3311143cf5fb201b6f1c93c2d02390e4067
+          ref: fbfe85f2678b305f54e0bee6ceb5451c23669002
           path: .build/current-platform
           persist-credentials: false
       - name: Learning Account canary static checks
