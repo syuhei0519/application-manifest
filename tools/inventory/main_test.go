@@ -6,6 +6,26 @@ import (
 	"testing"
 )
 
+func TestDestinationNamespace(t *testing.T) {
+	for _, test := range []struct {
+		args []string
+		want string
+		ok   bool
+	}{
+		{nil, "account", true},
+		{[]string{"--namespace", "account"}, "account", true},
+		{[]string{"--namespace", "learning-account-release"}, "learning-account-release", true},
+		{[]string{"--namespace", "default"}, "", false},
+		{[]string{"--other", "account"}, "", false},
+		{[]string{"--namespace"}, "", false},
+	} {
+		got, err := destinationNamespace(test.args)
+		if (err == nil) != test.ok || got != test.want {
+			t.Fatalf("destinationNamespace(%v) = %q, %v", test.args, got, err)
+		}
+	}
+}
+
 const img = "registry.gitlab.com/syuhei-platform-engineering-lab/backend-app:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 func fixture(kind string) string {
@@ -19,6 +39,8 @@ func fixture(kind string) string {
 		api = "v1"
 	case "Job":
 		api = "batch/v1"
+	case "Rollout":
+		api = "argoproj.io/v1alpha1"
 	case "CronJob":
 		api = "batch/v1"
 		spec = "spec:\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          containers:\n          - name: app\n            image: " + img + "\n"
@@ -26,7 +48,7 @@ func fixture(kind string) string {
 	return "apiVersion: " + api + "\nkind: " + kind + "\nmetadata:\n  name: fixture\n" + spec
 }
 func TestAllPodSpecKinds(t *testing.T) {
-	for _, kind := range []string{"Pod", "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "ReplicationController", "Job", "CronJob"} {
+	for _, kind := range []string{"Pod", "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "ReplicationController", "Job", "CronJob", "Rollout"} {
 		t.Run(kind, func(t *testing.T) {
 			out, err := inventory([]byte(fixture(kind)), "account")
 			if err != nil {

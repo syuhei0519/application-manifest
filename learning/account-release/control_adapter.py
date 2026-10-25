@@ -49,6 +49,33 @@ class LiveAdapter:
         validate_catalog(catalog)
         self.images={x['image']:x for x in catalog}
 
+    @staticmethod
+    def profile_image(profile):
+        value=profile['image']
+        if isinstance(value,str):return value
+        require(isinstance(value,dict) and set(value)=={'repository','tag','digest','pullPolicy'} and
+                value['pullPolicy']=='IfNotPresent' and value['tag']==profile['sourceCommit'],
+                'invalid-typed-image')
+        return value['repository']+'@'+value['digest']
+
+    @staticmethod
+    def runtime_image(value):
+        repository,digest=value.split('@',1)
+        marker=repository.rfind(':')
+        if marker>repository.rfind('/'):
+            repository=repository[:marker]
+        return repository+'@'+digest
+
+    @staticmethod
+    def checked_release(entry):
+        match=re.search(r'actions/runs/([1-9][0-9]*)',entry['provenance'])
+        require(match is not None and type(entry.get('artifact_id')) is int,'catalog-release-identity-missing')
+        return {'schemaVersion':'checked-artifact-v1','sourceRepository':'syuhei0519/backend-app',
+            'sourceCommit':entry['source_commit'],'event':'push','ref':'refs/heads/main',
+            'workflowRef':'syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main',
+            'runId':match.group(1),'runAttempt':'1','artifactId':str(entry['artifact_id']),
+            'archiveSha256':entry['archive_sha256'],'published':False}
+
     def command(self,args,payload=None):
         # Never expose subprocess stderr or command output through exceptions.
         require(self.clock()<self.config['token_expires_at'],'trial-token-expired')
@@ -87,12 +114,31 @@ class LiveAdapter:
         profile=yaml.safe_load(raw)
         require(isinstance(profile,dict) and set(profile) in (
             {'owner','image','sourceCommit','imageRevision','strategy','promotionMode','analysisPluginEnabled'},
-            {'owner','image','sourceCommit','imageRevision','strategy','promotionMode','analysisPluginEnabled','bootstrapHash'}),
+            {'owner','image','sourceCommit','imageRevision','strategy','promotionMode','analysisPluginEnabled','bootstrapHash'},
+            {'owner','image','sourceCommit','imageRevision','release','strategy','promotionMode','analysisPluginEnabled'},
+            {'owner','image','sourceCommit','imageRevision','release','strategy','promotionMode','analysisPluginEnabled','bootstrapHash'}),
             'explicit-git-profile-required')
-        require(profile['owner']=='plat170-account' and profile['image'] in self.images,'profile-target-unverified')
-        entry=self.images[profile['image']]
-        require(profile['sourceCommit']==entry['source_commit'] and profile['imageRevision']==image_revision(profile['image']),
+        image=self.profile_image(profile)
+        require(profile['owner']=='plat170-account' and image in self.images,'profile-target-unverified')
+        entry=self.images[image]
+        require(profile['sourceCommit']==entry['source_commit'] and profile['imageRevision']==image_revision(image),
                 'profile-image-source-mismatch')
+        if 'release' in profile:
+            release=profile['release'];common={'sourceRepository','sourceCommit','event','ref','workflowRef','runId','runAttempt','published','schemaVersion'}
+            checked=common|{'artifactId','archiveSha256'}
+            github=common|{'recordUrl','recordSha256','sbomUrl','sbomSha256'}
+            github_base=(f"https://github.com/syuhei0519/backend-app/releases/download/gha-{entry['source_commit']}-"
+                         f"{release.get('runId','')}-{release.get('runAttempt','')}/") if isinstance(release,dict) else ''
+            require(isinstance(release,dict) and set(release) in (checked,github) and
+                    release['sourceRepository']=='syuhei0519/backend-app' and release['sourceCommit']==entry['source_commit'] and
+                    release['event']=='push' and release['ref']=='refs/heads/main' and
+                    release['workflowRef']=='syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main' and
+                    ((set(release)==checked and release==self.checked_release(entry)) or
+                     (set(release)==github and release['schemaVersion']=='github-v1' and release['published'] is True and
+                      re.fullmatch('[1-9][0-9]*',release['runId']) and re.fullmatch('[1-9][0-9]*',release['runAttempt']) and
+                      re.fullmatch('[a-f0-9]{64}',release['recordSha256']) and re.fullmatch('[a-f0-9]{64}',release['sbomSha256']) and
+                      release['recordUrl']==github_base+'release-record.json' and release['sbomUrl']==github_base+'sbom.cdx.json')),
+                    'profile-release-identity-mismatch')
         from release_modes import validate_mode
         validate_mode(profile['strategy'],profile['promotionMode'])
         require(profile['analysisPluginEnabled'] is True,'reviewed-analysis-required')
@@ -147,7 +193,7 @@ class LiveAdapter:
         stable_rs=[r for r in rs if r['metadata'].get('labels',{}).get('rollouts-pod-template-hash')==stable and
                    any(o.get('uid')==ro['metadata']['uid'] and o.get('controller') is True for o in r['metadata'].get('ownerReferences',[]))]
         require(len(stable_rs)==1,'stable-revision-unverified')
-        image=next(c['image'] for c in stable_rs[0]['spec']['template']['spec']['containers'] if c['name']=='api')
+        image=self.runtime_image(next(c['image'] for c in stable_rs[0]['spec']['template']['spec']['containers'] if c['name']=='api'))
         require(image in self.images,'stable-image-unverified')
         status.update(current_image=image,git_revision=revision,version=int(ro['metadata']['resourceVersion']),
             application_uid=app['metadata']['uid'],
@@ -155,7 +201,7 @@ class LiveAdapter:
             pause_reasons=sorted(p['reason'] for p in ro.get('status',{}).get('pauseConditions',[])),
             git_runtime_drift=(app.get('status',{}).get('sync',{}).get('status')!='Synced' or
                 app.get('status',{}).get('sync',{}).get('revision')!=revision or
-                status['requested_image']!=profile['image']),
+                status['requested_image']!=self.profile_image(profile)),
             release_managed=revision in self.config['approved_bootstrap_revisions'])
         status['analysis_run']=ro.get('status',{}).get('canary',{}).get('currentStepAnalysisRunStatus',{}).get('name')
         status['rollout_revision']=ro['metadata'].get('annotations',{}).get('rollout.argoproj.io/revision')
@@ -178,7 +224,7 @@ class LiveAdapter:
         if previous and previous.get('image') in self.images and previous.get('verified') is True:
             require(previous.get('rollout_uid')==status['rollout_uid'] and
                     isinstance(previous.get('receipt_sha256'),str) and re.fullmatch('[a-f0-9]{64}',previous['receipt_sha256']) and
-                    self.profile(previous.get('git_revision'))['image']==previous['image'],'previous-evidence-unverified')
+                    self.profile_image(self.profile(previous.get('git_revision')))==previous['image'],'previous-evidence-unverified')
             from evidence_verifier import verify,digest
             prior=history.get('previous_observation',{})
             require(prior.get('proof',{}).get('receipt_sha256')==previous['receipt_sha256'],
@@ -245,7 +291,9 @@ class LiveAdapter:
 
     def diff(self,revision,phase):
         before=self.profile(revision);after=deepcopy(before)
-        after.update(image=phase['image'],sourceCommit=self.images[phase['image']]['source_commit'],
+        entry=self.images[phase['image']];repository,digest=phase['image'].split('@',1)
+        after.update(image={'repository':repository,'tag':entry['source_commit'],'digest':digest,'pullPolicy':'IfNotPresent'},
+                     sourceCommit=entry['source_commit'],release=self.checked_release(entry),
                      imageRevision=image_revision(phase['image']),strategy=phase['strategy'],
                      promotionMode=phase['promotion_mode'],analysisPluginEnabled=True)
         after.pop('bootstrapHash',None)
@@ -480,7 +528,7 @@ class LiveAdapter:
                     phase.get('bootstrap_hash')==current['revision'] and current['state']=='succeeded' and
                     (current['git_runtime_drift'] is False or (
                         app['status']['sync']['status']=='OutOfSync' and
-                        current['requested_image']==self.profile(expected['identity']['git_revision'])['image'])) and
+                        current['requested_image']==self.profile_image(self.profile(expected['identity']['git_revision'])))) and
                     current['stable_traffic_verified'] is True,
                     'canary-activation-receipt-required')
             sync_options=['RespectIgnoreDifferences=false']

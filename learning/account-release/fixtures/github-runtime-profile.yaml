@@ -1,0 +1,25 @@
+owner: plat170-account
+sourceCommit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+imageRevision: sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+image:
+  repository: ghcr.io/syuhei0519/backend-app
+  tag: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  pullPolicy: IfNotPresent
+release:
+  schemaVersion: github-v1
+  sourceRepository: syuhei0519/backend-app
+  sourceCommit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  event: push
+  ref: refs/heads/main
+  workflowRef: syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main
+  runId: "12"
+  runAttempt: "3"
+  recordUrl: https://github.com/syuhei0519/backend-app/releases/download/gha-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-12-3/release-record.json
+  recordSha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  sbomUrl: https://github.com/syuhei0519/backend-app/releases/download/gha-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-12-3/sbom.cdx.json
+  sbomSha256: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  published: true
+strategy: Canary
+promotionMode: auto
+analysisPluginEnabled: true

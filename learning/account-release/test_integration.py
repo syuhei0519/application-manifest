@@ -14,14 +14,29 @@ import jsonschema
 
 from contract import TARGET, Rejected
 from integration import application, image_revision, sdk_query_set, verify_traffic
-from runtime_support import runtime_documents
+from runtime_support import profile_catalog_image, profile_image, runtime_documents
 
 ROOT = Path(__file__).resolve().parent
-IMAGES = {'stable': 'example.invalid/account@sha256:' + 'a' * 64,
-          'candidate': 'example.invalid/account@sha256:' + 'b' * 64}
+IMAGES = {'stable': 'ghcr.io/syuhei0519/backend-app@sha256:' + 'a' * 64,
+          'candidate': 'ghcr.io/syuhei0519/backend-app@sha256:' + 'b' * 64}
 CATALOG = [dict(image=v, source_commit=c * 40, config_digest='sha256:' + c * 64,
                 platform='linux/amd64', verified=True, provenance='FIXTURE ONLY')
            for v, c in zip(IMAGES.values(), ['a', 'b'])]
+
+
+def typed_profile(values):
+    result = copy.deepcopy(values)
+    result.setdefault('strategy', 'Canary')
+    result.setdefault('promotionMode', 'auto')
+    result.setdefault('analysisPluginEnabled', True)
+    repository, digest = result['image'].split('@', 1)
+    commit = result['sourceCommit']
+    result['image'] = dict(repository=repository, tag=commit, digest=digest, pullPolicy='IfNotPresent')
+    result['release'] = dict(schemaVersion='checked-artifact-v1', sourceRepository='syuhei0519/backend-app',
+        sourceCommit=commit, event='push', ref='refs/heads/main',
+        workflowRef='syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main',
+        runId='1', runAttempt='1', artifactId='1', archiveSha256='a'*64, published=False)
+    return result
 
 
 def fixture(weight=10):
@@ -61,9 +76,9 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(profile, yaml.safe_load(tracked))
         # The runtime validator checks the catalog binding and both legacy and
         # explicit mode profiles, then renders the exact committed chart.
-        docs, job = runtime_documents(commit, catalog, profile['image'], repo, os.environ.get('HELM', 'helm'))
+        docs, job = runtime_documents(commit, catalog, profile_catalog_image(profile), repo, os.environ.get('HELM', 'helm'))
         self.assertEqual(docs[1]['spec']['source']['targetRevision'], commit)
-        self.assertEqual(job['spec']['template']['spec']['containers'][0]['image'], profile['image'])
+        self.assertEqual(job['spec']['template']['spec']['containers'][0]['image'], profile_image(profile))
         jsonschema.validate(profile, json.loads((ROOT/'chart/values.schema.json').read_text()))
 
     def test_git_profile_is_authoritative(self):
@@ -73,7 +88,7 @@ class IntegrationTests(unittest.TestCase):
             release = repo/'learning/account-release'
             shutil.copytree(ROOT/'chart', release/'chart')
             tracked = release/'runtime-profile.yaml'
-            tracked.write_text(yaml.safe_dump(profile))
+            tracked.write_text(yaml.safe_dump(typed_profile(profile)))
             def git(*args):
                 return subprocess.check_output(['git', '-C', tmp, '-c', 'user.name=Fixture',
                     '-c', 'user.email=fixture@example.invalid', *args], stderr=subprocess.PIPE).decode().strip()
@@ -81,7 +96,7 @@ class IntegrationTests(unittest.TestCase):
             git('add', '.')
             git('commit', '-m', 'stable profile')
             stable = git('rev-parse', 'HEAD')
-            tracked.write_text(yaml.safe_dump(application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject']))
+            tracked.write_text(yaml.safe_dump(typed_profile(application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject'])))
             git('add', '.')
             git('commit', '-m', 'candidate profile')
             candidate = git('rev-parse', 'HEAD')
@@ -93,14 +108,14 @@ class IntegrationTests(unittest.TestCase):
                 self.assertEqual(docs[1]['spec']['source']['targetRevision'], sha)
                 self.assertEqual(docs[1]['spec']['source']['helm'],
                     {'releaseName': 'account-release', 'valueFiles': ['../runtime-profile.yaml']})
-                self.assertEqual(job['spec']['template']['spec']['containers'][0]['image'], image)
+                self.assertEqual(job['spec']['template']['spec']['containers'][0]['image'], profile_image(typed_profile(application('c'*40, CATALOG, image)[1]['spec']['source']['helm']['valuesObject'])))
             for sha, image in [(stable, IMAGES['candidate']), (candidate, IMAGES['stable']),
                                ('f'*40, IMAGES['stable']), ('main', IMAGES['stable'])]:
                 with self.assertRaises(Rejected):
                     runtime_documents(sha, CATALOG, image, repo, os.environ.get('HELM', 'helm'))
 
             # A committed chart must not substitute the old namespace literal.
-            tracked.write_text(yaml.safe_dump(application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject']))
+            tracked.write_text(yaml.safe_dump(typed_profile(application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject'])))
             template = (ROOT/'chart/templates/release.yaml').read_text()
             actual = 'valueFrom: {fieldRef: {fieldPath: metadata.namespace}}'
             self.assertIn(actual, template)
@@ -126,7 +141,7 @@ class IntegrationTests(unittest.TestCase):
             application('c'*40, bad, bad[1]['image'])
 
     def test_render_schema_and_target_guards(self):
-        values = application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject']
+        values = typed_profile(application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject'])
         schema = json.loads((ROOT/'chart/values.schema.json').read_text())
         jsonschema.validate(values, schema)
         helm = os.environ.get('HELM', 'helm')
@@ -139,11 +154,39 @@ class IntegrationTests(unittest.TestCase):
             r = render(values)
             self.assertEqual(r.returncode, 0, r.stderr)
             docs = list(yaml.safe_load_all(r.stdout))
-            self.assertEqual(sorted(d['kind'] for d in docs), ['DestinationRule', 'Rollout', 'Service', 'Service', 'VirtualService'])
+            self.assertEqual(sorted(d['kind'] for d in docs), ['AnalysisTemplate', 'DestinationRule', 'Rollout', 'Service', 'Service', 'VirtualService'])
             self.assertTrue(all(d['metadata']['namespace'] == TARGET['namespace'] for d in docs))
             rollout = next(d for d in docs if d['kind'] == 'Rollout')
             self.assertEqual([s['setWeight'] for s in rollout['spec']['strategy']['canary']['steps'] if 'setWeight' in s], [10, 50, 100])
-            self.assertEqual(rollout['spec']['template']['spec']['containers'][0]['image'], IMAGES['candidate'])
+            self.assertEqual(rollout['spec']['template']['spec']['containers'][0]['image'], profile_image(values))
+            annotations = rollout['spec']['template']['metadata']['annotations']
+            self.assertEqual(annotations['account.lab/release-schema-version'], 'checked-artifact-v1')
+            self.assertEqual(annotations['account.lab/github-event'], 'push')
+            self.assertEqual(annotations['account.lab/github-ref'], 'refs/heads/main')
+            self.assertEqual(annotations['account.lab/github-workflow-ref'],
+                             'syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main')
+            self.assertEqual(annotations['account.lab/image-digest'], values['image']['digest'])
+            self.assertEqual(annotations['account.lab/published'], 'false')
+
+            github = yaml.safe_load((ROOT/'fixtures/github-runtime-profile.yaml').read_text())
+            commit = github['sourceCommit']
+            base = f'https://github.com/syuhei0519/backend-app/releases/download/gha-{commit}-12-3/'
+            jsonschema.validate(github, schema)
+            published = render(github)
+            self.assertEqual(published.returncode, 0, published.stderr)
+            published_rollout = next(d for d in yaml.safe_load_all(published.stdout) if d['kind'] == 'Rollout')
+            published_annotations = published_rollout['spec']['template']['metadata']['annotations']
+            self.assertEqual(published_annotations['account.lab/release-schema-version'], 'github-v1')
+            self.assertEqual(published_annotations['account.lab/published'], 'true')
+            self.assertEqual(published_annotations['account.lab/release-record-url'], base+'release-record.json')
+            for key, value in [('event', 'pull_request'), ('ref', 'refs/heads/feature'),
+                               ('workflowRef', 'syuhei0519/backend-app/.github/workflows/other.yml@refs/heads/main'),
+                               ('published', False)]:
+                bad = copy.deepcopy(github); bad['release'][key] = value
+                self.assertNotEqual(render(bad).returncode, 0, key)
+            bad = copy.deepcopy(github)
+            bad['release']['recordUrl'] = bad['release']['recordUrl'].replace('-12-3/', '-13-3/')
+            self.assertNotEqual(render(bad).returncode, 0, 'cross-field record URL')
             self.assertNotEqual(render(values, 'default').returncode, 0)
             for key, value in [('owner', 'shared'), ('image', 'account:latest'), ('sourceCommit', 'main'),
                                ('imageRevision', image_revision(IMAGES['stable']))]:

@@ -127,11 +127,15 @@ func inventory(data []byte, namespace string) (Output, error) {
 			spec = path(r, "spec", "template", "spec")
 			podMeta = path(r, "spec", "template", "metadata")
 			specPath = "spec.template.spec"
+		case "argoproj.io/v1alpha1/Rollout":
+			spec = path(r, "spec", "template", "spec")
+			podMeta = path(r, "spec", "template", "metadata")
+			specPath = "spec.template.spec"
 		case "batch/v1/CronJob":
 			spec = path(r, "spec", "jobTemplate", "spec", "template", "spec")
 			podMeta = path(r, "spec", "jobTemplate", "spec", "template", "metadata")
 			specPath = "spec.jobTemplate.spec.template.spec"
-		case "v1/ConfigMap", "v1/Service", "v1/ServiceAccount", "v1/PersistentVolumeClaim", "networking.k8s.io/v1/NetworkPolicy", "policy/v1/PodDisruptionBudget", "autoscaling/v2/HorizontalPodAutoscaler":
+		case "v1/ConfigMap", "v1/Service", "v1/ServiceAccount", "v1/PersistentVolumeClaim", "networking.k8s.io/v1/NetworkPolicy", "policy/v1/PodDisruptionBudget", "autoscaling/v2/HorizontalPodAutoscaler", "networking.istio.io/v1/VirtualService", "networking.istio.io/v1/DestinationRule", "argoproj.io/v1alpha1/AnalysisTemplate":
 			if len(podSpecPaths(r, "")) != 0 {
 				return result, fmt.Errorf("unscanned PodSpec in non-workload")
 			}
@@ -230,11 +234,31 @@ func inventory(data []byte, namespace string) (Output, error) {
 	result.InventorySHA256 = hash(canonical)
 	return result, nil
 }
+
+func destinationNamespace(args []string) (string, error) {
+	if len(args) == 0 {
+		return "account", nil
+	}
+	if len(args) != 2 || args[0] != "--namespace" {
+		return "", fmt.Errorf("usage: inventory [--namespace account|learning-account-release]")
+	}
+	switch args[1] {
+	case "account", "learning-account-release":
+		return args[1], nil
+	default:
+		return "", fmt.Errorf("render destination namespace rejected")
+	}
+}
+
 func main() {
-	data, err := io.ReadAll(io.LimitReader(os.Stdin, (20<<20)+1))
+	namespace, err := destinationNamespace(os.Args[1:])
+	data := []byte(nil)
+	if err == nil {
+		data, err = io.ReadAll(io.LimitReader(os.Stdin, (20<<20)+1))
+	}
 	if err == nil {
 		var out Output
-		out, err = inventory(data, "account")
+		out, err = inventory(data, namespace)
 		if err == nil {
 			err = json.NewEncoder(os.Stdout).Encode(out)
 		}

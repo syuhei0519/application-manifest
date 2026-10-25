@@ -43,6 +43,40 @@ class Boundary(unittest.TestCase):
         result=m.patch_values(text,'owner/backend-app','a'*40,record,{'release-record.json':'record-url','sbom.cdx.json':'sbom-url'},'d'*64)
         self.assertIn('telemetry:\n  enabled: true',result);self.assertIn('config:\n  dbName: account',result)
         self.assertIn('schemaVersion: "github-v1"',result);self.assertNotIn('sourceProjectId',result)
+    def test_current_account_requires_complete_github_identity(self):
+        repo='syuhei0519/backend-app';commit='a'*40;digest='sha256:'+'e'*64
+        root=f'https://github.com/{repo}/releases/download/gha-{commit}-123-2/'
+        record_hash='f'*64
+        config=m.json.dumps({'config':{'Labels':{'org.opencontainers.image.revision':commit,
+            'org.opencontainers.image.source':'https://github.com/'+repo}}},separators=(',',':')).encode()
+        result={'imageDigest':digest,'configDigest':'sha256:'+m.sha(config),'sbomSha256':'d'*64,
+                'validUntil':(m.now()+dt.timedelta(hours=1)).isoformat()}
+        release={
+            'release-schema-version':'github-v1','source-repository':repo,'source-commit':commit,
+            'github-event':'push','github-ref':'refs/heads/main',
+            'github-workflow-ref':repo+'/.github/workflows/ci.yml@refs/heads/main',
+            'github-run-id':'123','github-run-attempt':'2','image-digest':digest,
+            'release-record-url':root+'release-record.json','release-record-sha256':record_hash,
+            'sbom-url':root+'sbom.cdx.json','sbom-sha256':'d'*64,'published':'true'}
+        entry={'namespace':'learning-account-release','kind':'Rollout','name':'account-release',
+               'repository':'ghcr.io/syuhei0519/backend-app','tag':commit,'digest':digest,
+               'release':{'account.lab/'+key:value for key,value in release.items()}}
+        urls={'release-record.json':root+'release-record.json','sbom.cdx.json':root+'sbom.cdx.json'}
+        def execute(args,**kwargs):
+            return digest.encode() if args[1]=='digest' else config
+        def verify(candidate):
+            with patch.object(m,'release_data',return_value=(result,urls,record_hash)),\
+                 patch.object(m,'verify_latest_run'),patch.object(m,'canonical_record_hash',return_value=record_hash),\
+                 patch.object(m,'api',return_value={'object':{'sha':commit}}),patch.object(m,'run',side_effect=execute):
+                return m.verify_entry(candidate,'syuhei0519')
+        self.assertEqual(verify(entry)['service'],'backend')
+        for key,value in [('github-event','pull_request'),('github-ref','refs/heads/feature'),
+                          ('github-workflow-ref',repo+'/.github/workflows/other.yml@refs/heads/main'),
+                          ('published','false')]:
+            bad={**entry,'release':dict(entry['release'])};bad['release']['account.lab/'+key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):verify(bad)
+        bad={**entry,'release':dict(entry['release'])};bad['release']['account.lab/extra']='rejected'
+        with self.assertRaises(ValueError):verify(bad)
     def test_record_rejects_untrusted_workflow_and_failed_scan(self):
         record={'schema':m.SCHEMA,'repository':'owner/backend-app','sourceCommit':'a'*40,'runId':123,'runAttempt':1,
           'workflowRef':'owner/backend-app/.github/workflows/ci.yml@refs/heads/main','imageRepository':'ghcr.io/owner/backend-app',

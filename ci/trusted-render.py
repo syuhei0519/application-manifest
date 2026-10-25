@@ -37,7 +37,7 @@ def snapshot(repo, tree, destination, prefixes):
             continue
         header, raw_path = item.split(b'\t', 1)
         name = raw_path.decode('utf-8')
-        if not any(name.startswith(p+'/') for p in prefixes):
+        if not any(name == p or name.startswith(p+'/') for p in prefixes):
             continue
         mode, kind, oid = header.decode().split()
         if mode not in ('100644', '100755') or kind != 'blob' or '\\' in name or '..' in Path(name).parts:
@@ -73,6 +73,9 @@ def chart_inventory(files,baseline=None):
             raise ValueError('required baseline chart missing')
         if exists:selected.append(chart)
     return selected
+
+def combined_entries(render):
+    return render['inventory']['entries']+render['currentAccountInventory']['entries']
 
 # 認証情報・networkなし、read-only filesystemと資源/時間/出力上限でrenderする。
 # finallyで一時containerの除去を試み、エラー時に無制限の診断を保持しない。
@@ -150,7 +153,9 @@ def main(argv=None):
         report['runtime']=RUNTIME; report['runtimeTools']=tool
         baseline=None
         for name,tree in (('before',a.target),('candidate',merge)):
-            inputs=root/name; inputs.mkdir(); files=snapshot(a.repo,tree,inputs,('charts','environments/local'))
+            inputs=root/name; inputs.mkdir(); files=snapshot(a.repo,tree,inputs,(
+                'charts','environments/local','learning/account-release/chart',
+                'learning/account-release/runtime-profile.yaml'))
             charts=chart_inventory(files,baseline)
             if name=='before':baseline=charts
             for lock in inputs.glob('charts/*/Chart.lock'):
@@ -160,12 +165,19 @@ def main(argv=None):
             helm='/trusted/helm' if RUNTIME=='linux-userns' else 'helm'
             raw=sandbox(HELM,[(inputs,'/input',True),(output,'/trusted',True)],'cd /input; export HELM_PLUGINS=/nonexistent HELM_CACHE_HOME=/tmp/helm/cache HELM_CONFIG_HOME=/tmp/helm/config HELM_DATA_HOME=/tmp/helm/data; for chart in '+' '.join(charts)+'; do '+helm+' template "$chart" "charts/$chart" --namespace account -f "environments/local/$chart.yaml" >> /tmp/render.yaml || exit 1; printf "\\n---\\n" >> /tmp/render.yaml; done; /trusted/inventory < /tmp/render.yaml')
             inventory=json.loads(raw)
-            report['renders'][name]={'inputs':files,'inputSha256':digest(json.dumps(files,sort_keys=True,separators=(',',':')).encode()),'inventory':inventory}
-        before=report['renders']['before']['inventory']; after=report['renders']['candidate']['inventory']
-        report['provenanceRequired']=before['inventorySha256']!=after['inventorySha256']
+            current_raw=sandbox(HELM,[(inputs,'/input',True),(output,'/trusted',True)],
+                'cd /input; export HELM_PLUGINS=/nonexistent HELM_CACHE_HOME=/tmp/helm/cache HELM_CONFIG_HOME=/tmp/helm/config HELM_DATA_HOME=/tmp/helm/data; '+
+                helm+' template account-release learning/account-release/chart --namespace learning-account-release -f learning/account-release/runtime-profile.yaml > /tmp/current-account.yaml; '+
+                '/trusted/inventory --namespace learning-account-release < /tmp/current-account.yaml')
+            current_inventory=json.loads(current_raw)
+            report['renders'][name]={'inputs':files,'inputSha256':digest(json.dumps(files,sort_keys=True,separators=(',',':')).encode()),
+                'inventory':inventory,'currentAccountInventory':current_inventory}
+        before=report['renders']['before']; after=report['renders']['candidate']
+        before_entries=combined_entries(before); after_entries=combined_entries(after)
+        report['provenanceRequired']=digest(json.dumps(before_entries,sort_keys=True,separators=(',',':')).encode())!=digest(json.dumps(after_entries,sort_keys=True,separators=(',',':')).encode())
         def identity(entry):
             return '/'.join(entry[k] for k in ('namespace','kind','name','podSpecPath','containerType','containerName'))
-        old={identity(x):x for x in before['entries']}; new={identity(x):x for x in after['entries']}
+        old={identity(x):x for x in before_entries}; new={identity(x):x for x in after_entries}
         report['diff']={'added':[new[k] for k in sorted(new.keys()-old.keys())],
                         'removed':[old[k] for k in sorted(old.keys()-new.keys())],
                         'changed':[{'before':old[k],'after':new[k]} for k in sorted(old.keys()&new.keys()) if old[k]!=new[k]]}

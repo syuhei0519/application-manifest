@@ -1,9 +1,29 @@
 {{- if or (ne .Release.Namespace "learning-account-release") (ne .Release.Name "account-release") -}}
 {{- fail "dedicated Account release target required" -}}
 {{- end -}}
-{{- $digest := index (splitList "@sha256:" .Values.image) 1 -}}
+{{- $typed := kindIs "map" .Values.image -}}
+{{- $renderedImage := "" -}}
+{{- $pullPolicy := "IfNotPresent" -}}
+{{- $digest := "" -}}
+{{- if $typed -}}
+{{- if or (ne .Values.sourceCommit .Values.image.tag) (ne .Values.sourceCommit .Values.release.sourceCommit) -}}
+{{- fail "sourceCommit must match image tag and release identity" -}}
+{{- end -}}
+{{- $renderedImage = printf "%s:%s@%s" .Values.image.repository .Values.image.tag .Values.image.digest -}}
+{{- $pullPolicy = .Values.image.pullPolicy -}}
+{{- $digest = trimPrefix "sha256:" .Values.image.digest -}}
+{{- else -}}
+{{- $renderedImage = .Values.image -}}
+{{- $digest = index (splitList "@sha256:" .Values.image) 1 -}}
+{{- end -}}
 {{- if ne .Values.imageRevision (printf "sha256-%s" (substr 0 56 $digest)) -}}
 {{- fail "imageRevision must match immutable image digest" -}}
+{{- end -}}
+{{- if and $typed (eq .Values.release.schemaVersion "github-v1") -}}
+{{- $base := printf "https://github.com/syuhei0519/backend-app/releases/download/gha-%s-%s-%s/" .Values.release.sourceCommit .Values.release.runId .Values.release.runAttempt -}}
+{{- if or (ne .Values.release.recordUrl (printf "%srelease-record.json" $base)) (ne .Values.release.sbomUrl (printf "%ssbom.cdx.json" $base)) -}}
+{{- fail "release URLs must match source/run/attempt" -}}
+{{- end -}}
 {{- end -}}
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
@@ -55,15 +75,36 @@ spec:
         sidecar.istio.io/inject: "true"
         proxy.istio.io/config: '{"holdApplicationUntilProxyStarts":true}'
         learning.local/source-commit: {{ .Values.sourceCommit | quote }}
-        learning.local/image: {{ .Values.image | quote }}
+        learning.local/image: {{ $renderedImage | quote }}
+        {{- if $typed }}
+        account.lab/release-schema-version: {{ .Values.release.schemaVersion | quote }}
+        account.lab/source-repository: {{ .Values.release.sourceRepository | quote }}
+        account.lab/source-commit: {{ .Values.release.sourceCommit | quote }}
+        account.lab/github-event: {{ .Values.release.event | quote }}
+        account.lab/github-ref: {{ .Values.release.ref | quote }}
+        account.lab/github-workflow-ref: {{ .Values.release.workflowRef | quote }}
+        account.lab/github-run-id: {{ .Values.release.runId | quote }}
+        account.lab/github-run-attempt: {{ .Values.release.runAttempt | quote }}
+        account.lab/image-digest: {{ .Values.image.digest | quote }}
+        account.lab/published: {{ .Values.release.published | quote }}
+        {{- if eq .Values.release.schemaVersion "checked-artifact-v1" }}
+        account.lab/artifact-id: {{ .Values.release.artifactId | quote }}
+        account.lab/archive-sha256: {{ .Values.release.archiveSha256 | quote }}
+        {{- else }}
+        account.lab/release-record-url: {{ .Values.release.recordUrl | quote }}
+        account.lab/release-record-sha256: {{ .Values.release.recordSha256 | quote }}
+        account.lab/sbom-url: {{ .Values.release.sbomUrl | quote }}
+        account.lab/sbom-sha256: {{ .Values.release.sbomSha256 | quote }}
+        {{- end }}
+        {{- end }}
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 30
       securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: api
-          image: {{ .Values.image | quote }}
-          imagePullPolicy: IfNotPresent
+          image: {{ $renderedImage | quote }}
+          imagePullPolicy: {{ $pullPolicy }}
           ports: [{name: http, containerPort: 8080, protocol: TCP}]
           env:
             - {name: PGHOST, value: learning-account-db}

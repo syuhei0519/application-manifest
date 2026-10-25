@@ -1,7 +1,12 @@
 # Account の段階配備と解析を描画する既定値です。環境別の値は呼び出し側から上書きします。
 # No runnable image or owner default. Supply reviewed catalog-derived values.
 owner: ''
-image: ''
+image:
+  repository: ''
+  tag: ''
+  digest: ''
+  pullPolicy: IfNotPresent
+release: {}
 sourceCommit: ''
 imageRevision: ''
 strategy: Canary
