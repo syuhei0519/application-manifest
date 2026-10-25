@@ -73,6 +73,11 @@ def runtime_documents(commit, catalog, image, repo, helm='helm'):
     rollout = next(d for d in yaml.safe_load_all(rendered) if d['kind'] == 'Rollout')
     require(rollout['spec']['template']['spec']['containers'][0]['image'] == image,
             'committed-chart-image-must-match-reviewed-image')
+    env = {item['name']: item for item in rollout['spec']['template']['spec']['containers'][0]['env']}
+    for name, field in [('POD_NAMESPACE', 'metadata.namespace'), ('POD_UID', 'metadata.uid')]:
+        require('value' not in env.get(name, {}) and
+                env.get(name, {}).get('valueFrom', {}).get('fieldRef', {}).get('fieldPath') == field,
+                'committed-chart-must-use-actual-pod-identity')
     template = copy.deepcopy(rollout['spec']['template'])
     template['metadata']['annotations']['sidecar.istio.io/inject'] = 'false'
     template['metadata']['labels'] = {'app': 'account-release-migration', 'learning.local/owner': 'plat170-account'}

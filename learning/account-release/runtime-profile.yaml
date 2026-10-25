@@ -1,7 +1,7 @@
 owner: plat170-account
-sourceCommit: f0425a9c0a70c200fbeb5a549bc8b631bf5a1906
-imageRevision: sha256-f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf0683
-image: ghcr.io/syuhei0519/backend-app@sha256:f9a3dfd69853050d72647609eb2ee1493ed41bf17fb7c6c2abbf068361cc88df
-strategy: Canary
-promotionMode: manual
+sourceCommit: 46ef1419c11363e263e1f1c254ca9096ea2b5835
+imageRevision: sha256-09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a4
+image: ghcr.io/syuhei0519/backend-app@sha256:09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a452b967c0
+strategy: Rolling
+promotionMode: null
 analysisPluginEnabled: true

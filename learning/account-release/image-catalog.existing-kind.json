@@ -1,0 +1,42 @@
+[
+  {
+    "image": "ghcr.io/syuhei0519/backend-app@sha256:09155da800dfe1620124cb5e49b03f9e30c737d3e67ebd5c71dc47a452b967c0",
+    "source_commit": "46ef1419c11363e263e1f1c254ca9096ea2b5835",
+    "config_digest": "sha256:96d43fb8c0dde6eef985bf8f3102ef5a23d87a453023e5916b8579e8693b610f",
+    "platform": "linux/amd64",
+    "verified": true,
+    "provenance": "https://github.com/syuhei0519/backend-app/actions/runs/40144813566/artifacts/12580885356; checked main OCI archive/manifest/config/source and required policy gates verified; no registry publication",
+    "archive_sha256": "c6667d8ea9e5b96474ef8ef3ac56d5964d29aa2312fc8dd93e8cf2960434bb5c",
+    "artifact_id": 12580885356,
+    "runtime_eligible": true,
+    "runtime_target": "kind-learning-20261018-69c763/learning-account-release",
+    "fresh_scan_db_updated_at": "2026-10-24T19:09:13.779511838Z",
+    "policy_scan_valid_until": "2026-10-25T19:09:13.779511+00:00",
+    "source_policy_passed": true,
+    "image_policy_passed": true,
+    "isolated_ci_runtime_passed": true,
+    "published": false,
+    "workflow_ref": "syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main",
+    "run_id": 40144813566
+  },
+  {
+    "image": "ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a",
+    "source_commit": "527b9bccf4ae56244d134ae384564ec1cccea815",
+    "config_digest": "sha256:5062ed82987c361535a339f6ee30c67d3fca5c8190989aa404f5bda13dd72822",
+    "platform": "linux/amd64",
+    "verified": true,
+    "provenance": "https://github.com/syuhei0519/backend-app/actions/runs/40145897432/artifacts/12580417539; checked main OCI archive/manifest/config/source and required policy gates verified; no registry publication",
+    "archive_sha256": "9e9b4b12315c9efa665f82dd43975668b738bb65f6f2434f8350f0d4e9a9ba37",
+    "artifact_id": 12580417539,
+    "runtime_eligible": true,
+    "runtime_target": "kind-learning-20261018-69c763/learning-account-release",
+    "fresh_scan_db_updated_at": "2026-10-24T19:09:13.779511838Z",
+    "policy_scan_valid_until": "2026-10-25T19:09:13.779511+00:00",
+    "source_policy_passed": true,
+    "image_policy_passed": true,
+    "isolated_ci_runtime_passed": true,
+    "published": false,
+    "workflow_ref": "syuhei0519/backend-app/.github/workflows/ci.yml@refs/heads/main",
+    "run_id": 40145897432
+  }
+]

@@ -52,7 +52,7 @@ def fixture(weight=10):
 class IntegrationTests(unittest.TestCase):
     def test_repository_profile_matches_reviewed_catalog(self):
         profile = yaml.safe_load((ROOT/'runtime-profile.yaml').read_text())
-        catalog = json.loads((ROOT/'image-catalog.reviewed.json').read_text())
+        catalog = json.loads((ROOT/'image-catalog.existing-kind.json').read_text())
         repo = ROOT.parents[1]
         commit = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
         tracked = subprocess.check_output(['git', '-C', str(repo), 'show',
@@ -97,6 +97,17 @@ class IntegrationTests(unittest.TestCase):
                                ('f'*40, IMAGES['stable']), ('main', IMAGES['stable'])]:
                 with self.assertRaises(Rejected):
                     runtime_documents(sha, CATALOG, image, repo, os.environ.get('HELM', 'helm'))
+
+            # A committed chart must not substitute the old namespace literal.
+            tracked.write_text(yaml.safe_dump(application('c'*40, CATALOG, IMAGES['candidate'])[1]['spec']['source']['helm']['valuesObject']))
+            template = (ROOT/'chart/templates/release.yaml').read_text()
+            actual = 'valueFrom: {fieldRef: {fieldPath: metadata.namespace}}'
+            self.assertIn(actual, template)
+            (release/'chart/templates/release.yaml').write_text(template.replace(actual, 'value: account'))
+            git('add', '.')
+            git('commit', '-m', 'spoofed namespace identity')
+            with self.assertRaisesRegex(Rejected, 'committed-chart-must-use-actual-pod-identity'):
+                runtime_documents(git('rev-parse', 'HEAD'), CATALOG, IMAGES['candidate'], repo, os.environ.get('HELM', 'helm'))
 
     def test_application_bounded_ownership(self):
         project, app = application('c'*40, CATALOG, IMAGES['candidate'])
