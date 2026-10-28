@@ -109,13 +109,17 @@ def validate_sql(path=SQL):
         'REVOKE CREATE ON SCHEMA public FROM PUBLIC, :"migration_role", :"runtime_role"',
         "AUTHORIZATION %I",
         'GRANT USAGE ON SCHEMA :"service_schema" TO :"runtime_role"',
-        'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA :"service_schema" TO :"runtime_role"',
-        'ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA :"service_schema"',
+        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE account.accounts TO account_runtime',
+        'GRANT SELECT ON TABLE account.schema_migrations TO account_runtime',
+        '\\if :{?grant_runtime}',
     ]
     if any(fragment not in sql for fragment in required):
         raise Rejected("role-sql-incomplete")
     forbidden = [r'CREATE DATABASE %I OWNER\s+:"?runtime_role"?', r'AUTHORIZATION\s+:"?runtime_role"?',
-                 r'GRANT\s+(?:ALL|CREATE).*TO\s+:"?runtime_role"?', r'GRANT.*ON ALL TABLES.*TO\s+:"?migration_role"?']
+                 r'GRANT\s+(?:ALL|CREATE).*TO\s+:"?runtime_role"?', r'GRANT.*ON ALL TABLES',
+                 r'GRANT.*ON ALL SEQUENCES', r'ALTER DEFAULT PRIVILEGES',
+                 r'GRANT[^;]*(?:INSERT|UPDATE|DELETE)[^;]*ON TABLE account\.schema_migrations',
+                 r'GRANT[^;]*ON SEQUENCE']
     if any(re.search(pattern, sql, re.IGNORECASE) for pattern in forbidden):
         raise Rejected("role-sql-overprivileged")
     return sql

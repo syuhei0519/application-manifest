@@ -27,10 +27,29 @@ only `username` and `password`; no connection URI is required.
 
 `account-role-bootstrap.sql` is a review fixture for a fresh empty database. The
 PostgreSQL administrator owns the database, `account_migrator` owns only the
-`account` schema, and `account_runtime` receives only schema usage plus table and
-sequence DML. Runtime cannot create a database, role, schema, or table and is not
+`account` schema, and `account_runtime` receives schema usage. After the retained
+Account migrator commits version 1, a second regular container in the same
+`account-migration` Job invokes the `grant_runtime` phase of that SQL as
+`account_migrator`: CRUD on `account.accounts` and SELECT on
+`account.schema_migrations`. The Job succeeds only when both containers succeed;
+its 260-second deadline covers a 190-second history wait and a separate 30-second
+grant phase, with 5-second kill grace per phase and 30 seconds for startup/exit.
+The unchanged migrator allows 170 seconds; the history wait therefore tolerates a
+late successful commit and lock release. Connection/query time is included in the
+wall-time limits. A stalled phase fails; no grant SQL runs after a failed wait.
+No additional
+Secret, Job identity, image revision, or Secret-backed init container is needed.
+The default history policy stays version 1. Runtime readiness reads migration
+history, so its SELECT privilege is required. The identity column generates IDs
+without a direct sequence privilege; runtime cannot call `setval` or `nextval`.
+There are no broad current-table or future-table/sequence grants.
+Runtime cannot create a database, role, schema, or table and is not
 granted access to another service schema. This fixture is not a production DDL
 or migration and must not be run against the existing database.
+
+Changing the fixture does not repair an already-bootstrapped database or rerun
+a retained completed Job. See [ACL remediation v1](remediation/README.md) for
+the separately reviewed existing-database transaction and isolated regression.
 
 Rotation order is fixed: verify the new database credential, restart the actual
 application process, observe Ready, verify the restarted process uses the new

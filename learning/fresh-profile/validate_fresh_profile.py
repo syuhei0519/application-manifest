@@ -232,6 +232,34 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
                 f"{operation}-fallback-or-alias")
     require(migration["spec"]["template"]["spec"]["containers"][0].get("args") == ["migrate"],
             "migration-operation")
+    migration_pod = pod_spec(migration)
+    require(migration["spec"].get("activeDeadlineSeconds") == 260, "migration-deadline")
+    require(not migration_pod.get("initContainers") and len(migration_pod["containers"]) == 2,
+            "migration-grant-containers")
+    grants = migration_pod["containers"][1]
+    require(grants.get("name") == "runtime-grants" and
+            grants.get("image") == contract["images"]["postgres"]["ref"] and
+            grants.get("command") == ["sh", "-ceu"], "migration-grant-command")
+    grant_script = grants.get("args", [""])[0]
+    require(all(part in grant_script for part in (
+        'SELECT count(*) = 1 AND min(version) = 1 FROM account.schema_migrations',
+        'timeout --kill-after=5s 190s sh -ceu', 'sleep 2', 'exit 1',
+        'exec timeout --kill-after=5s 30s psql -X --set=ON_ERROR_STOP=1 --set=grant_runtime=1 --file=/contract/bootstrap.sql',
+    )), "migration-grant-order")
+    grant_env = {item["name"]: item for item in grants.get("env", [])}
+    require(grant_env == {
+        "PGHOST": {"name": "PGHOST", "value": "account-postgresql.fresh-account.svc"},
+        "PGPORT": {"name": "PGPORT", "value": "5432"},
+        "PGDATABASE": {"name": "PGDATABASE", "value": "account"},
+        "PGUSER": {"name": "PGUSER", "valueFrom": {"secretKeyRef": {"name": "account-db-migration", "key": "username"}}},
+        "PGPASSWORD": {"name": "PGPASSWORD", "valueFrom": {"secretKeyRef": {"name": "account-db-migration", "key": "password"}}},
+        "PGSSLMODE": {"name": "PGSSLMODE", "value": "disable"},
+        "PGCONNECT_TIMEOUT": {"name": "PGCONNECT_TIMEOUT", "value": "2"},
+        "PGOPTIONS": {"name": "PGOPTIONS", "value": "-c statement_timeout=2000"},
+    }, "migration-grant-environment")
+    require(grants.get("volumeMounts") == [{"name": "contract", "mountPath": "/contract", "readOnly": True}]
+            and migration_pod.get("volumes") == [{"name": "contract", "configMap": {"name": "account-role-bootstrap"}}],
+            "migration-grant-sql-source")
 
     pvc = index["PersistentVolumeClaim/fresh-account/account-data"]
     require(pvc["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] ==
@@ -270,14 +298,19 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
     cases = json.loads(Path(db_cases_path).read_text(encoding="utf-8"))
     expected_cases = {
         ("migration-ddl-owned-schema", "account_migrator", "DDL", "account", "allow"),
-        ("runtime-dml-owned-schema", "account_runtime", "DML", "account", "allow"),
+        *((f"runtime-accounts-{operation.lower()}", "account_runtime", operation, "account.accounts", "allow")
+          for operation in ("SELECT", "INSERT", "UPDATE", "DELETE")),
+        ("runtime-history-select", "account_runtime", "SELECT", "account.schema_migrations", "allow"),
+        *((f"runtime-history-{operation.lower()}", "account_runtime", operation, "account.schema_migrations", "deny")
+          for operation in ("INSERT", "UPDATE", "DELETE")),
         ("runtime-ddl-owned-schema", "account_runtime", "DDL", "account", "deny"),
         ("runtime-other-schema", "account_runtime", "DML", "other_service", "deny"),
         ("migration-other-schema", "account_migrator", "DDL", "other_service", "deny"),
     }
     actual_cases = {(case["id"], case["role"], case["operation"], case["target"], case["expected"])
                     for case in cases.get("requiredLiveCases", [])}
-    require(actual_cases == expected_cases and cases.get("status") == "required-unrun", "db-permission-cases")
+    require(actual_cases == expected_cases and len(cases.get("requiredLiveCases", [])) == len(expected_cases)
+            and cases.get("status") == "required-unrun", "db-permission-cases")
     release = validate_release_chart(release_path)
     return contract, documents, release
 

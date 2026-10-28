@@ -149,6 +149,9 @@ metadata:
     argocd.argoproj.io/sync-wave: "20"
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
+  # 190s history wait + 30s grants + two 5s kill graces + 30s startup/exit margin.
+  # The retained Account migrator keeps its own unchanged 170s processing limit.
+  activeDeadlineSeconds: 260
   backoffLimit: 3
   template:
     metadata:
@@ -186,6 +189,43 @@ spec:
         resources:
           requests: {cpu: 50m, memory: 64Mi}
           limits: {memory: 128Mi}
+      # Both regular containers must succeed before the Job is Complete.
+      # Wait for the retained migrator's committed history, then grant as owner.
+      - name: runtime-grants
+        image: postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+        command: [sh, -ceu]
+        args:
+        - |
+          # Bound wall time, including slow connections/queries, not just sleeps.
+          timeout --kill-after=5s 190s sh -ceu '
+            until [ "$(psql -X -Atqc "SELECT count(*) = 1 AND min(version) = 1 FROM account.schema_migrations" 2>/dev/null)" = t ]; do
+              sleep 2
+            done
+          ' || { echo 'migration history wait expired or failed' >&2; exit 1; }
+          # Separate budget covers connection, advisory-lock handoff and SQL.
+          exec timeout --kill-after=5s 30s psql -X --set=ON_ERROR_STOP=1 --set=grant_runtime=1 --file=/contract/bootstrap.sql
+        env:
+        - {name: PGHOST, value: account-postgresql.fresh-account.svc}
+        - {name: PGPORT, value: "5432"}
+        - {name: PGDATABASE, value: account}
+        - {name: PGUSER, valueFrom: {secretKeyRef: {name: account-db-migration, key: username}}}
+        - {name: PGPASSWORD, valueFrom: {secretKeyRef: {name: account-db-migration, key: password}}}
+        - {name: PGSSLMODE, value: disable}
+        - {name: PGCONNECT_TIMEOUT, value: "2"}
+        - {name: PGOPTIONS, value: "-c statement_timeout=2000"}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {drop: [ALL]}
+          runAsNonRoot: true
+          runAsUser: 10001
+          runAsGroup: 10001
+        resources:
+          requests: {cpu: 25m, memory: 32Mi}
+          limits: {memory: 64Mi}
+        volumeMounts:
+        - {name: contract, mountPath: /contract, readOnly: true}
+      volumes:
+      - {name: contract, configMap: {name: account-role-bootstrap}}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
