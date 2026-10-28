@@ -15,6 +15,23 @@ SPEC.loader.exec_module(fresh)
 
 
 class FreshWorkloadTests(unittest.TestCase):
+    def test_migration_cannot_complete_without_bounded_grant_phase(self):
+        for mutation in (
+            lambda job: job["spec"]["template"]["spec"]["containers"].pop(),
+            lambda job: job["spec"].pop("activeDeadlineSeconds"),
+            lambda job: job["spec"].update(activeDeadlineSeconds=180),
+            lambda job: job["spec"]["template"]["spec"]["containers"][1].update(args=["exit 0"]),
+            lambda job: job["spec"]["template"]["spec"]["containers"][1]["args"].__setitem__(0,
+                job["spec"]["template"]["spec"]["containers"][1]["args"][0].replace("190s", "160s")),
+            lambda job: job["spec"]["template"]["spec"]["containers"][1]["args"].__setitem__(0,
+                job["spec"]["template"]["spec"]["containers"][1]["args"][0].replace("30s", "300s")),
+        ):
+            documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+            job = next(item for item in documents if item["metadata"]["name"] == "account-migration" and item["kind"] == "Job")
+            mutation(job)
+            with self.assertRaises(fresh.Rejected):
+                fresh.validate(workload_path=self.temp_yaml(documents))
+
     def temp_json(self, data):
         stream = tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False)
         json.dump(data, stream)
@@ -97,9 +114,34 @@ class FreshWorkloadTests(unittest.TestCase):
             fresh.validate(workload_path=self.temp_yaml(documents))
 
         cases = json.loads(fresh.DB_CASES.read_text(encoding="utf-8"))
-        cases["requiredLiveCases"][2]["expected"] = "allow"
+        next(case for case in cases["requiredLiveCases"] if case["id"] == "runtime-ddl-owned-schema")["expected"] = "allow"
         with self.assertRaises(fresh.Rejected):
             fresh.validate(db_cases_path=self.temp_json(cases))
+
+    def test_table_specific_permission_cases_are_complete_and_fail_closed(self):
+        original = json.loads(fresh.DB_CASES.read_text(encoding="utf-8"))
+        # Every required accounts/history operation is independently enforced.
+        for case in original["requiredLiveCases"]:
+            if case["target"] not in {"account.accounts", "account.schema_migrations"}:
+                continue
+            for mutation in ("missing", "inverted", "schema-wide", "duplicate"):
+                cases = copy.deepcopy(original)
+                target = next(item for item in cases["requiredLiveCases"] if item["id"] == case["id"])
+                if mutation == "missing":
+                    cases["requiredLiveCases"].remove(target)
+                elif mutation == "inverted":
+                    target["expected"] = "deny" if target["expected"] == "allow" else "allow"
+                elif mutation == "schema-wide":
+                    target["target"] = "account"
+                else:
+                    cases["requiredLiveCases"].append(copy.deepcopy(target))
+                with self.subTest(case=case["id"], mutation=mutation), self.assertRaisesRegex(
+                        fresh.Rejected, "db-permission-cases"):
+                    fresh.validate(db_cases_path=self.temp_json(cases))
+        original["requiredLiveCases"].append({"id": "runtime-dml-owned-schema", "role": "account_runtime",
+            "operation": "DML", "target": "account", "expected": "allow"})
+        with self.assertRaisesRegex(fresh.Rejected, "db-permission-cases"):
+            fresh.validate(db_cases_path=self.temp_json(original))
 
     def test_api_readiness_is_strictly_after_migration(self):
         documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))

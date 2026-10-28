@@ -87,6 +87,11 @@ class CredentialContractTests(unittest.TestCase):
             source.replace("OWNER postgres", "OWNER :runtime_role"),
             source + "\nGRANT CREATE ON SCHEMA account TO :runtime_role;\n",
             source.replace("AUTHORIZATION %I", "AUTHORIZATION :runtime_role"),
+            source + '\nGRANT SELECT ON ALL TABLES IN SCHEMA account TO account_runtime;\n',
+            source + '\nALTER DEFAULT PRIVILEGES IN SCHEMA account GRANT SELECT ON TABLES TO account_runtime;\n',
+            source.replace('GRANT SELECT ON TABLE account.schema_migrations',
+                           'GRANT SELECT, INSERT ON TABLE account.schema_migrations'),
+            source + '\nGRANT USAGE ON SEQUENCE account.accounts_id_seq TO account_runtime;\n',
         )
         for sql in mutations:
             with tempfile.NamedTemporaryFile("w", suffix=".sql", encoding="utf-8", delete=False) as stream:

@@ -4,7 +4,14 @@
   "schema": "account",
   "requiredLiveCases": [
     {"id": "migration-ddl-owned-schema", "role": "account_migrator", "operation": "DDL", "target": "account", "expected": "allow"},
-    {"id": "runtime-dml-owned-schema", "role": "account_runtime", "operation": "DML", "target": "account", "expected": "allow"},
+    {"id": "runtime-accounts-select", "role": "account_runtime", "operation": "SELECT", "target": "account.accounts", "expected": "allow"},
+    {"id": "runtime-accounts-insert", "role": "account_runtime", "operation": "INSERT", "target": "account.accounts", "expected": "allow"},
+    {"id": "runtime-accounts-update", "role": "account_runtime", "operation": "UPDATE", "target": "account.accounts", "expected": "allow"},
+    {"id": "runtime-accounts-delete", "role": "account_runtime", "operation": "DELETE", "target": "account.accounts", "expected": "allow"},
+    {"id": "runtime-history-select", "role": "account_runtime", "operation": "SELECT", "target": "account.schema_migrations", "expected": "allow"},
+    {"id": "runtime-history-insert", "role": "account_runtime", "operation": "INSERT", "target": "account.schema_migrations", "expected": "deny"},
+    {"id": "runtime-history-update", "role": "account_runtime", "operation": "UPDATE", "target": "account.schema_migrations", "expected": "deny"},
+    {"id": "runtime-history-delete", "role": "account_runtime", "operation": "DELETE", "target": "account.schema_migrations", "expected": "deny"},
     {"id": "runtime-ddl-owned-schema", "role": "account_runtime", "operation": "DDL", "target": "account", "expected": "deny"},
     {"id": "runtime-other-schema", "role": "account_runtime", "operation": "DML", "target": "other_service", "expected": "deny"},
     {"id": "migration-other-schema", "role": "account_migrator", "operation": "DDL", "target": "other_service", "expected": "deny"}
