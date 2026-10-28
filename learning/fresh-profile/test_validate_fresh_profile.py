@@ -109,6 +109,14 @@ class FreshWorkloadTests(unittest.TestCase):
         with self.assertRaisesRegex(fresh.Rejected, "application-wave|bootstrap-before-readiness"):
             fresh.validate(workload_path=self.temp_yaml(documents))
 
+    def test_api_readiness_uses_exact_runtime_route(self):
+        for path in ("/healthz", "/livez", "/", "/readyz/other"):
+            documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+            rollout = next(item for item in documents if item.get("kind") == "Rollout")
+            rollout["spec"]["template"]["spec"]["containers"][0]["readinessProbe"]["httpGet"]["path"] = path
+            with self.subTest(path=path), self.assertRaisesRegex(fresh.Rejected, "api-readiness-probe"):
+                fresh.validate(workload_path=self.temp_yaml(documents))
+
         documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
         rollout = next(item for item in documents if item.get("kind") == "Rollout")
         rollout["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] = "20"
@@ -126,7 +134,7 @@ class FreshWorkloadTests(unittest.TestCase):
             container = workloads[name]["spec"]["template"]["spec"]["containers"][0]
             env = {item["name"]: item for item in container["env"]}
             self.assertEqual(env["ACCOUNT_RUNTIME_PROFILE"]["value"], "fresh-account")
-            self.assertEqual(env["PGHOST"]["value"], "account-postgresql")
+            self.assertEqual(env["PGHOST"]["value"], "account-postgresql.fresh-account.svc")
             self.assertEqual(env["PGUSER"]["valueFrom"]["secretKeyRef"],
                              {"name": secret, "key": "username"})
             self.assertNotIn("DATABASE_URL", env)
@@ -160,6 +168,60 @@ class FreshWorkloadTests(unittest.TestCase):
         for documents in mutations:
             with self.subTest(), self.assertRaises(fresh.Rejected):
                 fresh.validate(workload_path=self.temp_yaml(documents))
+
+    def test_short_or_cross_namespace_database_host_is_rejected(self):
+        base = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+        for host in ("account-postgresql", "account-postgresql.default.svc",
+                     "account-postgresql.fresh-account.svc.cluster.local"):
+            changed = copy.deepcopy(base)
+            for document in changed:
+                if document.get("kind") not in {"Job", "Rollout"}:
+                    continue
+                if document["metadata"]["name"] not in {"account-migration", "account-api"}:
+                    continue
+                env = document["spec"]["template"]["spec"]["containers"][0]["env"]
+                next(item for item in env if item["name"] == "PGHOST")["value"] = host
+            with self.subTest(host=host), self.assertRaisesRegex(
+                    fresh.Rejected, "finite-profile-values"):
+                fresh.validate(workload_path=self.temp_yaml(changed))
+
+    def test_postgresql_and_role_bootstrap_require_no_privilege_escalation(self):
+        for kind, name in (("StatefulSet", "account-postgresql"),
+                           ("Job", "account-db-role-bootstrap")):
+            for value in (None, True):
+                documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+                document = next(item for item in documents if item.get("kind") == kind and
+                                item["metadata"]["name"] == name)
+                container = document["spec"]["template"]["spec"]["containers"][0]
+                if value is None:
+                    container.pop("securityContext", None)
+                else:
+                    container["securityContext"]["allowPrivilegeEscalation"] = value
+                with self.subTest(kind=kind, name=name, value=value), self.assertRaisesRegex(
+                        fresh.Rejected, "container-allow-privilege-escalation"):
+                    fresh.validate(workload_path=self.temp_yaml(documents))
+
+    def test_init_containers_require_no_privilege_escalation(self):
+        for value in (None, True):
+            documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+            migration = next(item for item in documents if item.get("kind") == "Job" and
+                             item["metadata"]["name"] == "account-migration")
+            init = {"name": "contract-fixture", "image": "example.invalid/fixture@sha256:" + "0" * 64}
+            if value is not None:
+                init["securityContext"] = {"allowPrivilegeEscalation": value}
+            migration["spec"]["template"]["spec"]["initContainers"] = [init]
+            with self.subTest(value=value), self.assertRaisesRegex(
+                    fresh.Rejected, "container-allow-privilege-escalation"):
+                fresh.validate(workload_path=self.temp_yaml(documents))
+
+    def test_runtime_and_migration_database_hosts_cannot_diverge(self):
+        documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))
+        migration = next(item for item in documents if item.get("kind") == "Job" and
+                         item["metadata"]["name"] == "account-migration")
+        env = migration["spec"]["template"]["spec"]["containers"][0]["env"]
+        next(item for item in env if item["name"] == "PGHOST")["value"] = "account-postgresql"
+        with self.assertRaisesRegex(fresh.Rejected, "migrate-finite-profile-values"):
+            fresh.validate(workload_path=self.temp_yaml(documents))
 
     def test_namespace_identity_and_schema_contract_drift_are_rejected(self):
         documents = list(yaml.safe_load_all(fresh.WORKLOAD.read_text(encoding="utf-8")))

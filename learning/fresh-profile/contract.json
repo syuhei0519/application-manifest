@@ -16,7 +16,7 @@
     "profile": "fresh-account",
     "namespace": "fresh-account",
     "database": {
-      "host": "account-postgresql",
+      "host": "account-postgresql.fresh-account.svc",
       "port": 5432,
       "name": "account",
       "owner": "postgres",
@@ -29,6 +29,7 @@
       "migrate": {"role": "account_migrator", "secret": "account-db-migration"}
     },
     "collectorEndpoint": "http://otel-collector.fresh-observability.svc.cluster.local:4318",
+    "readinessPath": "/readyz",
     "podIdentity": {
       "namespaceFieldPath": "metadata.namespace",
       "uidFieldPath": "metadata.uid"

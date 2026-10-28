@@ -81,6 +81,8 @@ spec:
           exec: {command: [pg_isready, -U, postgres, -d, account]}
           initialDelaySeconds: 5
           periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
         resources:
           requests: {cpu: 100m, memory: 256Mi}
           limits: {memory: 512Mi}
@@ -128,6 +130,8 @@ spec:
         - {name: MIGRATION_PASSWORD, valueFrom: {secretKeyRef: {name: account-db-migration, key: password}}}
         - {name: RUNTIME_USERNAME, valueFrom: {secretKeyRef: {name: account-db-runtime, key: username}}}
         - {name: RUNTIME_PASSWORD, valueFrom: {secretKeyRef: {name: account-db-runtime, key: password}}}
+        securityContext:
+          allowPrivilegeEscalation: false
         resources:
           requests: {cpu: 25m, memory: 64Mi}
           limits: {memory: 128Mi}
@@ -160,7 +164,7 @@ spec:
         args: [migrate]
         env:
         - {name: ACCOUNT_RUNTIME_PROFILE, value: fresh-account}
-        - {name: PGHOST, value: account-postgresql}
+        - {name: PGHOST, value: account-postgresql.fresh-account.svc}
         - {name: PGPORT, value: "5432"}
         - {name: PGDATABASE, value: account}
         - {name: PGUSER, valueFrom: {secretKeyRef: {name: account-db-migration, key: username}}}
@@ -213,7 +217,7 @@ spec:
         image: ghcr.io/syuhei0519/backend-app@sha256:746e9acb5e5a24dcd6644ab5e082f2d3dad79620ec2e00afa80aa39a7436cf9a
         env:
         - {name: ACCOUNT_RUNTIME_PROFILE, value: fresh-account}
-        - {name: PGHOST, value: account-postgresql}
+        - {name: PGHOST, value: account-postgresql.fresh-account.svc}
         - {name: PGPORT, value: "5432"}
         - {name: PGDATABASE, value: account}
         - {name: PGUSER, valueFrom: {secretKeyRef: {name: account-db-runtime, key: username}}}
@@ -229,7 +233,7 @@ spec:
         ports:
         - {name: http, containerPort: 8080}
         readinessProbe:
-          httpGet: {path: /healthz, port: http}
+          httpGet: {path: /readyz, port: http}
           initialDelaySeconds: 3
           periodSeconds: 5
         securityContext:
