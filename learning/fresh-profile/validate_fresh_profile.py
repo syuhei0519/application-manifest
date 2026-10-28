@@ -139,6 +139,9 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
             require(pod.get("automountServiceAccountToken") is False, "service-account-token")
             require(pod.get("serviceAccountName") in {"account-database", "account-migration", "account-runtime"},
                     "service-account-name")
+            require(all(container.get("securityContext", {}).get("allowPrivilegeEscalation") is False
+                        for container in pod.get("containers", []) + pod.get("initContainers", [])),
+                    "container-allow-privilege-escalation")
 
     account_image = contract["images"]["accountRuntime"]
     require(account_image["sourceCommit"] == "527b9bccf4ae56244d134ae384564ec1cccea815", "account-source")
@@ -167,7 +170,7 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
         "profile": "fresh-account",
         "namespace": "fresh-account",
         "database": {
-            "host": "account-postgresql", "port": 5432, "name": "account",
+            "host": "account-postgresql.fresh-account.svc", "port": 5432, "name": "account",
             "owner": "postgres", "schema": "account", "schemaOwner": "account_migrator",
             "sslMode": "disable",
         },
@@ -176,6 +179,7 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
             "migrate": {"role": "account_migrator", "secret": "account-db-migration"},
         },
         "collectorEndpoint": "http://otel-collector.fresh-observability.svc.cluster.local:4318",
+        "readinessPath": "/readyz",
         "podIdentity": {"namespaceFieldPath": "metadata.namespace", "uidFieldPath": "metadata.uid"},
         "databaseUrlFallback": False,
         "legacyEmptyProfileBehaviorPreserved": True,
@@ -183,10 +187,16 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
 
     rollout = index["Rollout/fresh-account/account-api"]
     migration = index["Job/fresh-account/account-migration"]
+    api_container = rollout["spec"]["template"]["spec"]["containers"][0]
+    require(api_container.get("readinessProbe") == {
+        "httpGet": {"path": runtime_contract["readinessPath"], "port": "http"},
+        "initialDelaySeconds": 3,
+        "periodSeconds": 5,
+    }, "api-readiness-probe")
 
     fixed_env = {
         "ACCOUNT_RUNTIME_PROFILE": "fresh-account",
-        "PGHOST": "account-postgresql",
+        "PGHOST": "account-postgresql.fresh-account.svc",
         "PGPORT": "5432",
         "PGDATABASE": "account",
         "PGSSLMODE": "disable",
