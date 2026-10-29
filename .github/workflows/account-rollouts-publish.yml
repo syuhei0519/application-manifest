@@ -1,0 +1,90 @@
+name: Publish reviewed Account Rollouts controller
+on:
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: account-rollouts-controller-publish
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.repository == 'syuhei0519/application-manifest' && github.ref == 'refs/heads/main' && github.ref_protected
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: c879ac072bf78ba33142070932e86503cb7242b8
+          path: .source
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - id: buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+        with:
+          version: v0.31.0
+          driver-opts: image=moby/buildkit@sha256:6eceb8971ce4fceb3daca562832642706238b7eea72941fcf9896c93c3c4a53e
+      - uses: syuhei0519/backend-app/.github/actions/shared-tools@cdea9eda59aa56c8a068a79317da239b8133727e
+        with:
+          modules: scan-gate release-record
+      - name: Test publication failure contracts
+        run: |
+          python3 -m unittest discover -s ci/controller-publish -p 'test_*.py' -v
+          (cd ci/controller-publish/registry-push; go test -count=1 ./...)
+      - name: Reproduce and validate fixed source artifact
+        env:
+          ACCOUNT_BUILDER: ${{ steps.buildx.outputs.name }}
+        run: bash ci/controller-publish/build.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: account-controller-reviewed
+          path: |
+            .publish/controller.oci.tar
+            .publish/scan-summary.json
+            .publish/sbom.cdx.json
+            .publish/sbom-proof.json
+            .publish/provenance.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: account-controller-reviewed
+          path: .publish
+      - name: Verify artifact before registry access
+        run: python3 ci/controller-publish/verify_oci.py .publish/controller.oci.tar .publish/layout
+      - name: Install pinned registry client
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/google/go-containerregistry/cmd/crane@v0.21.7
+          (cd ci/controller-publish/registry-push; go test -count=1 ./...; go build -trimpath -o "$RUNNER_TEMP/bin/account-controller-push" .)
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Publish only the fixed controller tag
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DOCKER_CONFIG: ${{ runner.temp }}/controller-docker-config
+        run: |
+          mkdir -m 700 "$DOCKER_CONFIG"
+          python3 ci/controller-publish/publish.py .publish/layout "$RUNNER_TEMP/controller-rootfs.tar"
