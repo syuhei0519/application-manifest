@@ -1,3 +1,6 @@
 workloadRevision: ""
 accountRuntimeImage: ""
 
+promotionMode: manual
+syncMode: automated
+workloadVariant: fresh

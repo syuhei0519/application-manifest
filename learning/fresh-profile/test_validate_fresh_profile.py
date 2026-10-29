@@ -57,7 +57,7 @@ class FreshWorkloadTests(unittest.TestCase):
                          "fba8eae42982a0e818581b2ac6b41ba865920dafdbfd7d48c416f98c5b1eaebd")
         self.assertFalse(contract["images"]["freshRuntimeRequirement"]["freshEligible"])
         self.assertEqual(release["chart"]["name"], "fresh-account-release-definition")
-        self.assertEqual(len(documents), 13)
+        self.assertEqual(len(documents), 14)
 
     def test_wrong_account_image_and_rollouts_image_are_rejected(self):
         data = json.loads(fresh.CONTRACT.read_text(encoding="utf-8"))

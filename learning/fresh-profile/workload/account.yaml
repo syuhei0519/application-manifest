@@ -241,10 +241,38 @@ spec:
       app.kubernetes.io/name: account-api
   strategy:
     canary:
+      maxSurge: 1
+      maxUnavailable: 0
+      trafficRouting:
+        istio:
+          virtualService: {name: account-api, routes: [primary]}
+          destinationRule: {name: account-api, stableSubsetName: stable, canarySubsetName: canary}
+      # Plugin and controller artifact must be installed and pinned before sync.
       steps:
+      - {setWeight: 10}
+      - analysis:
+          templates: [{templateName: account-api-policy}]
+          args:
+          - {name: stable-hash, valueFrom: {podTemplateHashValue: Stable}}
+          - {name: candidate-hash, valueFrom: {podTemplateHashValue: Latest}}
+          - {name: stage, value: "10"}
+      - {pause: {}}
       - {setWeight: 50}
-      - {pause: {duration: 10s}}
+      - analysis:
+          templates: [{templateName: account-api-policy}]
+          args:
+          - {name: stable-hash, valueFrom: {podTemplateHashValue: Stable}}
+          - {name: candidate-hash, valueFrom: {podTemplateHashValue: Latest}}
+          - {name: stage, value: "50"}
+      - {pause: {}}
       - {setWeight: 100}
+      - analysis:
+          templates: [{templateName: account-api-policy}]
+          args:
+          - {name: stable-hash, valueFrom: {podTemplateHashValue: Stable}}
+          - {name: candidate-hash, valueFrom: {podTemplateHashValue: Latest}}
+          - {name: stage, value: "100"}
+      - {pause: {}}
   template:
     metadata:
       labels:
@@ -308,6 +336,11 @@ metadata:
     argocd.argoproj.io/sync-wave: "30"
 spec:
   host: account-api.fresh-account.svc.cluster.local
+  subsets:
+  - name: stable
+    labels: {app.kubernetes.io/name: account-api, rollouts-pod-template-hash: unassigned}
+  - name: canary
+    labels: {app.kubernetes.io/name: account-api, rollouts-pod-template-hash: unassigned}
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
@@ -318,6 +351,37 @@ metadata:
     argocd.argoproj.io/sync-wave: "30"
 spec:
   hosts: [account-api.fresh-account.svc.cluster.local]
+  gateways: [mesh]
   http:
-  - route:
-    - destination: {host: account-api.fresh-account.svc.cluster.local, port: {number: 8080}}
+  - name: primary
+    route:
+    - destination: {host: account-api.fresh-account.svc.cluster.local, subset: stable, port: {number: 8080}}
+      weight: 100
+    - destination: {host: account-api.fresh-account.svc.cluster.local, subset: canary, port: {number: 8080}}
+      weight: 0
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: account-api-policy
+  namespace: fresh-account
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+spec:
+  args:
+  - {name: stable-hash}
+  - {name: candidate-hash}
+  - {name: stage}
+  metrics:
+  - name: account-policy
+    initialDelay: 300s
+    count: 1
+    failureLimit: 0
+    inconclusiveLimit: 0
+    consecutiveErrorLimit: 0
+    provider:
+      plugin:
+        learning-local/account-policy:
+          stableHash: "{{args.stable-hash}}"
+          candidateHash: "{{args.candidate-hash}}"
+          stage: "{{args.stage}}"
