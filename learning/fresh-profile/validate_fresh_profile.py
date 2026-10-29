@@ -81,7 +81,9 @@ def validate_release_chart(release_path=RELEASE):
     values = yaml.safe_load((root / "values.yaml").read_text(encoding="utf-8"))
     template = (root / "templates" / "application.yaml").read_text(encoding="utf-8")
     require(chart.get("name") == "fresh-account-release-definition", "release-chart-name")
-    require(values == {"workloadRevision": "", "accountRuntimeImage": ""}, "release-values")
+    require(set(values) == {"workloadRevision", "accountRuntimeImage", "promotionMode", "syncMode", "workloadVariant"} and
+            values["workloadRevision"] == "" and values["accountRuntimeImage"] == "" and
+            values["promotionMode"] in {"manual", "auto"} and values["syncMode"] == "automated" and values["workloadVariant"] == "fresh", "release-values")
     require("__APPLICATION_MANIFEST_SHA__" not in template, "release-self-token")
     for fragment in (
         'required "workloadRevision is required"',
@@ -114,6 +116,7 @@ def validate(contract_path=CONTRACT, workload_path=WORKLOAD, release_path=RELEAS
         "StatefulSet/fresh-account/account-postgresql",
         "Job/fresh-account/account-db-role-bootstrap",
         "Job/fresh-account/account-migration",
+        "AnalysisTemplate/fresh-account/account-api-policy",
         "Rollout/fresh-account/account-api",
         "Service/fresh-account/account-api",
         "DestinationRule/fresh-account/account-api",

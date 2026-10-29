@@ -1,3 +1,12 @@
+{{- if not (has .Values.workloadVariant (list "fresh" "existing-upgrade")) -}}
+{{- fail "workloadVariant must be fresh or existing-upgrade" -}}
+{{- end -}}
+{{- if not (has .Values.syncMode (list "automated" "paused")) -}}
+{{- fail "syncMode must be automated or paused" -}}
+{{- end -}}
+{{- if not (has .Values.promotionMode (list "manual" "auto")) -}}
+{{- fail "promotionMode must be manual or auto" -}}
+{{- end -}}
 {{- $revision := required "workloadRevision is required" .Values.workloadRevision -}}
 {{- if not (regexMatch "^[0-9a-f]{40}$" $revision) -}}
 {{- fail "workloadRevision must be a 40-character lowercase Git SHA" -}}
@@ -19,14 +28,36 @@ spec:
   source:
     repoURL: https://github.com/syuhei0519/application-manifest.git
     targetRevision: {{ $revision | quote }}
-    path: learning/fresh-profile/workload
+    path: learning/fresh-profile/workload{{ if eq .Values.workloadVariant "existing-upgrade" }}-existing{{ end }}{{ if eq .Values.promotionMode "auto" }}-auto{{ end }}
     kustomize:
       images:
       - {{ printf "ghcr.io/syuhei0519/backend-app=%s" $runtimeImage | quote }}
+  ignoreDifferences:
+  - group: networking.istio.io
+    kind: VirtualService
+    name: account-api
+    namespace: fresh-account
+    jsonPointers:
+    - /spec/http/0/route/0/weight
+    - /spec/http/0/route/1/weight
+  - group: networking.istio.io
+    kind: DestinationRule
+    name: account-api
+    namespace: fresh-account
+    jsonPointers:
+    - /spec/subsets/0/labels/rollouts-pod-template-hash
+    - /spec/subsets/1/labels/rollouts-pod-template-hash
   syncPolicy:
+    {{- if eq .Values.syncMode "automated" }}
     automated:
       prune: false
       selfHeal: true
+    {{- end }}
     syncOptions:
+    - Prune=false
+    {{- if eq .Values.workloadVariant "existing-upgrade" }}
+    - ApplyOutOfSyncOnly=true
+    {{- end }}
     - CreateNamespace=false
+    - RespectIgnoreDifferences=true
 

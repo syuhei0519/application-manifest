@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../workload-existing
+patches:
+- target:
+    group: argoproj.io
+    version: v1alpha1
+    kind: Rollout
+    name: account-api
+    namespace: fresh-account
+  patch: |-
+    - op: remove
+      path: /spec/strategy/canary/steps/8
+    - op: remove
+      path: /spec/strategy/canary/steps/5
+    - op: remove
+      path: /spec/strategy/canary/steps/2

@@ -30,8 +30,11 @@ import (
 )
 
 const pluginName = "learning-local/account-policy"
-const namespace = "learning-account-release"
-const prometheus = "http://learning-prometheus.observability.svc.cluster.local:9090"
+
+var namespace = "learning-account-release"
+var prometheus = "http://learning-prometheus.observability.svc.cluster.local:9090"
+var freshProfile bool
+
 const window = 300
 
 //go:embed queries.json
@@ -147,6 +150,9 @@ func (p *Provider) Run(run *argo.AnalysisRun, metric argo.Metric) argo.Measureme
 	dec.DisallowUnknownFields()
 	if dec.Decode(&c) != nil || dec.Decode(new(any)) != io.EOF || !hashPattern.MatchString(c.Stable) || !hashPattern.MatchString(c.Candidate) || c.Stable == c.Candidate || (c.Stage != "10" && c.Stage != "50" && c.Stage != "100") {
 		return finish("revision-scope-invalid")
+	}
+	if freshProfile {
+		return p.runFresh(run, c, now, m, v, finish)
 	}
 	before, err := p.scope(run, c)
 	roles := before.Roles
@@ -332,6 +338,14 @@ func runtimeScope(run *argo.AnalysisRun, c config) (snapshot, error) {
 }
 
 func main() {
+	if os.Getenv("ACCOUNT_POLICY_PROFILE") == "fresh-account" {
+		freshProfile = true
+		namespace = "fresh-account"
+		prometheus = "http://prometheus.fresh-observability.svc.cluster.local:9090"
+		serviceHost = "account-api.fresh-account.svc.cluster.local"
+	} else if os.Getenv("ACCOUNT_POLICY_PROFILE") != "" {
+		os.Exit(1)
+	}
 	// Rollouts v1.10.1 does not verify sha256 for file:// plugins. Enforce
 	// the reviewed deployment checksum ourselves before opening the RPC server.
 	executable, err := os.Executable()

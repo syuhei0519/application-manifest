@@ -20,7 +20,20 @@ import (
 
 var sourcePattern = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
-const serviceHost = "account-release.learning-account-release.svc.cluster.local"
+var serviceHost = "account-release.learning-account-release.svc.cluster.local"
+
+func targetName() string {
+	if freshProfile {
+		return "account-api"
+	}
+	return "account-release"
+}
+func selectorQuery() string {
+	if freshProfile {
+		return "app.kubernetes.io%2Fname%3Daccount-api"
+	}
+	return "app%3Daccount-release"
+}
 
 type virtualService struct {
 	metav1.ObjectMeta `json:"metadata"`
@@ -57,10 +70,10 @@ func readScope(client *http.Client, base, token string, run *argo.AnalysisRun, c
 	read := func(path string, obj any) error { return readJSON(client, base+path, token, obj) }
 	nsPath := "/namespaces/" + namespace
 	var ro argo.Rollout
-	if read("/apis/argoproj.io/v1alpha1"+nsPath+"/rollouts/account-release", &ro) != nil {
+	if read("/apis/argoproj.io/v1alpha1"+nsPath+"/rollouts/"+targetName(), &ro) != nil {
 		return fail("rollout-unavailable")
 	}
-	if ro.Name != "account-release" || ro.Namespace != namespace || ro.UID == "" || ro.DeletionTimestamp != nil || ro.Status.ObservedGeneration != strconv.FormatInt(ro.Generation, 10) || ro.Status.Abort || ro.Status.CurrentPodHash != c.Candidate || ro.Status.StableRS != c.Stable {
+	if ro.Name != targetName() || ro.Namespace != namespace || ro.UID == "" || ro.DeletionTimestamp != nil || ro.Status.ObservedGeneration != strconv.FormatInt(ro.Generation, 10) || ro.Status.Abort || ro.Status.CurrentPodHash != c.Candidate || ro.Status.StableRS != c.Stable {
 		return fail("release-changed")
 	}
 	owned := false
@@ -93,7 +106,7 @@ func readScope(client *http.Client, base, token string, run *argo.AnalysisRun, c
 	}
 	var vs virtualService
 	var dr destinationRule
-	if read("/apis/networking.istio.io/v1"+nsPath+"/virtualservices/account-release", &vs) != nil || read("/apis/networking.istio.io/v1"+nsPath+"/destinationrules/account-release", &dr) != nil {
+	if read("/apis/networking.istio.io/v1"+nsPath+"/virtualservices/"+targetName(), &vs) != nil || read("/apis/networking.istio.io/v1"+nsPath+"/destinationrules/"+targetName(), &dr) != nil {
 		return fail("routing-unavailable")
 	}
 	if vs.UID == "" || dr.UID == "" || vs.Name != ro.Name || dr.Name != ro.Name || vs.Namespace != namespace || dr.Namespace != namespace || len(vs.Spec.Hosts) != 1 || vs.Spec.Hosts[0] != serviceHost || len(vs.Spec.Gateways) != 1 || vs.Spec.Gateways[0] != "mesh" || len(vs.Spec.HTTP) != 1 || vs.Spec.HTTP[0].Name != "primary" || len(vs.Spec.HTTP[0].Route) != 2 {
@@ -117,7 +130,11 @@ func readScope(client *http.Client, base, token string, run *argo.AnalysisRun, c
 	}
 	hashes := map[string]string{}
 	for _, subset := range dr.Spec.Subsets {
-		if len(subset.Labels) != 2 || subset.Labels["app"] != "account-release" {
+		selectorKey, selectorValue := "app", "account-release"
+		if freshProfile {
+			selectorKey, selectorValue = "app.kubernetes.io/name", "account-api"
+		}
+		if len(subset.Labels) != 2 || subset.Labels[selectorKey] != selectorValue {
 			return fail("subset-selector-invalid")
 		}
 		if _, duplicate := hashes[subset.Name]; duplicate {
@@ -130,7 +147,7 @@ func readScope(client *http.Client, base, token string, run *argo.AnalysisRun, c
 	}
 	var pods core.PodList
 	var sets apps.ReplicaSetList
-	if read("/api/v1"+nsPath+"/pods?labelSelector=app%3Daccount-release", &pods) != nil || read("/apis/apps/v1"+nsPath+"/replicasets?labelSelector=app%3Daccount-release", &sets) != nil {
+	if read("/api/v1"+nsPath+"/pods?labelSelector="+selectorQuery(), &pods) != nil || read("/apis/apps/v1"+nsPath+"/replicasets?labelSelector="+selectorQuery(), &sets) != nil {
 		return fail("pods-unavailable")
 	}
 	roles := map[string]role{}
@@ -207,10 +224,14 @@ func readScope(client *http.Client, base, token string, run *argo.AnalysisRun, c
 		}
 		source := pod.Annotations["learning.local/source-commit"]
 		template := templates[owner]
-		if !matchesTemplate(image, source, template) || (name == "candidate" && !matchesTemplate(image, source, ro.Spec.Template)) {
+		matches := matchesTemplate(image, source, template) && (name != "candidate" || matchesTemplate(image, source, ro.Spec.Template))
+		if freshProfile {
+			matches = matchesFreshTemplate(image, template) && (name != "candidate" || matchesFreshTemplate(image, ro.Spec.Template))
+		}
+		if !matches {
 			return fail("pod-desired-template-mismatch")
 		}
-		if !imagePattern.MatchString(image) || api == nil || !api.Ready || api.State.Running == nil || strings.TrimPrefix(api.ImageID, "docker-pullable://") != image || !sourcePattern.MatchString(source) || pod.Annotations["learning.local/image"] != image {
+		if !imagePattern.MatchString(image) || api == nil || !api.Ready || api.State.Running == nil || strings.TrimPrefix(api.ImageID, "docker-pullable://") != image || (!freshProfile && (!sourcePattern.MatchString(source) || pod.Annotations["learning.local/image"] != image)) {
 			return fail("pod-image-unverified")
 		}
 		hash := pod.Labels["rollouts-pod-template-hash"]
@@ -310,4 +331,17 @@ func verifyCoverage(roles map[string]role, at time.Time, read func(string, time.
 		}
 	}
 	return nil
+}
+
+func matchesFreshTemplate(image string, template core.PodTemplateSpec) bool {
+	count := 0
+	for _, c := range template.Spec.Containers {
+		if c.Name == "api" {
+			count++
+			if c.Image != image {
+				return false
+			}
+		}
+	}
+	return count == 1
 }

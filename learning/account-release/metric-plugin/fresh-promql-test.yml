@@ -1,0 +1,47 @@
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: 'target_info{exported_job="account-backend",exported_instance="candidate",k8s_namespace_name="fresh-account",k8s_pod_uid="01234567-89ab-cdef-0123-456789abcdef"}'
+    values: '1+0x5'
+  - series: 'target_info{exported_job="account-backend",exported_instance="stable",k8s_namespace_name="fresh-account",k8s_pod_uid="12345678-9abc-def0-1234-56789abcdef0"}'
+    values: '1+0x5'
+  - series: 'pe_http_server_requests_total{exported_job="account-backend",exported_instance="candidate",status_class="2xx"}'
+    values: '0+10x5'
+  - series: 'pe_http_server_requests_total{exported_job="account-backend",exported_instance="stable",status_class="2xx"}'
+    values: '0+100x5'
+  - series: 'pe_http_server_requests_total{exported_job="account-backend",exported_instance="candidate",method="GET",route="/broken",status_class="5xx"}'
+    values: '0+10x5'
+  - series: 'pe_http_server_request_duration_seconds_count{exported_job="account-backend",exported_instance="candidate",status_class="2xx"}'
+    values: '0+10x5'
+  promql_expr_test:
+  - expr: 'sum(increase(pe_http_server_requests_total{exported_job="account-backend"}[5m]) * on(exported_job,exported_instance) group_left(k8s_pod_uid) target_info{exported_job="account-backend",k8s_namespace_name="fresh-account",k8s_pod_uid=~"01234567-89ab-cdef-0123-456789abcdef"})'
+    eval_time: 5m
+    exp_samples:
+    - labels: '{}'
+      value: 100
+  - expr: 'count(((pe_http_server_requests_total{exported_job="account-backend"} unless on(exported_job,exported_instance,method,route,status_class) pe_http_server_request_duration_seconds_count{exported_job="account-backend"}) or (pe_http_server_request_duration_seconds_count{exported_job="account-backend"} unless on(exported_job,exported_instance,method,route,status_class) pe_http_server_requests_total{exported_job="account-backend"})) * on(exported_job,exported_instance) group_left(k8s_pod_uid) target_info{exported_job="account-backend",k8s_namespace_name="fresh-account",k8s_pod_uid="01234567-89ab-cdef-0123-456789abcdef"}) or vector(0)'
+    eval_time: 5m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: 'sum(increase(pe_http_server_requests_total{exported_job="account-backend",status_class=~"2xx|3xx"}[5m]) * on(exported_job,exported_instance) group_left(k8s_pod_uid) target_info{exported_job="account-backend",k8s_namespace_name="fresh-account",k8s_pod_uid="01234567-89ab-cdef-0123-456789abcdef"}) / sum(increase(pe_http_server_requests_total{exported_job="account-backend"}[5m]) * on(exported_job,exported_instance) group_left(k8s_pod_uid) target_info{exported_job="account-backend",k8s_namespace_name="fresh-account",k8s_pod_uid="01234567-89ab-cdef-0123-456789abcdef"})'
+    eval_time: 5m
+    exp_samples:
+    - labels: '{}'
+      value: 0.5
+  - expr: 'count(target_info{exported_job="account-backend",k8s_namespace_name="fresh-account",k8s_pod_uid="missing"})'
+    eval_time: 5m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: 'target_info{exported_job="account-backend",exported_instance="shared",k8s_namespace_name="fresh-account",k8s_pod_uid="01234567-89ab-cdef-0123-456789abcdef"}'
+    values: '1+0x5'
+  - series: 'target_info{exported_job="account-backend",exported_instance="shared",k8s_namespace_name="fresh-account",k8s_pod_uid="12345678-9abc-def0-1234-56789abcdef0"}'
+    values: '1+0x5'
+  promql_expr_test:
+  - expr: 'max(count by(exported_job,exported_instance)(target_info{exported_job="account-backend",exported_instance!=""}) * on(exported_job,exported_instance) group_right() target_info{exported_job="account-backend",exported_instance!="",k8s_namespace_name="fresh-account",k8s_pod_uid=~"01234567-89ab-cdef-0123-456789abcdef"})'
+    eval_time: 5m
+    exp_samples:
+    - labels: '{}'
+      value: 2
