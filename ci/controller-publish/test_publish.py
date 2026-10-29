@@ -1,4 +1,3 @@
-import base64
 import importlib.util
 import io
 import json
@@ -19,14 +18,8 @@ p=load('publish');v=load('verify_oci')
 def result(code=0,out='',err=''):
     return subprocess.CompletedProcess([],code,out,err)
 
-def jwt(actions, name='syuhei0519/argo-rollouts-account-policy'):
-    data=json.dumps({'access':[{'type':'repository','name':name,'actions':actions}]}).encode()
-    return 'e30.'+base64.urlsafe_b64encode(data).decode().rstrip('=')+'.sig'
-
 class RegistryContract(unittest.TestCase):
-    def test_scope_and_tag_decisions(self):
-        self.assertTrue(p.has_scope(jwt(['pull','push'])))
-        for token in ('opaque',jwt(['pull']),jwt(['pull','push'],'other')): self.assertFalse(p.has_scope(token))
+    def test_tag_decisions(self):
         self.assertEqual(p.state(result(out=p.MANIFEST)), 'same')
         self.assertEqual(p.state(result(1,err='MANIFEST_UNKNOWN')), 'absent')
         for r in (result(out='sha256:'+'0'*64),result(1,err='DENIED'),result(1,err='MANIFEST_UNKNOWN unauthorized'),result(1,err='timeout')):
@@ -34,7 +27,7 @@ class RegistryContract(unittest.TestCase):
 
     def simulate(self, digests, push_rc=0, login_rc=0, token_rc=0, token_out=None):
         calls=[]; queue=list(digests)
-        if token_out is None: token_out=jwt(['pull','push'])
+        if token_out is None: token_out=json.dumps({'token':'opaque-registry-token'})
         def fake(args,secret=None):
             calls.append(args)
             if args[:2]==['auth','login']: return result(login_rc)
@@ -55,6 +48,10 @@ class RegistryContract(unittest.TestCase):
         calls,error=self.simulate([result(1,err='MANIFEST_UNKNOWN'),result(1,err='MANIFEST_UNKNOWN')])
         self.assertIsNone(error);self.assertEqual(sum(c[0]=='push' for c in calls),1)
 
+    def test_opaque_token_is_not_parsed_by_client(self):
+        calls,error=self.simulate([result(1,err='MANIFEST_UNKNOWN'),result(1,err='MANIFEST_UNKNOWN')],token_out=json.dumps({'token':'not-a-jwt'}))
+        self.assertIsNone(error);self.assertEqual(sum(c[0]=='push' for c in calls),1)
+
     def test_existing_same_no_write(self):
         calls,error=self.simulate([result(out=p.MANIFEST)])
         self.assertIsNone(error);self.assertFalse(any(c[0]=='push' for c in calls))
@@ -71,7 +68,6 @@ class RegistryContract(unittest.TestCase):
         cases=(
             ({'login_rc':1},('authentication','rejected')),
             ({'token_rc':1},('authorization','token-request-rejected')),
-            ({'token_out':'opaque'},('authorization','scope-insufficient-or-unparseable')),
         )
         for options,want in cases:
             with self.subTest(want=want):

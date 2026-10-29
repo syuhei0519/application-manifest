@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Publish one approved artifact, or fail closed; never retry a write."""
-import base64
 import hashlib
 import json
 import os
@@ -27,14 +26,6 @@ def checked(args):
     p=crane(args)
     if p.returncode: raise ValueError('registry operation rejected or uncertain')
     return p.stdout.strip()
-
-def has_scope(token):
-    try:
-        part=token.split('.')[1]; part+='='*(-len(part)%4)
-        claims=json.loads(base64.urlsafe_b64decode(part))
-        return any(a.get('type')=='repository' and a.get('name')=='syuhei0519/argo-rollouts-account-policy'
-                   and {'pull','push'}.issubset(set(a.get('actions',[]))) for a in claims.get('access',[]))
-    except (ValueError,IndexError,TypeError,KeyError): return False
 
 def state(result):
     if result.returncode==0:
@@ -65,9 +56,11 @@ def verify_rootfs(path):
 def publish(layout, exported):
     login=crane(['auth','login','ghcr.io','-u',os.environ['GITHUB_ACTOR'],'--password-stdin'],os.environ['GITHUB_TOKEN'])
     if login.returncode: raise PublicationError('authentication','rejected')
-    try: token=checked(['auth','token','--push',REPOSITORY])
+    # Distribution bearer tokens are opaque to clients. A successful exchange
+    # establishes only that the push-scope request returned a token, not which
+    # actions were granted. The registry enforces them on the single write.
+    try: checked(['auth','token','--push',REPOSITORY])
     except ValueError: raise PublicationError('authorization','token-request-rejected')
-    if not has_scope(token): raise PublicationError('authorization','scope-insufficient-or-unparseable')
     try: before=state(crane(['digest',REFERENCE]))
     except ValueError: raise PublicationError('preflight','tag-state-unavailable-or-conflicting')
     if before=='absent':
