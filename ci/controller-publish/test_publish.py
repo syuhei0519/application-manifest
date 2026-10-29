@@ -32,12 +32,13 @@ class RegistryContract(unittest.TestCase):
         for r in (result(out='sha256:'+'0'*64),result(1,err='DENIED'),result(1,err='MANIFEST_UNKNOWN unauthorized'),result(1,err='timeout')):
             with self.assertRaises(ValueError): p.state(r)
 
-    def simulate(self, digests, push_rc=0):
+    def simulate(self, digests, push_rc=0, login_rc=0, token_rc=0, token_out=None):
         calls=[]; queue=list(digests)
+        if token_out is None: token_out=jwt(['pull','push'])
         def fake(args,secret=None):
             calls.append(args)
-            if args[:2]==['auth','login']: return result()
-            if args[:2]==['auth','token']: return result(out=jwt(['pull','push']))
+            if args[:2]==['auth','login']: return result(login_rc)
+            if args[:2]==['auth','token']: return result(token_rc,out=token_out)
             if args[0]=='digest': return queue.pop(0)
             if args[0]=='push': return result(push_rc)
             if args[0]=='export': return result()
@@ -64,7 +65,19 @@ class RegistryContract(unittest.TestCase):
 
     def test_failed_write_is_not_retried(self):
         calls,error=self.simulate([result(1,err='MANIFEST_UNKNOWN'),result(1,err='MANIFEST_UNKNOWN')],push_rc=1)
-        self.assertIsNotNone(error);self.assertEqual(sum(c[0]=='push' for c in calls),1)
+        self.assertEqual((error.phase,error.status),('write','failed-or-uncertain'));self.assertEqual(sum(c[0]=='push' for c in calls),1)
+
+    def test_safe_failure_phase_and_status(self):
+        cases=(
+            ({'login_rc':1},('authentication','rejected')),
+            ({'token_rc':1},('authorization','token-request-rejected')),
+            ({'token_out':'opaque'},('authorization','scope-insufficient-or-unparseable')),
+        )
+        for options,want in cases:
+            with self.subTest(want=want):
+                calls,error=self.simulate([],**options)
+                self.assertEqual((error.phase,error.status),want)
+                self.assertFalse(any(c[0]=='push' for c in calls))
 
 class ArchiveContract(unittest.TestCase):
     def test_changed_archive_rejected(self):

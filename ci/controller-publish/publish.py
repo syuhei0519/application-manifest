@@ -15,6 +15,11 @@ MANIFEST='sha256:3db562b99a4b200285eaf756a03dc8d90c5d00c7579e2802ab6fccb50d65cde
 CONFIG='sha256:08dd8a1ea8d94fde98319f3d3e40bb3ed4a3565b2724b8e08a150e09662e448e'
 BINARY='02cdb9d92d5570c1fbb9cdebf4b354222c05be053ebbf7b84b80b443d68beacb'
 
+class PublicationError(ValueError):
+    def __init__(self, phase, status):
+        self.phase=phase; self.status=status
+        super().__init__(status)
+
 def crane(args, secret=None):
     return subprocess.run(['crane',*args],input=secret,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False)
 
@@ -59,20 +64,30 @@ def verify_rootfs(path):
 
 def publish(layout, exported):
     login=crane(['auth','login','ghcr.io','-u',os.environ['GITHUB_ACTOR'],'--password-stdin'],os.environ['GITHUB_TOKEN'])
-    if login.returncode: raise ValueError('registry authentication rejected')
-    token=checked(['auth','token','--push',REPOSITORY])
-    if not has_scope(token): raise ValueError('registry scope unknown or insufficient')
-    before=state(crane(['digest',REFERENCE]))
+    if login.returncode: raise PublicationError('authentication','rejected')
+    try: token=checked(['auth','token','--push',REPOSITORY])
+    except ValueError: raise PublicationError('authorization','token-request-rejected')
+    if not has_scope(token): raise PublicationError('authorization','scope-insufficient-or-unparseable')
+    try: before=state(crane(['digest',REFERENCE]))
+    except ValueError: raise PublicationError('preflight','tag-state-unavailable-or-conflicting')
     if before=='absent':
         # Single operator and workflow concurrency are assumed; this is not atomic tag creation.
-        if state(crane(['digest',REFERENCE]))!='absent': raise ValueError('tag changed')
+        try: unchanged=state(crane(['digest',REFERENCE]))=='absent'
+        except ValueError: raise PublicationError('pre-write','tag-state-unavailable-or-conflicting')
+        if not unchanged: raise PublicationError('pre-write','tag-changed')
         write=subprocess.run(['account-controller-push',str(layout)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False)
-        if write.returncode: raise ValueError('registry write failed or uncertain')
-    verify_remote()
-    checked(['export',REFERENCE,str(exported)])
-    verify_rootfs(exported)
+        if write.returncode: raise PublicationError('write','failed-or-uncertain')
+    try:
+        verify_remote()
+        checked(['export',REFERENCE,str(exported)])
+        verify_rootfs(exported)
+    except (ValueError,json.JSONDecodeError,tarfile.TarError):
+        raise PublicationError('remote-verification','failed')
     print(json.dumps({'reference':REFERENCE,'manifest':MANIFEST,'config':CONFIG,'binary':BINARY,'action':'verified-existing' if before=='same' else 'published'}))
 
 if __name__ == '__main__':
     try: publish(pathlib.Path(sys.argv[1]),pathlib.Path(sys.argv[2]))
-    except Exception: raise SystemExit('publication stopped; registry state requires inspection')
+    except PublicationError as exc:
+        raise SystemExit(f'publication stopped; phase={exc.phase}; status={exc.status}; registry state requires inspection')
+    except Exception:
+        raise SystemExit('publication stopped; phase=internal; status=unexpected; registry state requires inspection')
