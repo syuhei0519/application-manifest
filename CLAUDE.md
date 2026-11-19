@@ -15,17 +15,24 @@
 Argo CD の Application は platform-gitops が持つ。この repo では変えない。
 
 ## コマンド
-今の CI（`.github/workflows/ci.yml` の validate）が流しているものから、ローカルで足りるもの。
+今の CI（`.github/workflows/ci.yml` の validate）が流しているものから、ローカルで足りるもの。ホストに helm が要る。
 
 ```text
 python3 -I ci/reference_graph_test.py
 python3 -I ci/values_contract_test.py
-sh ci/validate.sh
+python3 -I ci/trusted_render_test.py -v
+python3 -I ci/github/release_test.py
 python3 -m unittest discover -s learning/account-release -p 'test_contract.py' -v
 ```
 
-`ci/values_contract_test.py` は CI では `HELM_BIN=ci/helm-container.sh` を付ける（docker が要る）。
-docker が要るもの（`bash ci/github/test.sh`、`bash ci/github/source-scan.sh`、`ci/helm-container.sh`）は CI か人が実行する。
+`ci/values_contract_test.py` は CI では `HELM_BIN=ci/helm-container.sh` を付ける（docker が要る）。ローカルでは付けず、ホストの helm を使う。
+
+次は CI か人が実行する。
+- `sh ci/validate.sh`: 34 行目で `.build/inventory` を使う。これは `ci/github/test.sh` の go build で作られ、ホストに helm も要る。
+- `bash ci/github/test.sh`、`bash ci/github/source-scan.sh`、`ci/helm-container.sh`: docker が要る。
+- `ci/namespace_boundary_test.py`: `unshare --net` を使う。CI では SYS_ADMIN の docker の中で動かす。
+- `ci/order_inventory_test.py`: `.rendered` と `.build/order-inventory` が要り、どちらも docker で作る。
+
 learning/account-release のほかの unittest は CI の validate の手順に従う（venv が要る）。
 
 ## 変更の流れ

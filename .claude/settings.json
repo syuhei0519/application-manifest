@@ -3,9 +3,7 @@
     "allow": [
       "Bash(python3 -I ci/reference_graph_test.py)",
       "Bash(python3 -I ci/values_contract_test.py)",
-      "Bash(python3 -I ci/namespace_boundary_test.py)",
-      "Bash(python3 -I ci/order_inventory_test.py)",
-      "Bash(python3 -I ci/trusted_render_test.py)",
+      "Bash(python3 -I ci/trusted_render_test.py -v)",
       "Bash(python3 -I ci/github/release_test.py)",
       "Bash(helm lint:*)", "Bash(helm template:*)",
       "Bash(git status)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git switch:*)",
@@ -31,7 +29,6 @@
     "autoAllowBashIfSandboxed": false,
     "allowUnsandboxedCommands": false,
     "excludedCommands": [
-      "docker *", "kind *",
       "git push *",
       "gh pr create *", "gh pr view *", "gh pr list *", "gh pr checks *",
       "gh run view *", "gh run list *"
@@ -40,15 +37,12 @@
       "denyRead": [
         "~/.lab", "~/.ssh", "~/.kube", "~/.docker/config.json",
         "~/.config/op", "~/.config/gh", "~/**/.env"
-      ],
-      "allowRead": ["~/.kube/platform-lab.yaml"],
-      "allowWrite": ["~/.kube/cache"]
+      ]
     },
     "network": {
       "allowedDomains": [
         "github.com", "api.github.com", "*.githubusercontent.com", "*.github.io",
-        "*.atlassian.net", "ghcr.io", "registry.k8s.io", "quay.io",
-        "docker.io", "*.docker.io"
+        "*.atlassian.net"
       ]
     }
   },
