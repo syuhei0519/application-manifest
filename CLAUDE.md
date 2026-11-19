@@ -25,10 +25,10 @@ python3 -I ci/github/release_test.py
 python3 -m unittest discover -s learning/account-release -p 'test_contract.py' -v
 ```
 
-`ci/values_contract_test.py` は CI では `HELM_BIN=ci/helm-container.sh` を付ける（docker が要る）。ローカルでは付けず、ホストの helm を使う。
+`ci/values_contract_test.py` は CI では `HELM_BIN=ci/helm-container.sh` を付ける（docker が要る）。ローカルでは付けず、ホストの helm を使う。CI は helm 4.2.4（`ci/helm-container.sh`）を使う。ローカルの結果と違ったら CI を正とする。
 
 次は CI か人が実行する。
-- `sh ci/validate.sh`: 34 行目で `.build/inventory` を使う。これは `ci/github/test.sh` の go build で作られ、ホストに helm も要る。
+- `sh ci/validate.sh`: 途中で `.build/inventory` を実行する。これは `ci/github/test.sh` の go build で作られ、ホストに helm も要る。
 - `bash ci/github/test.sh`、`bash ci/github/source-scan.sh`、`ci/helm-container.sh`: docker が要る。
 - `ci/namespace_boundary_test.py`: `unshare --net` を使う。CI では SYS_ADMIN の docker の中で動かす。
 - `ci/order_inventory_test.py`: `.rendered` と `.build/order-inventory` が要り、どちらも docker で作る。

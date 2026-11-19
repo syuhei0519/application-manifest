@@ -5,6 +5,7 @@
       "Bash(python3 -I ci/values_contract_test.py)",
       "Bash(python3 -I ci/trusted_render_test.py -v)",
       "Bash(python3 -I ci/github/release_test.py)",
+      "Bash(python3 -m unittest discover -s learning/account-release -p 'test_contract.py' -v)",
       "Bash(helm lint:*)", "Bash(helm template:*)",
       "Bash(git status)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git switch:*)",
       "Bash(git add:*)", "Bash(git commit:*)",
