@@ -1,0 +1,7 @@
+# Code Owner レビュー必須は 2 人目参加まで有効にしない。それまでは人が目で確認する。
+/.github/ @syuhei0519
+/.claude/ @syuhei0519
+/bootstrap/ @syuhei0519
+/gitops/root/ @syuhei0519
+/scripts/seed-secrets.sh @syuhei0519
+/CODEOWNERS @syuhei0519

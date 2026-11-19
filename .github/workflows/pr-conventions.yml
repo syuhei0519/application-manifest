@@ -1,0 +1,73 @@
+name: PR conventions
+# PR のタイトル・本文・大きさを検査する（PLAT-257）。警告コメント用に pull-requests: write を宣言する（呼び出し側のジョブでも同じ権限を渡す）。
+# タイトル・本文・ブランチ・作者は env 経由でだけ扱う（run に ${{ }} を直書きしない）。
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  pr-conventions:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    env:
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: title has PLAT key
+        run: |
+          case "$PR_HEAD_REF" in chore/bump-*) exit 0 ;; esac
+          [ "$PR_AUTHOR" = "renovate[bot]" ] && exit 0
+          if ! printf '%s' "$PR_TITLE" | grep -Eq '^PLAT-[0-9]+: '; then
+            echo "::error::PR タイトルは「PLAT-番号: 要約」にしてください（現在: $PR_TITLE）"
+            exit 1
+          fi
+      - name: body has required headings
+        run: |
+          case "$PR_HEAD_REF" in chore/bump-*) exit 0 ;; esac
+          [ "$PR_AUTHOR" = "renovate[bot]" ] && exit 0
+          missing=0
+          for h in 何を なぜ どう確かめたか; do
+            if ! printf '%s\n' "$PR_BODY" | grep -Eq "^[[:space:]]*#{1,6}[[:space:]]+${h}[[:space:]]*\$"; then
+              echo "::error::PR 本文に見出し「${h}」がありません"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      # タイトル・見出しの検査が失敗しても大きさの検査は走らせる。取得失敗は警告のみでジョブは成功にする。
+      - name: size warning (additions > 400, lock files excluded)
+        if: always()
+        run: |
+          limit=400
+          marker='<!-- pr-conventions:size -->'
+          if ! files="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '.[] | select(.filename | test("(^|/)(package-lock\\.json|npm-shrinkwrap\\.json|pnpm-lock\\.yaml|go\\.sum)$|\\.lock$") | not) | .additions')"; then
+            echo "::warning::変更ファイル一覧を取得できないため、大きさを検査できませんでした"
+            exit 0
+          fi
+          total="$(printf '%s\n' "$files" | awk '{s+=$1} END {print s+0}')"
+          echo "additions (lock files excluded): ${total}"
+          [ "$total" -gt "$limit" ] || exit 0
+          echo "::warning::追加行が ${total} 行です（目安 ${limit} 行）。PR を分けられないか確認してください"
+          body="${marker}
+          追加行が ${total} 行です（lock ファイルを除く。目安 ${limit} 行）。PR を分けられないか確認してください。"
+          if ! id="$(gh api --paginate "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"${marker}\"))) | .id" | head -n1)"; then
+            echo "::warning::コメント一覧を取得できないため、警告コメントを付けられませんでした"
+            exit 0
+          fi
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${id}" -f body="$body" >/dev/null \
+              || echo "::warning::警告コメントを更新できませんでした（権限不足の可能性）"
+          else
+            gh api -X POST "repos/${REPO}/issues/${PR_NUMBER}/comments" -f body="$body" >/dev/null \
+              || echo "::warning::警告コメントを作成できませんでした（フォーク PR は権限不足）"
+          fi

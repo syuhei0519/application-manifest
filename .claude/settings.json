@@ -1,0 +1,61 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -I ci/reference_graph_test.py)",
+      "Bash(python3 -I ci/values_contract_test.py)",
+      "Bash(python3 -I ci/namespace_boundary_test.py)",
+      "Bash(python3 -I ci/order_inventory_test.py)",
+      "Bash(python3 -I ci/trusted_render_test.py)",
+      "Bash(python3 -I ci/github/release_test.py)",
+      "Bash(helm lint:*)", "Bash(helm template:*)",
+      "Bash(git status)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git switch:*)",
+      "Bash(git add:*)", "Bash(git commit:*)",
+      "Bash(gh pr view:*)", "Bash(gh pr list:*)", "Bash(gh pr checks:*)",
+      "Bash(gh pr create:*)", "Bash(gh run view:*)", "Bash(gh run list:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(helm upgrade:*)", "Bash(helm uninstall:*)"
+    ],
+    "deny": [
+      "Bash(git push origin main:*)", "Bash(git push --force:*)", "Bash(git push -f:*)",
+      "Bash(gh pr merge:*)",
+      "Read(~/.lab/**)", "Read(~/.ssh/**)", "Read(~/.kube/**)",
+      "Read(~/.config/op/**)", "Read(~/.config/gh/**)",
+      "Read(./**/.env)", "Read(./**/*.pem)", "Read(./**/*.key)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "autoAllowBashIfSandboxed": false,
+    "allowUnsandboxedCommands": false,
+    "excludedCommands": [
+      "docker *", "kind *",
+      "git push *",
+      "gh pr create *", "gh pr view *", "gh pr list *", "gh pr checks *",
+      "gh run view *", "gh run list *"
+    ],
+    "filesystem": {
+      "denyRead": [
+        "~/.lab", "~/.ssh", "~/.kube", "~/.docker/config.json",
+        "~/.config/op", "~/.config/gh", "~/**/.env"
+      ],
+      "allowRead": ["~/.kube/platform-lab.yaml"],
+      "allowWrite": ["~/.kube/cache"]
+    },
+    "network": {
+      "allowedDomains": [
+        "github.com", "api.github.com", "*.githubusercontent.com", "*.github.io",
+        "*.atlassian.net", "ghcr.io", "registry.k8s.io", "quay.io",
+        "docker.io", "*.docker.io"
+      ]
+    }
+  },
+  "extraKnownMarketplaces": {
+    "ai-development-system": {
+      "source": {"source": "github", "repo": "syuhei0519/ai-development-system"}
+    }
+  },
+  "enabledPlugins": {"platform-lab@ai-development-system": true}
+}

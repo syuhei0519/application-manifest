@@ -209,9 +209,17 @@ jobs:
           node --test tests/*.test.mjs
           node "$YARN" typecheck
           node "$YARN" build
+  # PR のときだけ、タイトル・本文・大きさを検査する（PLAT-257、ひな形は ai-development-system/templates）。
+  pr-conventions:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/pr-conventions.yml
+
   ci-result:
     if: always()
-    needs: [classify, docs, validate, account-portal]
+    needs: [classify, docs, validate, account-portal, pr-conventions]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -222,7 +230,10 @@ jobs:
           DOCS_RESULT: ${{ needs.docs.result }}
           VALIDATE: ${{ needs.validate.result }}
           PORTAL: ${{ needs.account-portal.result }}
+          PR_CONVENTIONS: ${{ needs.pr-conventions.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          if test "$EVENT_NAME" = pull_request; then test "$PR_CONVENTIONS" = success; fi
           test "$CLASSIFY" = success
           if test "$DOCS" = true; then test "$DOCS_RESULT" = success; else
             test "$VALIDATE" = success
