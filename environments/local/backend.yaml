@@ -7,17 +7,17 @@ telemetry:
   environment: local
 image:
   repository: "ghcr.io/syuhei0519/backend-app"
-  tag: "d29a390c09f8667316569e1bb599bf690b00313d"
-  digest: "sha256:3087ed474d2e5e6fee1518f0d063fedc9ed754e84a5d7d9defa1129ef43b605d"
+  tag: "76273c5201725cd16cdf4500fcccb77c373ebcf7"
+  digest: "sha256:582534e21a4cead27c2bcf094cf871804d3cac013f0f52f8d60fa4f0dba03280"
 # schemaVersion=2は元buildと今回scanを分離する。recordSha256はrecord本文の外側に置く自己参照回避のchecksum。
 # SBOM checksumはファイルbytes、image digestはOCI manifestのhashで、異なる対象の識別子。
 release:
   schemaVersion: "github-v1"
   sourceRepository: "syuhei0519/backend-app"
-  sourceCommit: "d29a390c09f8667316569e1bb599bf690b00313d"
-  runId: "37806373099"
+  sourceCommit: "76273c5201725cd16cdf4500fcccb77c373ebcf7"
+  runId: "39240974812"
   runAttempt: "1"
-  recordUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-d29a390c09f8667316569e1bb599bf690b00313d-37806373099-1/release-record.json"
-  recordSha256: "dbea54fc2a4531790fbec5d47ca44b1ec079176376d294371652b1ba93e25cbd"
-  sbomUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-d29a390c09f8667316569e1bb599bf690b00313d-37806373099-1/sbom.cdx.json"
-  sbomSha256: "95d554e528a8297461160e3835435d4eda7f19c5cb9d83b63a76c71cda60f1af"
+  recordUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-76273c5201725cd16cdf4500fcccb77c373ebcf7-39240974812-1/release-record.json"
+  recordSha256: "fd97978b15997380eddc18fd2b08c8986a7c49ab2274f78fa16259dd2dc5ec78"
+  sbomUrl: "https://github.com/syuhei0519/backend-app/releases/download/gha-76273c5201725cd16cdf4500fcccb77c373ebcf7-39240974812-1/sbom.cdx.json"
+  sbomSha256: "b7e910e4de6e23259a2ca72fc77302a282c94be521f7173a83835a6108f9c7d2"
